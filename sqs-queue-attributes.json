@@ -1,0 +1,6 @@
+
+{
+  "VisibilityTimeout": "300",
+  "MessageRetentionPeriod": "86400",
+  "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:us-east-1:501380833083:vibesift-scan-jobs-dlq-dev\",\"maxReceiveCount\":\"3\"}"
+}

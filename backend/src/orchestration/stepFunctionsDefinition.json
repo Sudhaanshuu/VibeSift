@@ -1,0 +1,274 @@
+{
+  "Comment": "VibeSift Website Audit Orchestration Workflow",
+  "StartAt": "ValidateTargetAndScope",
+  "States": {
+    "ValidateTargetAndScope": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ValidateTargetLambdaArn}",
+        "Payload": {
+          "scanId.$": "$.scanId",
+          "targetUrl.$": "$.targetUrl",
+          "scanProfile.$": "$.scanProfile",
+          "ownerUserId.$": "$.ownerUserId"
+        }
+      },
+      "ResultSelector": {
+        "validation.$": "$.Payload"
+      },
+      "ResultPath": "$.validationResult",
+      "Next": "UpdateStatusRunning",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleScanFailure"
+        }
+      ]
+    },
+    "UpdateStatusRunning": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${ScansTableName}",
+        "Key": {
+          "scanId": { "S.$": "$.scanId" }
+        },
+        "UpdateExpression": "SET #st = :running, updatedAt = :now",
+        "ExpressionAttributeNames": {
+          "#st": "status"
+        },
+        "ExpressionAttributeValues": {
+          ":running": { "S": "RUNNING" },
+          ":now": { "S.$": "$$.State.EnteredTime" }
+        }
+      },
+      "ResultPath": "$.updateStatusResult",
+      "Next": "RunBaselineScanners"
+    },
+    "RunBaselineScanners": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "RunPythonInspectorFargate",
+          "States": {
+            "RunPythonInspectorFargate": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "Cluster": "${EcsClusterArn}",
+                "TaskDefinition": "${PythonInspectorTaskDefArn}",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${ScannerSubnet1}", "${ScannerSubnet2}"],
+                    "SecurityGroups": ["${ScannerSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [
+                    {
+                      "Name": "python-inspector",
+                      "Command": [
+                        "--url", "$.targetUrl",
+                        "--scan-id", "$.scanId",
+                        "--output", "/tmp/python_output.json"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["ECS.AmazonECSException", "States.Timeout"],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.pythonError",
+                  "Next": "PythonInspectorFallback"
+                }
+              ],
+              "End": true
+            },
+            "PythonInspectorFallback": {
+              "Type": "Pass",
+              "Result": { "engine": "custom-python", "status": "failed" },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "RunLighthouseFargate",
+          "States": {
+            "RunLighthouseFargate": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "Cluster": "${EcsClusterArn}",
+                "TaskDefinition": "${LighthouseTaskDefArn}",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${ScannerSubnet1}", "${ScannerSubnet2}"],
+                    "SecurityGroups": ["${ScannerSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                },
+                "Overrides": {
+                  "ContainerOverrides": [
+                    {
+                      "Name": "lighthouse",
+                      "Command": [
+                        "--url", "$.targetUrl",
+                        "--scan-id", "$.scanId",
+                        "--output", "/tmp/lighthouse_output.json"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": ["ECS.AmazonECSException", "States.Timeout"],
+                  "IntervalSeconds": 5,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2.0
+                }
+              ],
+              "Catch": [
+                {
+                  "ErrorEquals": ["States.ALL"],
+                  "ResultPath": "$.lhError",
+                  "Next": "LighthouseFallback"
+                }
+              ],
+              "End": true
+            },
+            "LighthouseFallback": {
+              "Type": "Pass",
+              "Result": { "engine": "lighthouse", "status": "failed" },
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.baselineResults",
+      "Next": "CheckScanProfile"
+    },
+    "CheckScanProfile": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.scanProfile",
+          "StringEquals": "authorized_deep",
+          "Next": "RunAuthorizedDeepScanners"
+        }
+      ],
+      "Default": "AggregateAndNormalize"
+    },
+    "RunAuthorizedDeepScanners": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "RunZapFargate",
+          "States": {
+            "RunZapFargate": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "Cluster": "${EcsClusterArn}",
+                "TaskDefinition": "${ZapTaskDefArn}",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${ScannerSubnet1}", "${ScannerSubnet2}"],
+                    "SecurityGroups": ["${ScannerSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "RunNucleiFargate",
+          "States": {
+            "RunNucleiFargate": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::ecs:runTask.sync",
+              "Parameters": {
+                "Cluster": "${EcsClusterArn}",
+                "TaskDefinition": "${NucleiTaskDefArn}",
+                "LaunchType": "FARGATE",
+                "NetworkConfiguration": {
+                  "AwsvpcConfiguration": {
+                    "Subnets": ["${ScannerSubnet1}", "${ScannerSubnet2}"],
+                    "SecurityGroups": ["${ScannerSecurityGroupId}"],
+                    "AssignPublicIp": "ENABLED"
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.deepResults",
+      "Next": "AggregateAndNormalize"
+    },
+    "AggregateAndNormalize": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${NormalizerLambdaArn}",
+        "Payload": {
+          "scanId.$": "$.scanId",
+          "ownerUserId.$": "$.ownerUserId",
+          "targetUrl.$": "$.targetUrl",
+          "scanProfile.$": "$.scanProfile"
+        }
+      },
+      "ResultSelector": {
+        "report.$": "$.Payload"
+      },
+      "ResultPath": "$.normalizerResult",
+      "Next": "ScanCompleted"
+    },
+    "ScanCompleted": {
+      "Type": "Succeed"
+    },
+    "HandleScanFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::dynamodb:updateItem",
+      "Parameters": {
+        "TableName": "${ScansTableName}",
+        "Key": {
+          "scanId": { "S.$": "$.scanId" }
+        },
+        "UpdateExpression": "SET #st = :failed, errorMessage = :msg, updatedAt = :now",
+        "ExpressionAttributeNames": {
+          "#st": "status"
+        },
+        "ExpressionAttributeValues": {
+          ":failed": { "S": "FAILED" },
+          ":msg": { "S.$": "$.error.Cause" },
+          ":now": { "S.$": "$$.State.EnteredTime" }
+        }
+      },
+      "Next": "ScanFailed"
+    },
+    "ScanFailed": {
+      "Type": "Fail",
+      "Cause": "Scan workflow encountered an unrecoverable failure",
+      "Error": "SCAN_FAILED"
+    }
+  }
+}

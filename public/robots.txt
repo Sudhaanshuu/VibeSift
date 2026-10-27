@@ -1,0 +1,51 @@
+# ==========================================
+# VibeSift by Pixir — robots.txt
+# Website: https://vibesift.pixir.in
+# Contact: security@pixir.in / audit@pixir.in
+# ==========================================
+
+User-agent: *
+# Allow public promotional, documentation, and compliance pages
+Allow: /
+Allow: /methodology
+Allow: /sample-reports
+Allow: /remediation
+Allow: /privacy
+Allow: /security
+Allow: /cookies
+Allow: /sitemap.xml
+Allow: /.well-known/security.txt
+Allow: /security.txt
+Allow: /shield-check.svg
+
+# Disallow private user workspaces, scanning engines, and API endpoints
+Disallow: /app/
+Disallow: /dashboard/
+Disallow: /settings/
+Disallow: /scans/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /*?*token=
+Disallow: /*?*key=
+
+# AI Crawlers & Scrapers (Permitted for public knowledge base)
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /app/
+Disallow: /dashboard/
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /api/
+Disallow: /app/
+
+# Host & Sitemap Directives
+Host: vibesift.pixir.in
+Sitemap: https://vibesift.pixir.in/sitemap.xml

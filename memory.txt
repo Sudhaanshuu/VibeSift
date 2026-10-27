@@ -1,0 +1,462 @@
+PROJECT MEMORY / HANDOFF FILE
+=============================
+
+Purpose of this file
+--------------------
+This file preserves the project context from a discussion about building an AWS-hosted website audit SaaS for websites created with AI coding tools, vibe coding, AI website builders, or conventional development workflows. It is intended to be reusable as context in Google Antigravity or another AI development environment.
+
+Working project name
+--------------------
+Temporary name used in earlier prompts: SiteReady Audit. This is only a placeholder and is NOT a cleared brand or domain.
+
+Name recommendation from this discussion: AuditSprout (working suggestion only; trademark/domain availability has not been verified). Suggested descriptor/tagline: "Website SEO, Performance & Security Audit" or "Find issues before you launch." Search indexing should be driven by descriptive page titles, page copy, headings, and topical content, not just the brand name. Avoid names already surfacing in the same category, including LaunchCheck, LaunchProof, VibeGuard, VibeAudit, SiteProof, Shipcheck/ShipCheck, LaunchLint, SafeToShip, SiteSentry, and LaunchLens. This is only a quick web-search collision check, not legal/trademark clearance or domain availability verification.
+
+1. CORE IDEA AND PRODUCT GOAL
+-----------------------------
+Build a SaaS where a user submits a website URL and receives an evidence-backed report explaining important website quality, SEO, performance, accessibility, configuration, and security issues.
+
+Primary target audience:
+- People launching sites built through AI coding / vibe-coding tools and builders.
+- Indie developers, early-stage founders, freelancers, and small teams.
+- Potentially agencies later, once the product has proved useful.
+
+Core question the product answers:
+"Before I launch this website, what important issues should I fix?"
+
+Product positioning:
+A website launch-readiness auditor, not simply another generic SEO checker. Make findings easy for a non-security specialist to understand, show evidence for them, explain what to fix first, and allow a later rescan to verify changes.
+
+Main value proposition:
+"Find what your AI-built website missed before launch."
+
+Avoid claiming that a scan proves a site is completely secure, legally compliant, accessible, or SEO-successful. A report should distinguish confirmed findings, observed misconfigurations, heuristic warnings, and tests that were not performed.
+
+2. MARKET AND DIFFERENTIATION
+-----------------------------
+Many existing tools already cover SEO, performance, accessibility, and security. The idea is viable as a learning project and possibly a SaaS, but the space is competitive. A generic dashboard that combines existing scanners is not enough differentiation on its own.
+
+Differentiation to target:
+- Made approachable for developers and founders who have built a website with AI and need pre-launch verification.
+- Evidence-backed findings, not unexplained scores or vague AI claims.
+- Strong separation between observed facts, inferred risks, confirmed vulnerabilities, and not-tested items.
+- Prioritized remediation with links / relevant technical evidence.
+- Re-scan after a fix and show whether the specific issue was resolved.
+- Explain what a URL-only scan cannot assess and what access would be needed for deeper checks.
+- A consistent report across the various tools.
+- Possible future repository/source-aware scanning, framework-specific fix instructions, scheduled monitoring, report export, and team features. These are later options, not first-release scope.
+
+Quick web search during this conversation found same/adjacent-category products or projects. Treat this as an initial signal, not an exhaustive competitive landscape:
+- LaunchCheck: https://getlaunchcheck.com/ and a browser extension. Website baseline checks / launch readiness.
+- VibeGuard: https://vibeguard.me/, https://vibeguard.tech/, https://vibeguard.live/. Security checks for AI-built applications.
+- LaunchProof: https://trylaunchproof.com/. Security and launch-readiness checks for AI-built apps.
+- SiteProof: https://siteproofapp.com/ and https://siteproof.ai/ (different products, including site QA/accessibility).
+- Shipcheck: https://www.shipcheck.pro/ and https://www.getshipcheck.com/ (different offerings / overlaps).
+- VibeAudit: https://vibeaudit.cloud/, https://www.vibeaudit.site/, and a GitHub project https://github.com/voltaudits/vibeaudit.
+- LaunchLint: https://www.launchlint.dev/ and https://getlaunchlint.com/ (site QA / security preflight variants).
+- SafeToShip: https://safetoship.dev/ and https://www.safetoship.app/.
+- SiteSentry: https://sitesentry.app/ (monitoring/security overlap).
+- LaunchLens is also used by other products: https://launchlens.ai/ and others.
+
+Implication: validate the unique value proposition before spending a lot of time on branding or billing. Names in this category are crowded. Do not copy any competitor's exact messaging, UI, brand, reports, or claims.
+
+3. FIRST RELEASE SCOPE: FIVE MVP STAGES
+--------------------------------------
+The first release must focus on steps 1–5 only. Payments / paid plans come later.
+
+Stage 1: URL submission and safe scan pipeline.
+- User enters URL and selects allowed scan profile.
+- Validate and normalize URL.
+- Run safe baseline checks and store scan state.
+- Enforce limits, timeout, and destination restrictions.
+
+Stage 2: Evidence-backed results.
+- Normalize tool output into a common finding format.
+- Include title, category, severity, confidence, affected URL, detection method, evidence, impact explanation, remediation guidance, and verification status where available.
+- Avoid duplicates and proportion severity to evidence.
+
+Stage 3: Dashboard and reports.
+- Summary, category breakdown, severity counts, searchable/filterable findings, detail view, and clear statement of what was not tested.
+- Demo/sample reports must be clearly marked as illustrative sample data.
+
+Stage 4: Signup/login and scan history.
+- Amazon Cognito identity, user-specific scans, report history, and saved websites.
+- Ensure backend access control; front-end state alone is never authorization.
+
+Stage 5: Deeper security scanning.
+- Integrate OWASP ZAP and ProjectDiscovery Nuclei in controlled, isolated AWS jobs.
+- Gate active/deeper tests on verified domain ownership and explicit authorization.
+- Use conservative profiles, rate limits, timeouts, egress controls, and safe test targets.
+
+Out of scope initially:
+- Payments, Stripe/payment provider integration, subscriptions, billing pages.
+- Always-on scheduled monitoring and teams, unless they are added later after validating the MVP.
+- Custom training or running a large LLM on a personal computer.
+- Legal compliance certification.
+
+4. AUDIT CATEGORIES AND LIMITATIONS
+-----------------------------------
+Initial categories:
+A. SEO and crawlability:
+- HTML title, meta description, heading structure, canonical URL, robots.txt, sitemap discovery, indexability signals, HTTP status, redirects, broken internal links, image alt text where observable, metadata and Open Graph indicators.
+
+B. Performance:
+- Lighthouse, key performance metrics, large assets, render-blocking resources, and related observable diagnostics.
+
+C. Accessibility:
+- Automated accessibility indicators, including Lighthouse checks. Automated checks do not prove full WCAG conformance; manual testing may still be needed.
+
+D. HTTPS / TLS / security headers:
+- HTTPS redirects, certificate/TLS observations, security headers such as CSP and HSTS, mixed content, and related configuration.
+
+E. Cookie/browser security and privacy signals:
+- Cookie flags such as Secure, HttpOnly, SameSite; detected tracking scripts; visible consent UI; apparent scripts that run before consent; privacy-policy link and presence.
+
+F. Exposure and misconfiguration:
+- Carefully scoped checks for commonly exposed files/resources, public source maps or other public artifacts, and other observable misconfigurations. Never probe arbitrary paths without strict caps and rules.
+
+G. Deeper authorized security tests:
+- OWASP ZAP and selected ProjectDiscovery Nuclei templates, only within an explicitly authorized scope.
+- Vulnerability tests must be carefully selected and performed against authorized targets. Avoid destructive tests, denial-of-service, uncontrolled exploitation, and unrestricted SQL injection testing.
+
+Important claims and boundaries:
+- URL-only scans do not directly inspect private source code, private databases, backend SQL queries, internal IAM permissions, or authenticated business logic.
+- Do not say that a site is "secure" simply because a scanner found no issue.
+- "Not detected" is not equivalent to "not tested".
+- A missing response header may be a finding, but it is not automatically a proven exploitable vulnerability or Critical-severity issue.
+- robots.txt is a crawling preference file, NOT an access-control mechanism.
+- A privacy policy / cookie banner existing does not prove that personal-data processing complies with law.
+- Cookie consent rules differ by jurisdiction and processing purpose. Legal assessment must be jurisdiction-aware and time-aware.
+- The product should report "potential compliance gap detected" and show evidence / legal reference where supportable, not "legally compliant" or "illegal" as a definitive automated ruling.
+- In India, privacy/data-protection rules can have phased commencement. Future rule packs should be versioned and maintained against official sources and dates. The product is not legal advice or certification.
+
+5. OPEN-SOURCE TOOLS AND LLM PLAN
+---------------------------------
+Preferred scanning engines:
+- Google Lighthouse: performance, SEO, accessibility indicators, and best practices.
+- OWASP ZAP: web application security testing; run in isolated workers with conservative settings.
+- ProjectDiscovery Nuclei: template-based vulnerability and misconfiguration detection; use curated templates, pin versions, review template provenance/licensing, and enforce controlled scope.
+- Custom Python checks: public HTTP/HTML/headers/cookies/TLS/robots/sitemap/basic crawl observations.
+
+Licensing note:
+- Lighthouse repository is Apache-2.0 (verify the relevant version and dependencies during implementation).
+- OWASP ZAP repository is Apache-2.0 (verify distribution details and dependencies).
+- Nuclei engine repository is MIT-licensed, but third-party or community templates may have distinct terms and provenance; review them.
+- Earlier discussion mentioned Qwen2.5-Coder-7B-Instruct, whose listed license is Apache-2.0, but local model hosting is not considered feasible/desirable for this MVP because of RAM/GPU cost and deployment overhead.
+
+LLM decision:
+- AWS-only services. Do not use Cloudflare Workers AI, Gemini API, Hugging Face hosted inference, Groq, or any external inference provider.
+- Use Amazon Bedrock as the optional, later LLM integration; a lightweight Bedrock model such as Amazon Nova Micro was discussed as a candidate. Verify current model availability, region, account eligibility, and pricing before implementation. Do not assume it is free.
+- The MVP and core rules/report pipeline must work fully without an LLM.
+- Use the LLM only to summarize already normalized findings, explain findings in plain English, help prioritize, or generate remediation text based on evidence.
+- Never let an LLM decide whether a vulnerability exists, fabricate evidence, alter severity without rule-engine support, execute commands, or initiate scans.
+- Keep LLM calls behind a separate ExplanationService interface so the scanner does not depend on model access or quotas.
+- Reduce/cap input and output tokens. Send compact, sanitized finding data only, not full page dumps or secrets.
+- Cache explanations based on normalized findings plus prompt/model version. Do not call the LLM on each scan rerun unless there is a meaningful change or the user requests a fresh explanation.
+- Provide deterministic remediation templates if Bedrock is unavailable or over quota.
+- 50–60 test reruns should not cause 50–60 model requests; scanning and explanations are separate.
+
+6. AWS-ONLY TECHNICAL ARCHITECTURE
+----------------------------------
+Frontend:
+- React + Vite (TypeScript preferred), Tailwind CSS, React Router.
+- Host built frontend with Amazon S3 + Amazon CloudFront.
+
+Identity/API:
+- Amazon Cognito for sign-up/sign-in/JWT authentication.
+- Amazon API Gateway + AWS Lambda for short API requests.
+- Node.js/JavaScript (ES modules) for API handlers, validation, scan submission, authorization, report retrieval, and business logic.
+
+Scan orchestration:
+- Amazon SQS to buffer work.
+- AWS Step Functions to orchestrate workflow steps, retries, and partial failures.
+- Amazon ECS on AWS Fargate for long-running / containerized scan tasks.
+- Amazon ECR to store scanner container images.
+- Use separate or clearly isolated tasks/containers for Python inspections, Lighthouse/Chromium, ZAP, and Nuclei as appropriate.
+
+Data:
+- Amazon DynamoDB initially for users' scan metadata, website records, and normalized findings. RDS can be evaluated later if relational needs justify it; DynamoDB is the initial default.
+- Amazon S3 for private raw scanner artifacts and downloadable reports. Use scoped IAM and temporary presigned URLs only when needed.
+
+Security/operations:
+- IAM roles with least privilege.
+- KMS encryption as appropriate.
+- Secrets Manager only for secrets that are genuinely required; do not embed keys in the frontend or container image.
+- CloudWatch logs, metrics, alarms, dashboards.
+- CloudTrail for AWS API auditing.
+- AWS WAF for suitable public-edge protection.
+- AWS Budgets and billing alerts to avoid unexpected spending.
+- Infrastructure as code using AWS CDK or another reproducible IaC approach.
+
+Architecture shape:
+React/Vite -> CloudFront/S3; frontend calls API Gateway -> Lambda/Cognito authorization. The API creates a scan record and queues a job in SQS. Step Functions coordinates the pipeline and dispatches bounded Fargate tasks. Worker output goes to private S3; normalizer writes finding metadata to DynamoDB. Frontend polls status and retrieves report through authenticated APIs. Optional Amazon Bedrock explanation endpoint is separate from the scan pipeline.
+
+Cost considerations:
+- Do not assume the complete architecture is free. Browser containers, Fargate, NAT Gateway, CloudWatch log ingestion, S3, DynamoDB, Step Functions, and Bedrock can incur costs.
+- Keep development concurrency and scan duration bounded. Investigate an architecture with controlled egress, but account for networking costs. Set budgets/alerts before deployment.
+
+7. SSRF / SCANNER SAFETY IS A FIRST-CLASS REQUIREMENT
+---------------------------------------------------
+A public URL submission endpoint can be abused to make workers request internal services. Scanner SSRF defenses need both application and network-layer controls.
+
+Required protections:
+- Accept only HTTP/HTTPS; reject malformed URLs and embedded credentials.
+- Resolve DNS and inspect resolved IPs; block loopback, private, link-local, reserved, multicast, and disallowed ranges.
+- Block AWS metadata endpoints and internal infrastructure destinations.
+- Revalidate every redirect target.
+- Protect against DNS rebinding / validation-to-connection time-of-check/time-of-use issues; enforce egress controls at network level too.
+- Cap redirects, pages, crawl depth, response bodies, timeouts, total job duration, and request rate.
+- Do not permit arbitrary user-supplied request headers/cookies in the initial MVP.
+- Scan workers must be in isolated Fargate tasks with restrictive security groups and only the minimal IAM permissions needed.
+- Do not give scanner workers broad access to S3, DynamoDB, Secrets Manager, or internal services they do not need.
+- Never allow a public URL submission to cause unrestricted active scanning.
+- Deeper scans need domain ownership verification, explicit authorization record, permitted scope and subdomain boundaries, and rate limits. A checkbox alone is not ownership verification.
+- Prefer isolated, authorized test apps for developing and validating active tests.
+
+8. BACKEND DEVELOPMENT DETAILS
+------------------------------
+Node.js API responsibilities:
+- Verify Cognito JWTs.
+- Enforce user/scan/site ownership on every API read and mutation.
+- Validate requests; enforce quotas, rate limits, scan profile and idempotency.
+- Create scan jobs, expose status and findings, store / return reports, manage site verification.
+- Do not run long scans inside API request handlers.
+
+Python worker responsibilities:
+- Use HTTPX/Requests, Beautiful Soup, URL parsing and TLS-related standard libraries as suitable.
+- Perform bounded public HTTP/HTML checks (title, meta description, canonical, headings, redirects, status, robots.txt, sitemap discovery, links, headers, cookie flags, mixed content, public exposure signals).
+- Never execute arbitrary JavaScript in this worker.
+- Apply response-size caps, per-request timeouts, job timeouts, page limits, crawl depth limits and polite request rates.
+
+Lighthouse worker:
+- Dedicated Fargate container with compatible Node.js/Lighthouse/Chromium versions.
+- Return structured JSON; retain only artifacts necessary for the report.
+
+ZAP / Nuclei workers:
+- Separate isolated containers or tasks.
+- Pinned versions, controlled scan profiles, rate limits, timeouts, safe template selection, and strict target scope.
+- Explicit authorization before active/deeper scans. No destructive scanning.
+
+Finding normalization:
+- Normalize tool output into one schema.
+- Deduplicate equivalent issues while preserving engine/rule references and evidence.
+- Redact secrets and sensitive values.
+- Store large raw outputs in S3, not in bounded DynamoDB items.
+
+Scan statuses:
+QUEUED, VALIDATING, RUNNING, NORMALIZING, COMPLETED, PARTIAL, FAILED, CANCELLED.
+Every transition should be well-defined. Partial results should be kept and identify which engines failed or were skipped. Do not show a skipped category as passing.
+
+Suggested DynamoDB entities:
+SavedWebsite: siteId, ownerUserId, normalizedHostname, verificationStatus/method/timestamps, allowedScope, createdAt/updatedAt.
+Scan: scanId, ownerUserId, siteId, targetUrl, scanProfile, authorization status, scanStatus, timestamps, per-engine state, summary counts, S3 report location, error category.
+Finding: findingId, scanId, category, title, description, severity, confidence, affectedUrl, sanitized evidence/reference, engine, ruleId, remediation, verification status, timestamps, detection method (passive/heuristic/active), supported taxonomy mapping if applicable.
+
+Suggested API endpoints:
+POST /api/scans
+GET /api/scans
+GET /api/scans/{scanId}
+GET /api/scans/{scanId}/findings
+GET /api/scans/{scanId}/report
+POST /api/sites/verification-challenges
+POST /api/sites/{siteId}/verify
+GET /api/sites
+GET /api/health (minimal output; no infrastructure secrets)
+
+Common API requirements:
+- consistent JSON response/error schema and HTTP status codes.
+- schema validation and pagination.
+- scan idempotency and duplicate message handling.
+- user-owned resources only; never rely only on unpredictable IDs.
+- report S3 access must be authorized.
+- privacy-aware data retention and deletion paths.
+- structured logs with request ID, scan ID, worker name, duration, state transition, failure category and retry count, but no tokens, credentials or unnecessary full-page data.
+
+9. FRONTEND IMPLEMENTATION DIRECTION
+------------------------------------
+Stack:
+- React with Vite and TypeScript.
+- Tailwind CSS.
+- React Router.
+- Lucide React.
+- TanStack Query for API state and scan-status polling.
+- React Hook Form + Zod for URL form validation.
+- A small chart library only where useful.
+
+Potential routes:
+/ — public marketing landing page
+/login
+/signup
+/app — authenticated dashboard
+/app/scans/new
+/app/scans/:scanId
+/app/history
+/app/sites
+/app/settings
+/not-found as applicable.
+
+API client modules:
+src/lib/api/client.ts
+src/lib/api/scans.ts
+src/lib/api/sites.ts
+src/lib/api/reports.ts
+src/lib/api/auth.ts
+Use VITE_API_BASE_URL. Support a clearly explicit development-only mock mode via VITE_USE_MOCK_API. Never silently show mocked data in production when the real API fails.
+
+Important components:
+AppShell, PublicNavbar, SiteUrlForm, ScanScopeSelector, AuditCategoryCard, FindingSeverityBadge, FindingCard, FindingFilters, ScanStatusIndicator, ScanProgress, ReportSummary, ReportPreview, SampleReportCard, EmptyState, ErrorState, LoadingSkeleton, ConfirmDialog, Footer.
+
+UX behavior:
+- Validate and normalize URL; HTTP/HTTPS only.
+- No duplicate submissions; present network/auth/rate-limit/authorization errors.
+- Scan page reads actual backend state and polls status until terminal state; stop polling after completed/partial/failed/cancelled. Use a sensible polling interval and backoff; no fake countdown/progress in real API mode.
+- Display that deeper checks require verified domain scope / authorization.
+- History has website, scan date, profile, status, findings count, report link, rescan when authorized.
+- Saved websites distinguish unverified and verified domains.
+- Report supports search/filter, evidence, affected URL, detection method, severity, confidence, remediation, verification and not-tested items.
+- Dashboard has a useful empty state and clearly marked sample/demo data.
+- Frontend authentication guard is for UX only; backend must enforce all authorization.
+- Never store AWS secrets or model API keys in React.
+
+10. VISUAL DESIGN / LANDING PAGE REFERENCE
+------------------------------------------
+The user provided a tall screenshot of a website (Pixir.in) as a design reference, not as a site/product to copy. It has a white and pale mint/green palette, a clean navigation bar, strong typographic hero, URL/product input style, floating product UI cards, alternating green and white sections, product showcase, before/after slider, creative use-case/mockup cards, FAQ accordion, pre-footer CTA, and a multi-column footer.
+
+The desired visual direction:
+- White background: #FFFFFF.
+- Main text: #17221C.
+- Secondary text: #65736A.
+- Pale mint section: #EDF7F0.
+- Very light green cards: #F4FAF6.
+- Emerald primary: #07875B.
+- Dark emerald: #066444.
+- Border: #DFE9E2.
+- Light neutral: #F7FAF8.
+- Accessible red/orange for security severity labels; blue-gray for informational items.
+- Inter or similarly legible sans-serif.
+- Premium, calm, credible SaaS product aesthetic. Generous whitespace, restrained cards, subtle borders/shadows, purposeful icons and movement. Avoid flashy overuse of gradients, excessive glass effects, or generic AI images replacing real UI.
+
+Landing page section order:
+1. Navigation: brand, Product, How it works, Features, Sample report, FAQ, Sign in, Run a free scan.
+2. Hero: headline "Find what your AI-built website missed before launch." Supporting text about evidence-backed audit across SEO, performance, accessibility, and security configuration. URL input, "Run free baseline scan" CTA, "View sample report" link. Explain deep tests require verified ownership/authorization.
+3. Capability strip: SEO/indexability, performance, accessibility, security configuration, exposure checks, privacy indicators.
+4. Problem/value: "AI can build your website. You still need to verify it." Show realistic missed issues.
+5. How it works: enter URL -> run checks available for scope -> review evidence and fix priorities.
+6. Feature grid: technical SEO, performance, accessibility, HTTPS/security headers, cookie/browser configuration, exposure/misconfiguration, authorized deep tests, remediation reports.
+7. Real React report preview: sample data labeled as a sample, summary, severity counts, category results, filterable findings, evidence panel.
+8. Before/after fix comparison demonstrating one specific issue becoming fixed on re-scan; illustrative example clearly labeled.
+9. Sample report cards for React/Vite landing page, Next.js marketing site, small SaaS app. Clicking opens fixed sample reports, not automatic scans of third-party domains.
+10. Output/remediation explanation: findings, evidence, affected URLs, impact, fixes, verification status, not-tested checks.
+11. Privacy/testing scope: public checks vs authorized deeper tests, and no claims of legal certification.
+12. FAQs: scope, whether scans modify site, active scan authorization, SQL injection limits, source/database access, legal compliance limitations, report storage, rescans.
+13. Pre-footer CTA: "Launch with fewer blind spots." URL field and free baseline scan.
+14. Multi-column footer: Product, Audit capabilities, Docs, Security/Responsible scanning, Privacy, Terms, Contact, Copyright. Do not invent partners, testimonials, customer logos, usage numbers, or certifications.
+
+Authenticated product screens:
+- Dashboard overview.
+- New scan.
+- Scan history.
+- Saved websites / verification status.
+- Detailed report.
+- Settings/profile.
+- Sign out.
+
+Quality requirements:
+- Mobile, tablet, desktop responsive layouts.
+- Semantic HTML, correct heading order, visible keyboard focus, labels/errors, readable contrast, accessible dialogs, reduced-motion support.
+- Every interactive element works; all empty/loading/error/success states are designed.
+- Product UI components and text must be actual React/CSS, not a static AI-generated screenshot.
+
+A custom generated hero illustration was created in the earlier conversation: a wide minimalist 3D image with a glass shield/check, magnifying glass, browser panels, mint/white background, and green audit/security icon tiles. If available in this working environment, its file path at creation was:
+/mnt/data/wide_clean_minimalist_3d_cgi_illustration_on_a_pal.png
+Use it only as decorative hero art. The report/dashboard UI must be implemented as real components.
+
+11. MASTER PROMPT SUMMARY FOR GOOGLE ANTIGRAVITY
+------------------------------------------------
+User is using Google Antigravity for development. Use sequential implementation prompts, not a single vague generate-everything prompt.
+
+Prompt A: Design / visual direction
+- Act as a senior SaaS product designer.
+- Use the full landing-page section list in Section 10 above.
+- Make an original white/mint/emerald product, inspired by the supplied reference's color and layout rhythm but do not clone it.
+- Design product previews as real UI, label sample results, no invented trust claims.
+- Include a full authenticated dashboard/report UX and responsive/accessibility requirements.
+
+Prompt B: Frontend
+- Inspect repository before coding; preserve useful current setup.
+- React + Vite + TypeScript + Tailwind + React Router + Lucide React + TanStack Query + React Hook Form/Zod.
+- Implement routes and all landing sections, dashboard, report, history, sites, and settings.
+- Use typed API client modules; Cognito as target identity provider; explicit mock development mode only.
+- Handle actual scan state/polling, filters, failures, authorization messaging, accessible forms, loading/error/empty states.
+- No secrets in frontend. Do not silently fall back to mock data in production.
+- Run build, lint and tests; provide .env.example, file structure and run instructions.
+
+Prompt C: Backend
+- AWS-native architecture, no external inference providers.
+- Node.js/JavaScript API and business layer; Python for safe public inspections; separate Lighthouse, ZAP, Nuclei worker containers on Fargate.
+- Cognito, API Gateway, Lambda, SQS, Step Functions, ECS/Fargate, ECR, DynamoDB, S3, CloudWatch, CloudTrail, IAM, KMS, Secrets Manager as needed, WAF and IaC (CDK preferred).
+- Create APIs from Section 8; use clear schema and status lifecycle.
+- Implement SSRF protections before enabling scanning, plus network egress restrictions.
+- Domain ownership verification and explicit authorization before active/deeper security profiles.
+- Separate normalized deterministic finding engine from optional Amazon Bedrock explanation service.
+- No payments yet. Add tests for URL/IP/redirect/SSRF protections, ownership, state transitions, duplicate messages, normalization, access controls and LLM fallback.
+- Build incrementally, not merely architecture diagrams or placeholder handlers.
+
+12. DEVELOPMENT SEQUENCE
+------------------------
+Recommended sequence:
+1. Decide final working name only after a more complete competitor, domain, and trademark check. Use AuditSprout only as a placeholder meanwhile.
+2. Create a repository and establish project conventions.
+3. Generate design system and landing page design in Antigravity using the design prompt.
+4. Implement frontend with explicit mock/sample report fixtures and no real scanning yet.
+5. Complete the API contracts, data model, and status lifecycle.
+6. Deploy minimal AWS auth/API/data skeleton using IaC.
+7. Implement the safe Python baseline inspection worker and security/network restrictions.
+8. Integrate Lighthouse.
+9. Normalize/store report results and connect frontend.
+10. Add Cognito-owned user history and saved-site verification.
+11. Integrate authorized, restricted ZAP and Nuclei workers.
+12. Add CloudWatch metrics, logs, alarms, budget controls, tests, retention/deletion behavior, and deployment docs.
+13. Add optional Bedrock explanations after core report generation is reliable.
+14. Defer payment, subscriptions, scheduled monitoring, enterprise features and broader compliance frameworks until the MVP is validated.
+
+13. BRAND NAME IDEAS
+--------------------
+Goal for a name: short, natural English, memorable, suitable for a clean developer SaaS, and easy to support with SEO phrases such as "website SEO audit", "website security scanner", "website launch checklist", and "website audit tool".
+
+Initial suggestion: AuditSprout
+- Friendly, easy to pronounce, signals continuous improvement.
+- Brand descriptor: "Website SEO, Performance & Security Audit".
+- Possible tagline: "Find issues before you launch."
+- No claim is made that the matching .com/.dev/.io/.in domain is available or that the name is legally clear. Check exact domains, social handles, app listings, company databases, and trademarks before adoption.
+
+Other naming directions to brainstorm and verify:
+- ReadyRadar
+- SiteSift (check for existing use)
+- AuditLeaf
+- WebLaunchCheck (descriptive, potentially generic)
+- PreflightAudit
+- WebAuditLab
+- LaunchCheck should be avoided as a likely crowded name due to existing products.
+
+Branding note: do not force every important keyword into the brand name. SEO is better supported by descriptive landing-page title/H1/copy, category-specific pages, useful sample reports, and original educational content. A brand name is not a substitute for a strong product or market differentiation.
+
+14. DESIGN ASSET / REFERENCE FILE NOTES
+---------------------------------------
+The user supplied a screenshot of a long white/green landing page (Pixir.in) on 2026-10-27. It is a color/component/section-rhythm reference only, not an instruction to reproduce the exact design.
+
+An AI-generated wide, minimalist security-audit illustration was created during the conversation and, at the time of creation, saved as:
+/mnt/data/wide_clean_minimalist_3d_cgi_illustration_on_a_pal.png
+The image depicts a glass-like green shield with checkmark, browser panels, magnifying glass, and audit icon tiles on a pale mint/white backdrop. If porting this memory to another environment, attach/copy the image because file paths are local to the current session/environment.
+
+15. KEY PRINCIPLES TO PRESERVE
+------------------------------
+- AWS for application infrastructure and inference; no external LLM provider.
+- Amazon Bedrock is optional and not needed for base scanning.
+- Lighthouse, OWASP ZAP, and Nuclei are the selected core open-source scanning technologies.
+- React/Vite frontend; Node.js/JavaScript API and orchestration; Python public-inspection worker.
+- First release = stages 1–5 only; payment comes later.
+- Evidence and deterministic rules are the foundation; LLM only explains known findings.
+- Strong SSRF and active-scan authorization controls are mandatory.
+- Do not claim that external URL scans fully assess databases, source code, SQL injection, legal compliance, or full application security.
+- UI should be original, premium, responsive, accessible, white/mint/emerald, and structured like a complete SaaS with landing page + real app dashboard.
+- Test the market and name carefully: initial web search found numerous overlapping competitors in October 2026.
