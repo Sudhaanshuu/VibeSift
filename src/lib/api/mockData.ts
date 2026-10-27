@@ -1,0 +1,279 @@
+import { AuditReport, SavedWebsite, ScanProfile, ScanStatus, VerificationStatus } from '../../types/audit';
+import { sampleReports } from '../../data/sampleReports';
+
+const STORAGE_KEYS = {
+  SCANS: 'vibesift_mock_scans',
+  SITES: 'vibesift_mock_sites',
+};
+
+// Default initial saved sites
+const initialMockSites: SavedWebsite[] = [
+  {
+    id: 'site-001',
+    hostname: 'vibe-landing-demo.dev',
+    normalizedUrl: 'https://vibe-landing-demo.dev',
+    isVerified: true,
+    verificationMethod: 'dns_txt',
+    verificationToken: 'siteready-verify=89f41b2a7e',
+    verifiedAt: '2026-10-25T14:20:00Z',
+    lastScanId: 'scan-demo-vite-001',
+    lastScanDate: '2026-10-27T08:16:04Z',
+    lastScanScore: 74,
+    openFindingsCount: 6,
+  },
+  {
+    id: 'site-002',
+    hostname: 'saas-market-starter.vercel.app',
+    normalizedUrl: 'https://saas-market-starter.vercel.app',
+    isVerified: false,
+    verificationToken: 'siteready-verify=72c09ef43d',
+    lastScanId: 'scan-demo-next-002',
+    lastScanDate: '2026-10-27T07:31:02Z',
+    lastScanScore: 68,
+    openFindingsCount: 5,
+  },
+  {
+    id: 'site-003',
+    hostname: 'vibe-pulse-app.io',
+    normalizedUrl: 'https://vibe-pulse-app.io',
+    isVerified: true,
+    verificationMethod: 'html_meta',
+    verificationToken: 'siteready-verify=41ea63db19',
+    verifiedAt: '2026-10-26T09:45:00Z',
+    lastScanId: 'scan-demo-saas-003',
+    lastScanDate: '2026-10-27T06:11:12Z',
+    lastScanScore: 71,
+    openFindingsCount: 6,
+  },
+];
+
+// In-memory mock store
+class MockDataStore {
+  private scans: Map<string, AuditReport>;
+  private sites: Map<string, SavedWebsite>;
+
+  constructor() {
+    this.scans = new Map();
+    this.sites = new Map();
+    this.initialize();
+  }
+
+  private initialize() {
+    // Load scans
+    try {
+      const storedScans = localStorage.getItem(STORAGE_KEYS.SCANS);
+      if (storedScans) {
+        const parsed: AuditReport[] = JSON.parse(storedScans);
+        parsed.forEach((scan) => this.scans.set(scan.scanId, scan));
+      } else {
+        Object.values(sampleReports).forEach((scan) => this.scans.set(scan.scanId, { ...scan, isSampleData: true }));
+      }
+    } catch {
+      Object.values(sampleReports).forEach((scan) => this.scans.set(scan.scanId, { ...scan, isSampleData: true }));
+    }
+
+    // Load sites
+    try {
+      const storedSites = localStorage.getItem(STORAGE_KEYS.SITES);
+      if (storedSites) {
+        const parsed: SavedWebsite[] = JSON.parse(storedSites);
+        parsed.forEach((site) => this.sites.set(site.id, site));
+      } else {
+        initialMockSites.forEach((site) => this.sites.set(site.id, site));
+      }
+    } catch {
+      initialMockSites.forEach((site) => this.sites.set(site.id, site));
+    }
+  }
+
+  private persistScans() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SCANS, JSON.stringify(Array.from(this.scans.values())));
+    } catch {
+      // Ignore quota errors
+    }
+  }
+
+  private persistSites() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.SITES, JSON.stringify(Array.from(this.sites.values())));
+    } catch {
+      // Ignore quota errors
+    }
+  }
+
+  public getScans(): AuditReport[] {
+    return Array.from(this.scans.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  public getScan(scanId: string): AuditReport | null {
+    return this.scans.get(scanId) || null;
+  }
+
+  public getSites(): SavedWebsite[] {
+    return Array.from(this.sites.values());
+  }
+
+  public getSite(siteId: string): SavedWebsite | null {
+    return this.sites.get(siteId) || null;
+  }
+
+  public addSite(hostname: string): SavedWebsite {
+    const cleanHost = hostname.replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
+    const existing = Array.from(this.sites.values()).find((s) => s.hostname.toLowerCase() === cleanHost);
+    if (existing) {
+      return existing;
+    }
+
+    const token = `siteready-verify=${Math.random().toString(36).substring(2, 12)}`;
+    const newSite: SavedWebsite = {
+      id: `site-${Date.now().toString(36)}`,
+      hostname: cleanHost,
+      normalizedUrl: `https://${cleanHost}`,
+      isVerified: false,
+      verificationToken: token,
+      openFindingsCount: 0,
+    };
+
+    this.sites.set(newSite.id, newSite);
+    this.persistSites();
+    return newSite;
+  }
+
+  public confirmVerification(siteId: string): { verified: boolean; message: string } {
+    const site = this.sites.get(siteId);
+    if (!site) {
+      return { verified: false, message: 'Website not found' };
+    }
+
+    site.isVerified = true;
+    site.verifiedAt = new Date().toISOString();
+    site.verificationMethod = site.verificationMethod || 'dns_txt';
+    this.sites.set(site.id, site);
+    this.persistSites();
+
+    return {
+      verified: true,
+      message: `Domain ${site.hostname} has been successfully verified via ${site.verificationMethod.toUpperCase()}. Deeper scans are now unlocked.`,
+    };
+  }
+
+  public deleteSite(siteId: string): void {
+    this.sites.delete(siteId);
+    this.persistSites();
+  }
+
+  public resolveFinding(scanId: string, findingId: string, status: VerificationStatus): boolean {
+    const scan = this.scans.get(scanId);
+    if (!scan) return false;
+
+    const finding = scan.findings.find((f) => f.id === findingId);
+    if (!finding) return false;
+
+    finding.verificationStatus = status;
+    this.scans.set(scan.scanId, scan);
+    this.persistScans();
+    return true;
+  }
+
+  /**
+   * Simulates a real scan pipeline progression:
+   * QUEUED (0s) -> VALIDATING (1.5s) -> RUNNING (3.5s) -> NORMALIZING (5.5s) -> COMPLETED (7s)
+   */
+  public submitScan(url: string, profile: ScanProfile): AuditReport {
+    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
+    const hostname = parsed.hostname;
+    const scanId = `scan-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+
+    // Pick a template report to simulate realistic findings
+    const template =
+      sampleReports['react-vite-landing'] ||
+      Object.values(sampleReports)[0];
+
+    const newScan: AuditReport = {
+      scanId,
+      targetUrl: url,
+      normalizedHostname: hostname,
+      scanProfile: profile,
+      status: 'QUEUED',
+      createdAt: new Date().toISOString(),
+      isSampleData: true,
+      summary: {
+        totalFindings: template.summary.totalFindings,
+        critical: template.summary.critical,
+        high: template.summary.high,
+        medium: template.summary.medium,
+        low: template.summary.low,
+        info: template.summary.info,
+        readinessScore: template.summary.readinessScore,
+        categoryScores: { ...template.summary.categoryScores },
+      },
+      enginesRun: [
+        { engine: 'custom-python', displayName: 'HTTP & Meta Inspector', status: 'passed', executionTimeMs: 1100 },
+        { engine: 'lighthouse', displayName: 'Google Lighthouse 12.x', status: 'passed', executionTimeMs: 8400 },
+        { engine: 'owasp-zap', displayName: 'OWASP ZAP Baseline', status: 'passed', executionTimeMs: 11200 },
+        {
+          engine: 'nuclei',
+          displayName: 'ProjectDiscovery Nuclei (Safe Core)',
+          status: profile === 'authorized_deep' ? 'passed' : 'skipped_unauthorized',
+          message: profile === 'authorized_deep' ? undefined : 'Deeper active tests require verified domain ownership',
+        },
+      ],
+      checksNotPerformed: [
+        'Authenticated user dashboard workflows (no session credentials supplied)',
+        'Backend SQL injection & database fuzzing (prohibited for safe pre-launch audits)',
+        'Private Git repository and source code analysis',
+        'Internal AWS IAM and VPC configuration',
+      ],
+      findings: template.findings.map((f, i) => ({
+        ...f,
+        id: `find-new-${scanId.slice(-4)}-${i + 1}`,
+        affectedUrl: `${url}${f.affectedUrl.replace(/^https?:\/\/[^/]+/i, '')}`,
+      })),
+    };
+
+    this.scans.set(scanId, newScan);
+    this.persistScans();
+
+    // Trigger state machine progression in the background
+    this.progressScanSimulation(scanId);
+
+    return newScan;
+  }
+
+  private progressScanSimulation(scanId: string) {
+    const transitions: { status: ScanStatus; delayMs: number }[] = [
+      { status: 'VALIDATING', delayMs: 1500 },
+      { status: 'RUNNING', delayMs: 3500 },
+      { status: 'NORMALIZING', delayMs: 5500 },
+      { status: 'COMPLETED', delayMs: 7000 },
+    ];
+
+    transitions.forEach(({ status, delayMs }) => {
+      setTimeout(() => {
+        const scan = this.scans.get(scanId);
+        if (scan && scan.status !== 'CANCELLED' && scan.status !== 'FAILED') {
+          scan.status = status;
+          if (status === 'COMPLETED') {
+            scan.completedAt = new Date().toISOString();
+            scan.durationSeconds = 7;
+          }
+          this.scans.set(scanId, scan);
+          this.persistScans();
+        }
+      }, delayMs);
+    });
+  }
+
+  public rescan(scanId: string): AuditReport {
+    const existing = this.scans.get(scanId);
+    if (!existing) {
+      throw new Error(`Scan ${scanId} not found`);
+    }
+    return this.submitScan(existing.targetUrl, existing.scanProfile);
+  }
+}
+
+export const mockStore = new MockDataStore();

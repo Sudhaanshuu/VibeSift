@@ -1,0 +1,11 @@
+# RFC 9116 Vulnerability Disclosure Policy for VibeSift by Pixir
+# Canonical location: https://vibesift.pixir.in/.well-known/security.txt
+
+Contact: mailto:security@pixir.in
+Contact: https://vibesift.pixir.in/security
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: en
+Canonical: https://vibesift.pixir.in/.well-known/security.txt
+Policy: https://vibesift.pixir.in/security
+Acknowledgments: https://vibesift.pixir.in/security#hall-of-fame
+Hiring: https://pixir.in/careers

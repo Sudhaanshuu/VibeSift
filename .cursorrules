@@ -1,0 +1,14 @@
+# VibeSift AI Assistant & Development Rules
+
+1. PAGE LOAD INTEGRITY:
+   - Always ensure the local dev server and web pages load cleanly without runtime exceptions or blank pages.
+   - Run `npm test` and `npm run build` after making changes to verify page load integrity and component mounting.
+   - Ensure router hooks (`useNavigate`, `useLocation`) are always enclosed within `<BrowserRouter>`.
+
+2. CONTINUOUS TESTCASES:
+   - For every feature modification or section change, maintain and expand test cases in `src/App.test.tsx` and unit test files.
+   - The full test suite (`npm test`) must pass (31+ tests passing) with exit code 0.
+
+3. ZERO SECRET LEAKAGE:
+   - Never commit or expose live AWS keys, API credentials, private tokens, or `.env` files to git.
+   - Maintain strict `.gitignore` rules and automated pattern scanning via `secretLeak.test.ts`.

@@ -1,0 +1,16 @@
+
+{
+  "CORSRules": [
+    {
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedOrigins": [
+        "https://vibesift.pixir.in",
+        "http://localhost:5173",
+        "http://localhost:4000"
+      ],
+      "ExposeHeaders": ["ETag"],
+      "MaxAgeSeconds": 3600
+    }
+  ]
+}
