@@ -1,5 +1,6 @@
 import { AuditReport, SavedWebsite, ScanProfile, ScanStatus, VerificationStatus } from '../../types/audit';
 import { sampleReports } from '../../data/sampleReports';
+import { buildBasicAuditReport, buildDeepAuditReport } from '../../data/auditReportBuilder';
 
 const STORAGE_KEYS = {
   SCANS: 'vibesift_mock_scans',
@@ -187,12 +188,14 @@ class MockDataStore {
     const hostname = parsed.hostname;
     const scanId = `scan-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
 
-    // Pick a template report to simulate realistic findings
-    const template =
-      sampleReports['react-vite-landing'] ||
-      Object.values(sampleReports)[0];
+    // Generate genuine Basic vs Deep Audit report
+    const fullReport: AuditReport =
+      profile === 'authorized_deep'
+        ? buildDeepAuditReport(url, scanId)
+        : buildBasicAuditReport(url, scanId);
 
     const newScan: AuditReport = {
+      ...fullReport,
       scanId,
       targetUrl: url,
       normalizedHostname: hostname,
@@ -200,38 +203,6 @@ class MockDataStore {
       status: 'QUEUED',
       createdAt: new Date().toISOString(),
       isSampleData: true,
-      summary: {
-        totalFindings: template.summary.totalFindings,
-        critical: template.summary.critical,
-        high: template.summary.high,
-        medium: template.summary.medium,
-        low: template.summary.low,
-        info: template.summary.info,
-        readinessScore: template.summary.readinessScore,
-        categoryScores: { ...template.summary.categoryScores },
-      },
-      enginesRun: [
-        { engine: 'custom-python', displayName: 'HTTP & Meta Inspector', status: 'passed', executionTimeMs: 1100 },
-        { engine: 'lighthouse', displayName: 'Google Lighthouse 12.x', status: 'passed', executionTimeMs: 8400 },
-        { engine: 'owasp-zap', displayName: 'OWASP ZAP Baseline', status: 'passed', executionTimeMs: 11200 },
-        {
-          engine: 'nuclei',
-          displayName: 'ProjectDiscovery Nuclei (Safe Core)',
-          status: profile === 'authorized_deep' ? 'passed' : 'skipped_unauthorized',
-          message: profile === 'authorized_deep' ? undefined : 'Deeper active tests require verified domain ownership',
-        },
-      ],
-      checksNotPerformed: [
-        'Authenticated user dashboard workflows (no session credentials supplied)',
-        'Backend SQL injection & database fuzzing (prohibited for safe pre-launch audits)',
-        'Private Git repository and source code analysis',
-        'Internal AWS IAM and VPC configuration',
-      ],
-      findings: template.findings.map((f, i) => ({
-        ...f,
-        id: `find-new-${scanId.slice(-4)}-${i + 1}`,
-        affectedUrl: `${url}${f.affectedUrl.replace(/^https?:\/\/[^/]+/i, '')}`,
-      })),
     };
 
     this.scans.set(scanId, newScan);
@@ -244,12 +215,21 @@ class MockDataStore {
   }
 
   private progressScanSimulation(scanId: string) {
-    const transitions: { status: ScanStatus; delayMs: number }[] = [
-      { status: 'VALIDATING', delayMs: 1500 },
-      { status: 'RUNNING', delayMs: 3500 },
-      { status: 'NORMALIZING', delayMs: 5500 },
-      { status: 'COMPLETED', delayMs: 7000 },
-    ];
+    const targetScan = this.scans.get(scanId);
+    const shouldFail = targetScan?.targetUrl?.toLowerCase().includes('fail') || targetScan?.targetUrl?.toLowerCase().includes('error');
+
+    const transitions: { status: ScanStatus; delayMs: number }[] = shouldFail
+      ? [
+          { status: 'VALIDATING', delayMs: 400 },
+          { status: 'RUNNING', delayMs: 800 },
+          { status: 'FAILED', delayMs: 1200 },
+        ]
+      : [
+          { status: 'VALIDATING', delayMs: 1500 },
+          { status: 'RUNNING', delayMs: 3500 },
+          { status: 'NORMALIZING', delayMs: 5500 },
+          { status: 'COMPLETED', delayMs: 7000 },
+        ];
 
     transitions.forEach(({ status, delayMs }) => {
       setTimeout(() => {
@@ -259,6 +239,10 @@ class MockDataStore {
           if (status === 'COMPLETED') {
             scan.completedAt = new Date().toISOString();
             scan.durationSeconds = 7;
+          } else if (status === 'FAILED') {
+            scan.completedAt = new Date().toISOString();
+            scan.errorMessage = 'Target website is unreachable or connection timed out.';
+            scan.findings = [];
           }
           this.scans.set(scanId, scan);
           this.persistScans();

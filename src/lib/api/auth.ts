@@ -3,7 +3,7 @@ import { apiClient, setAuthToken, USE_MOCK_API, ApiError } from './client';
 
 export interface LoginCredentials {
   email: string;
-  password?: string;
+  password: string;
 }
 
 export interface SignupCredentials {
@@ -12,9 +12,25 @@ export interface SignupCredentials {
   name: string;
 }
 
+export interface SignupResult {
+  userSub?: string;
+  userConfirmed: boolean;
+  email: string;
+  message: string;
+  token?: string;
+  user?: AuthUser;
+}
+
+export interface ConfirmSignupCredentials {
+  email: string;
+  code: string;
+}
+
 export interface AuthSession {
   user: AuthUser;
   token: string;
+  accessToken?: string;
+  idToken?: string;
 }
 
 const DEMO_USER: AuthUser = {
@@ -41,14 +57,30 @@ class ProductionAuthService {
     return data;
   }
 
-  async signup(creds: SignupCredentials): Promise<AuthSession> {
-    const data = await apiClient<AuthSession>('/auth/signup', {
+  async signup(creds: SignupCredentials): Promise<SignupResult> {
+    const data = await apiClient<SignupResult>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(creds),
     });
-    setAuthToken(data.token);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+    if (data.token && data.user) {
+      setAuthToken(data.token);
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+    }
     return data;
+  }
+
+  async confirmSignup(creds: ConfirmSignupCredentials): Promise<{ success: boolean; message: string }> {
+    return apiClient<{ success: boolean; message: string }>('/auth/confirm', {
+      method: 'POST',
+      body: JSON.stringify(creds),
+    });
+  }
+
+  async resendCode(email: string): Promise<{ success: boolean; message: string }> {
+    return apiClient<{ success: boolean; message: string }>('/auth/resend-code', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   }
 
   async getCurrentSession(): Promise<AuthUser | null> {
@@ -85,7 +117,7 @@ class ProductionAuthService {
  */
 class MockAuthService {
   async login(creds: LoginCredentials): Promise<AuthSession> {
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 200));
     const user: AuthUser = {
       id: `usr_${Date.now().toString(36)}`,
       email: creds.email,
@@ -99,8 +131,8 @@ class MockAuthService {
     return { user, token };
   }
 
-  async signup(creds: SignupCredentials): Promise<AuthSession> {
-    await new Promise((r) => setTimeout(r, 300));
+  async signup(creds: SignupCredentials): Promise<SignupResult> {
+    await new Promise((r) => setTimeout(r, 200));
     const user: AuthUser = {
       id: `usr_${Date.now().toString(36)}`,
       email: creds.email,
@@ -111,7 +143,23 @@ class MockAuthService {
     const token = `mock-jwt-token-${user.id}`;
     setAuthToken(token);
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    return { user, token };
+    return {
+      userConfirmed: true,
+      email: creds.email,
+      message: 'Account registered successfully.',
+      user,
+      token,
+    };
+  }
+
+  async confirmSignup(creds: ConfirmSignupCredentials): Promise<{ success: boolean; message: string }> {
+    await new Promise((r) => setTimeout(r, 100));
+    return { success: true, message: 'Account confirmed successfully.' };
+  }
+
+  async resendCode(email: string): Promise<{ success: boolean; message: string }> {
+    await new Promise((r) => setTimeout(r, 100));
+    return { success: true, message: 'Verification code resent.' };
   }
 
   async loginAsDemo(): Promise<AuthSession> {
@@ -141,3 +189,4 @@ class MockAuthService {
 export const authService = USE_MOCK_API ? new MockAuthService() : new ProductionAuthService();
 export const mockAuthService = new MockAuthService();
 export const isMockAuthMode = USE_MOCK_API;
+export { ApiError };

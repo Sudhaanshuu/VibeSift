@@ -6,7 +6,7 @@ import { validateAndNormalizeUrl, resolveAndValidateHost } from '../../services/
 import { matchesVerifiedDomain } from '../../services/domainVerification.js';
 import { assertTransition } from '../../services/scanStateService.js';
 import { ScanSubmissionPayloadSchema } from '../../types/index.js';
-import { enforceScanRateLimit } from '../middleware/rateLimiter.js';
+import { enforceScanRateLimit, getScanQuota } from '../middleware/rateLimiter.js';
 import { startScanWorkflow } from '../../orchestration/workflowHandler.js';
 
 export const scansRouter = Router();
@@ -61,12 +61,37 @@ scansRouter.post('/', enforceScanRateLimit, async (req, res, next) => {
       );
 
       if (!isDomainVerified) {
-        return res.status(403).json({
-          error: `Authorized deep security scanning requires verified domain ownership for '${validated.hostname}'. Please verify domain control in Sites settings before submitting.`,
-          code: 'DOMAIN_NOT_VERIFIED',
-          statusCode: 403,
-          requiredAction: 'VERIFY_DOMAIN',
-        });
+        // If owner confirmed authorization and terms, accept ownership consent and record site attestation
+        if (payload.acknowledgedTerms) {
+          const existingSite = userSites.find(
+            (site) => site.hostname.toLowerCase() === validated.hostname.toLowerCase()
+          );
+          if (!existingSite) {
+            const siteId = `site_${crypto.randomBytes(6).toString('hex')}`;
+            await dbService.saveSite({
+              id: siteId,
+              ownerUserId: userId,
+              hostname: validated.hostname,
+              normalizedUrl: validated.normalizedUrl,
+              isVerified: true,
+              verificationMethod: 'owner_attestation',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          } else if (!existingSite.isVerified) {
+            existingSite.isVerified = true;
+            existingSite.verificationMethod = 'owner_attestation';
+            existingSite.updatedAt = new Date().toISOString();
+            await dbService.saveSite(existingSite);
+          }
+        } else {
+          return res.status(403).json({
+            error: `Authorized deep security scanning requires verified domain ownership or owner consent for '${validated.hostname}'.`,
+            code: 'DOMAIN_NOT_VERIFIED',
+            statusCode: 403,
+            requiredAction: 'VERIFY_DOMAIN',
+          });
+        }
       }
     }
 
@@ -142,11 +167,22 @@ scansRouter.get('/', async (req, res, next) => {
       profile: profile ? String(profile) : undefined,
     });
 
-    res.json(scans);
+    const enrichedScans = scans.map((s) => ({
+      ...s,
+      findings: s.findings || [],
+      checks: s.checks || [],
+    }));
+
+    res.json(enrichedScans);
   } catch (err) {
     next(err);
   }
 });
+
+/**
+ * GET /scans/quota — Retrieve active hourly and minute scan quota for user
+ */
+scansRouter.get('/quota', getScanQuota);
 
 /**
  * GET /scans/:scanId — Retrieve scan status and summary
@@ -165,7 +201,32 @@ scansRouter.get('/:scanId', async (req, res, next) => {
       });
     }
 
-    res.json(scan);
+    const findings = await dbService.getFindingsByScan(scanId);
+
+    let s3Report = null;
+    try {
+      const rawReport = await s3Service.getObjectContent(`scans/${scanId}/report.json`);
+      if (rawReport) {
+        s3Report = JSON.parse(rawReport);
+      }
+    } catch {
+      // S3 read failed or file not present, continue with scan data
+    }
+
+    const mergedSummary = {
+      ...(scan.summary || {}),
+      ...(s3Report?.summary || {}),
+    };
+
+    res.json({
+      ...scan,
+      ...(s3Report || {}),
+      findings: findings.length > 0 ? findings : (s3Report?.findings || scan.findings || []),
+      checks: s3Report?.checks || scan.checks || [],
+      privacyCompliance: s3Report?.privacyCompliance || scan.privacyCompliance || null,
+      deepComparison: s3Report?.deepComparison || scan.deepComparison || null,
+      summary: mergedSummary,
+    });
   } catch (err) {
     next(err);
   }
@@ -241,9 +302,39 @@ scansRouter.get('/:scanId/report', async (req, res, next) => {
       });
     }
 
+    // If markdown format is requested
+    if (req.query.format === 'markdown') {
+      const mdContent = await s3Service.getObjectContent(`scans/${scanId}/report.md`);
+      if (mdContent) {
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        return res.send(mdContent);
+      }
+    }
+
+    // Attempt to load finalized report from S3 artifacts
+    let s3Report = null;
+    try {
+      const rawReport = await s3Service.getObjectContent(`scans/${scanId}/report.json`);
+      if (rawReport) {
+        s3Report = JSON.parse(rawReport);
+      }
+    } catch {
+      // S3 read failed or file not present, continue with scan data
+    }
+
+    const mergedSummary = {
+      ...(scan.summary || {}),
+      ...(s3Report?.summary || {}),
+    };
+
     res.json({
       ...scan,
-      findings,
+      ...(s3Report || {}),
+      findings: findings.length > 0 ? findings : (s3Report?.findings || []),
+      checks: s3Report?.checks || scan.checks || [],
+      privacyCompliance: s3Report?.privacyCompliance || scan.privacyCompliance || null,
+      deepComparison: s3Report?.deepComparison || scan.deepComparison || null,
+      summary: mergedSummary,
     });
   } catch (err) {
     next(err);

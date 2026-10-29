@@ -26,12 +26,16 @@ export const FindingFilters: React.FC<FindingFiltersProps> = ({
 
   const categories: { id: Category | 'all'; label: string }[] = [
     { id: 'all', label: 'All Categories' },
-    { id: 'security', label: 'Security & TLS' },
-    { id: 'exposure', label: 'Exposure & Source Maps' },
+    { id: 'security', label: 'Security & App Sec' },
+    { id: 'privacy', label: 'DPDP / Privacy' },
+    { id: 'completeness', label: 'Completeness & Trust' },
+    { id: 'exposure', label: 'Exposure & Artifacts' },
     { id: 'performance', label: 'Performance' },
     { id: 'seo', label: 'SEO & Metadata' },
     { id: 'accessibility', label: 'Accessibility' },
-    { id: 'cookies', label: 'Cookies & Privacy' },
+    { id: 'cookies', label: 'Cookies & Consent' },
+    { id: 'infrastructure', label: 'Infrastructure & DNS' },
+    { id: 'abuse', label: 'Abuse Prevention' },
   ];
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {

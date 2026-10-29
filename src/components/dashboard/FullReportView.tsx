@@ -4,6 +4,10 @@ import { FindingCard } from '../common/FindingCard';
 import { StatusBadge } from '../common/StatusBadge';
 import { Button } from '../common/Button';
 import { Severity, Category } from '../../types/audit';
+import { CheckRegistryView } from '../common/CheckRegistryView';
+import { PrivacyComplianceSection } from '../common/PrivacyComplianceSection';
+import { DeepComparisonSection } from '../common/DeepComparisonSection';
+import { buildBasicAuditChecks, buildDeepSecurityChecks, buildDpdpComplianceChecks } from '../../data/auditReportBuilder';
 import { 
   Download, 
   RefreshCw, 
@@ -20,7 +24,10 @@ import {
   Sparkles,
   FileText,
   Share2,
-  Check
+  Check,
+  CheckSquare,
+  Lock,
+  GitCompare
 } from 'lucide-react';
 
 export const FullReportView: React.FC = () => {
@@ -29,6 +36,7 @@ export const FullReportView: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<Category | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState<'findings' | 'registry' | 'dpdp' | 'comparison'>('findings');
 
   if (!activeReport) {
     return (
@@ -39,6 +47,12 @@ export const FullReportView: React.FC = () => {
       </div>
     );
   }
+
+  const effectiveChecks = (activeReport.checks && activeReport.checks.length > 0)
+    ? activeReport.checks
+    : (activeReport.scanProfile === 'authorized_deep'
+        ? [...buildBasicAuditChecks(activeReport.targetUrl), ...buildDeepSecurityChecks(activeReport.targetUrl), ...buildDpdpComplianceChecks(activeReport.targetUrl)]
+        : buildBasicAuditChecks(activeReport.targetUrl));
 
   const filteredFindings = activeReport.findings.filter((f) => {
     if (severityFilter !== 'all' && f.severity !== severityFilter) return false;
@@ -69,6 +83,18 @@ export const FullReportView: React.FC = () => {
       
       {/* Top Header Card */}
       <div className="rounded-2xl bg-white border border-brand-border p-6 sm:p-8 shadow-subtle space-y-6">
+        {activeReport.status === 'FAILED' && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-sm flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-red-900">Audit Scan Failed</div>
+              <p className="mt-1 text-xs text-red-700">
+                {activeReport.errorMessage || 'The scan could not be completed because the audit engines encountered an error.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-brand-border">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -79,6 +105,16 @@ export const FullReportView: React.FC = () => {
               <span className="text-xs text-brand-text-secondary capitalize font-mono">
                 · {activeReport.scanProfile.replace('_', ' ')}
               </span>
+              {activeReport.scanProfile === 'authorized_deep' ? (
+                <span className="text-xs font-bold text-purple-900 bg-purple-100 px-2.5 py-0.5 rounded border border-purple-300 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-purple-700" />
+                  Deep Security & DPDP Audit
+                </span>
+              ) : (
+                <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300">
+                  Basic Public Quality Audit
+                </span>
+              )}
               {activeReport.isSampleData && (
                 <span className="text-xs font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
                   Illustrative Sample
@@ -214,57 +250,179 @@ export const FullReportView: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Finding Counts Toolbar */}
-      <div className="p-4 bg-white rounded-2xl border border-brand-border shadow-subtle flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search findings by rule ID, title, or target..."
-            className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-brand-border bg-brand-muted/30 focus:outline-none focus:border-brand-emerald"
-          />
-        </div>
-
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end text-xs">
-          {(severityFilter !== 'all' || categoryFilter !== 'all' || searchQuery) && (
-            <button
-              onClick={() => {
-                setSeverityFilter('all');
-                setCategoryFilter('all');
-                setSearchQuery('');
-              }}
-              className="text-brand-emerald hover:underline font-semibold"
-            >
-              Reset all filters
-            </button>
-          )}
-
-          <span className="text-brand-text-secondary font-mono">
-            Showing {filteredFindings.length} of {activeReport.findings.length} findings
-          </span>
-        </div>
-      </div>
-
-      {/* Findings List */}
-      <div className="space-y-4">
-        {filteredFindings.length === 0 ? (
-          <div className="p-12 text-center bg-white rounded-2xl border border-brand-border">
-            <p className="text-sm font-semibold text-brand-text">No findings match the selected filters.</p>
-            <p className="text-xs text-brand-text-secondary mt-1">Try resetting the severity or category filters.</p>
+      {/* Check Execution Statistics Banner */}
+      {activeReport.summary.totalChecksEvaluated !== undefined && activeReport.summary.totalChecksEvaluated > 0 && (
+        <div className="p-4 rounded-2xl bg-white border border-brand-border grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-xs shadow-subtle">
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Evaluated Checks</span>
+            <span className="text-base font-mono font-extrabold text-slate-900">{activeReport.summary.totalChecksEvaluated}</span>
           </div>
-        ) : (
-          filteredFindings.map((finding) => (
-            <FindingCard
-              key={finding.id}
-              finding={finding}
-              onToggleResolved={markFindingResolved}
-              isDetailedDefault={finding.severity === 'critical' || finding.severity === 'high'}
-            />
-          ))
-        )}
+          <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200">
+            <span className="text-[10px] uppercase font-bold text-emerald-600 block">Checks Passed</span>
+            <span className="text-base font-mono font-extrabold text-emerald-800">{activeReport.summary.checksPassed ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200">
+            <span className="text-[10px] uppercase font-bold text-amber-600 block">Warnings</span>
+            <span className="text-base font-mono font-extrabold text-amber-800">{activeReport.summary.checksWarning ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-red-50/60 border border-red-200">
+            <span className="text-[10px] uppercase font-bold text-red-600 block">Failed Checks</span>
+            <span className="text-base font-mono font-extrabold text-red-800">{activeReport.summary.checksFailed ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-200">
+            <span className="text-[10px] uppercase font-bold text-blue-600 block">Confirmed Vulns</span>
+            <span className="text-base font-mono font-extrabold text-blue-800">{activeReport.summary.confirmedVulnerabilities ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Not Tested / N/A</span>
+            <span className="text-base font-mono font-extrabold text-slate-700">
+              {(activeReport.summary.checksNotTested ?? 0) + (activeReport.summary.checksNotApplicable ?? 0)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-brand-border gap-2 overflow-x-auto pb-px">
+        <button
+          onClick={() => setActiveTab('findings')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'findings'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+          <span>Actionable Findings</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
+            {activeReport.findings.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('registry')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'registry'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <CheckSquare className="w-3.5 h-3.5" />
+          <span>Full Check Registry</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-100 text-emerald-800">
+            {effectiveChecks.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dpdp')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'dpdp'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Privacy & DPDP Act (2023)</span>
+          {activeReport.privacyCompliance && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-100 text-indigo-800 uppercase">
+              {(activeReport.privacyCompliance.overallRating || activeReport.privacyCompliance.complianceRating || 'review').replace('_', ' ')}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('comparison')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'comparison'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <GitCompare className="w-3.5 h-3.5 text-purple-500" />
+          <span>Deep vs Basic Differential</span>
+          {activeReport.scanProfile === 'authorized_deep' && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-100 text-purple-800">
+              Deep Active
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* Tab 1: Findings */}
+      {activeTab === 'findings' && (
+        <div className="space-y-6">
+          {/* Search & Finding Counts Toolbar */}
+          <div className="p-4 bg-white rounded-2xl border border-brand-border shadow-subtle flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search findings by rule ID, title, or target..."
+                className="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-brand-border bg-brand-muted/30 focus:outline-none focus:border-brand-emerald"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end text-xs">
+              {(severityFilter !== 'all' || categoryFilter !== 'all' || searchQuery) && (
+                <button
+                  onClick={() => {
+                    setSeverityFilter('all');
+                    setCategoryFilter('all');
+                    setSearchQuery('');
+                  }}
+                  className="text-brand-emerald hover:underline font-semibold"
+                >
+                  Reset all filters
+                </button>
+              )}
+
+              <span className="text-brand-text-secondary font-mono">
+                Showing {filteredFindings.length} of {activeReport.findings.length} findings
+              </span>
+            </div>
+          </div>
+
+          {/* Findings List */}
+          <div className="space-y-4">
+            {filteredFindings.length === 0 ? (
+              <div className="p-12 text-center bg-white rounded-2xl border border-brand-border">
+                <p className="text-sm font-semibold text-brand-text">No findings match the selected filters.</p>
+                <p className="text-xs text-brand-text-secondary mt-1">Try resetting the severity or category filters.</p>
+              </div>
+            ) : (
+              filteredFindings.map((finding) => (
+                <FindingCard
+                  key={finding.id}
+                  finding={finding}
+                  onToggleResolved={markFindingResolved}
+                  isDetailedDefault={finding.severity === 'critical' || finding.severity === 'high'}
+                />
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Full Check Registry */}
+      {activeTab === 'registry' && (
+        <CheckRegistryView checks={effectiveChecks} />
+      )}
+
+      {/* Tab 3: Privacy & DPDP Compliance */}
+      {activeTab === 'dpdp' && (
+        <PrivacyComplianceSection summary={activeReport.privacyCompliance} />
+      )}
+
+      {/* Tab 4: Deep vs Basic Comparison */}
+      {activeTab === 'comparison' && (
+        <DeepComparisonSection
+          comparison={activeReport.deepComparison}
+          scanProfile={activeReport.scanProfile}
+        />
+      )}
 
       {/* Engines Run & Transparent Scope Notice */}
       <div className="rounded-2xl bg-white border border-brand-border p-6 space-y-6">
@@ -279,14 +437,14 @@ export const FullReportView: React.FC = () => {
                 <div className="font-bold text-brand-text">{eng.displayName}</div>
                 <div className="flex items-center justify-between text-[11px] text-brand-text-secondary mt-1">
                   <span className={`capitalize font-semibold ${
-                    eng.status === 'passed' ? 'text-emerald-700' : 'text-amber-700'
+                    eng.status === 'passed' ? 'text-emerald-700' : eng.status === 'failed' ? 'text-red-700' : 'text-amber-700'
                   }`}>
                     {eng.status.replace('_', ' ')}
                   </span>
-                  {eng.executionTimeMs && <span>{eng.executionTimeMs}ms</span>}
+                  {eng.executionTimeMs ? <span>{eng.executionTimeMs}ms</span> : null}
                 </div>
-                {eng.message && (
-                  <p className="text-[10px] text-gray-500 mt-1 italic">{eng.message}</p>
+                {(eng.errorMessage || eng.message) && (
+                  <p className="text-[10px] text-red-600 mt-1 font-mono break-words">{eng.errorMessage || eng.message}</p>
                 )}
               </div>
             ))}

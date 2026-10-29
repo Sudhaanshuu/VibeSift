@@ -49,6 +49,10 @@ class SqliteStorage {
         enginesRun TEXT,
         durationSeconds REAL,
         checksNotPerformed TEXT,
+        checks TEXT,
+        privacyCompliance TEXT,
+        deepComparison TEXT,
+        errorMessage TEXT,
         createdAt TEXT NOT NULL,
         updatedAt TEXT NOT NULL,
         idempotencyKey TEXT
@@ -91,6 +95,12 @@ class SqliteStorage {
         createdAt TEXT NOT NULL
       );
     `);
+
+    // Safe migration for existing SQLite databases
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN checks TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN privacyCompliance TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN deepComparison TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN errorMessage TEXT'); } catch {}
   }
 
   // ==================== SITES ====================
@@ -271,14 +281,19 @@ class SqliteStorage {
       INSERT INTO scans (
         scanId, ownerUserId, targetUrl, normalizedHostname, scanProfile,
         status, summary, enginesRun, durationSeconds, checksNotPerformed,
+        checks, privacyCompliance, deepComparison, errorMessage,
         createdAt, updatedAt, idempotencyKey
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(scanId) DO UPDATE SET
         status = excluded.status,
         summary = excluded.summary,
         enginesRun = excluded.enginesRun,
         durationSeconds = excluded.durationSeconds,
         checksNotPerformed = excluded.checksNotPerformed,
+        checks = COALESCE(excluded.checks, scans.checks),
+        privacyCompliance = COALESCE(excluded.privacyCompliance, scans.privacyCompliance),
+        deepComparison = COALESCE(excluded.deepComparison, scans.deepComparison),
+        errorMessage = COALESCE(excluded.errorMessage, scans.errorMessage),
         updatedAt = excluded.updatedAt
     `);
 
@@ -294,6 +309,10 @@ class SqliteStorage {
       scan.enginesRun ? JSON.stringify(scan.enginesRun) : '[]',
       scan.durationSeconds || 0,
       scan.checksNotPerformed ? JSON.stringify(scan.checksNotPerformed) : '[]',
+      scan.checks ? JSON.stringify(scan.checks) : null,
+      scan.privacyCompliance ? JSON.stringify(scan.privacyCompliance) : null,
+      scan.deepComparison ? JSON.stringify(scan.deepComparison) : null,
+      scan.errorMessage || null,
       scan.createdAt || now,
       scan.updatedAt || now,
       scan.idempotencyKey || null
@@ -558,6 +577,10 @@ class SqliteStorage {
       enginesRun: r.enginesRun ? JSON.parse(r.enginesRun) : [],
       durationSeconds: r.durationSeconds || 0,
       checksNotPerformed: r.checksNotPerformed ? JSON.parse(r.checksNotPerformed) : [],
+      checks: r.checks ? JSON.parse(r.checks) : undefined,
+      privacyCompliance: r.privacyCompliance ? JSON.parse(r.privacyCompliance) : undefined,
+      deepComparison: r.deepComparison ? JSON.parse(r.deepComparison) : undefined,
+      errorMessage: r.errorMessage || undefined,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       idempotencyKey: r.idempotencyKey,

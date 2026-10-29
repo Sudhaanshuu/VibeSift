@@ -11,7 +11,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onNavigateToApp }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAuthenticated, logout, loginAsDemoUser } = useAuth();
+  const { user, isAuthenticated, logout, openLoginModal } = useAuth();
   const { openNewScanModal } = useAudit();
 
   const navLinks = [
@@ -77,7 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateToApp }) => {
               <>
                 <button
                   type="button"
-                  onClick={loginAsDemoUser}
+                  onClick={openLoginModal}
                   className="text-sm font-medium text-brand-text-secondary hover:text-brand-text px-3 py-1.5 transition-colors"
                 >
                   Sign in
@@ -171,10 +171,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigateToApp }) => {
                   className="w-full rounded-full"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    loginAsDemoUser();
+                    openLoginModal();
                   }}
                 >
-                  Sign In (Instant Demo)
+                  Sign In
                 </Button>
               </>
             )}

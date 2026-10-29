@@ -23,6 +23,11 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
     security: 'HTTPS & TLS',
     cookies: 'Cookies & Privacy',
     exposure: 'Exposure & Code',
+    privacy: 'Privacy & DPDP Act',
+    completeness: 'Site Completeness',
+    trust: 'Trust & Legal Pages',
+    infrastructure: 'Infrastructure & DNS',
+    abuse: 'Abuse & Rate Limiting',
   };
 
   const formattedDate = new Date(createdAt).toLocaleDateString('en-US', {
@@ -59,12 +64,58 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
           </div>
         </div>
 
-        {report.isSampleData && (
-          <div className="px-3 py-1.5 rounded-xl bg-brand-mint border border-brand-border text-xs text-brand-emerald-deep font-mono">
-            Demo / Sample Data
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {scanProfile === 'authorized_deep' ? (
+            <div className="px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 font-mono font-bold flex items-center gap-1.5 shadow-sm">
+              <ShieldCheck className="w-4 h-4 text-purple-600" />
+              <span>Deep Security & DPDP Audit</span>
+            </div>
+          ) : (
+            <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 font-mono font-bold flex items-center gap-1.5 shadow-sm">
+              <Globe className="w-4 h-4 text-emerald-600" />
+              <span>Basic Public Quality Audit</span>
+            </div>
+          )}
+
+          {report.isSampleData && (
+            <div className="px-3 py-1.5 rounded-xl bg-brand-mint border border-brand-border text-xs text-brand-emerald-deep font-mono">
+              Demo / Sample Data
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Check Execution Statistics Banner */}
+      {summary.totalChecksEvaluated !== undefined && summary.totalChecksEvaluated > 0 && (
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-xs">
+          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Evaluated Checks</span>
+            <span className="text-base font-mono font-extrabold text-slate-900">{summary.totalChecksEvaluated}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-white border border-emerald-200">
+            <span className="text-[10px] uppercase font-bold text-emerald-600 block">Checks Passed</span>
+            <span className="text-base font-mono font-extrabold text-emerald-800">{summary.checksPassed ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-white border border-amber-200">
+            <span className="text-[10px] uppercase font-bold text-amber-600 block">Warnings</span>
+            <span className="text-base font-mono font-extrabold text-amber-800">{summary.checksWarning ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-white border border-red-200">
+            <span className="text-[10px] uppercase font-bold text-red-600 block">Failed Checks</span>
+            <span className="text-base font-mono font-extrabold text-red-800">{summary.checksFailed ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-white border border-blue-200">
+            <span className="text-[10px] uppercase font-bold text-blue-600 block">Confirmed Vulns</span>
+            <span className="text-base font-mono font-extrabold text-blue-800">{summary.confirmedVulnerabilities ?? 0}</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Not Tested / N/A</span>
+            <span className="text-base font-mono font-extrabold text-slate-700">
+              {(summary.checksNotTested ?? 0) + (summary.checksNotApplicable ?? 0)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Executive Posture Narrative if present */}
       {summary.executiveSummary && (

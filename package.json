@@ -4,11 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"backend,frontend\" -c \"magenta.bold,cyan.bold\" \"npm --prefix backend start\" \"vite\"",
+    "dev:frontend": "vite",
+    "dev:backend": "npm --prefix backend start",
+    "setup": "npm install && npm --prefix backend install",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "dev:backend": "cd backend && npm start",
     "test:backend": "cd backend && npm test",
     "build:infra": "cd infra && npm run build",
     "synth:infra": "cd infra && npm run synth"
@@ -36,6 +38,7 @@
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.6",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",

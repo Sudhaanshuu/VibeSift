@@ -13,6 +13,8 @@
     ]
   },
   "context": {
+    "cognitoUserPoolId": "us-east-1_nW70Gohxd",
+    "cognitoClientId": "2jg3m4brvt5adfa59vhl2ds0qs",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": ["aws"],

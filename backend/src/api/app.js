@@ -8,6 +8,8 @@ import { reportsRouter } from './routes/reports.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 
+import { config } from '../config/env.js';
+
 export const app = express();
 
 // Disable X-Powered-By
@@ -18,11 +20,29 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
-// CORS for local development and frontend access
+// Allowed origins: Production restricted to https://vibesift.pixir.in; localhost permitted only in development
+const ALLOWED_ORIGINS = [
+  'https://vibesift.pixir.in',
+  ...(!config.isProduction
+    ? ['http://localhost:5173', 'http://localhost:4000', 'http://localhost:3000', 'http://127.0.0.1:5173']
+    : []),
+];
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin && !config.isProduction) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (!origin && config.isProduction) {
+    res.setHeader('Access-Control-Allow-Origin', 'https://vibesift.pixir.in');
+  }
+
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID, Idempotency-Key');
+
   if (req.method === 'OPTIONS') {
     return res.status(204).send();
   }
@@ -60,8 +80,11 @@ app.use('/api/sites', authenticateToken, sitesRouter);
 app.use('/reports', authenticateToken, reportsRouter);
 app.use('/api/reports', authenticateToken, reportsRouter);
 
-// Artifacts download endpoint (for mock presigned URLs)
-app.get('/api/artifacts/download', (req, res, next) => {
+// Artifacts download endpoint (authenticated)
+app.get('/api/artifacts/download', authenticateToken, (req, res, next) => {
+  reportsRouter.handle(req, res, next);
+});
+app.get('/artifacts/download', authenticateToken, (req, res, next) => {
   reportsRouter.handle(req, res, next);
 });
 
