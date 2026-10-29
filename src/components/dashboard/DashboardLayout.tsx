@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrandLogo } from '../brand/BrandLogo';
+import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
 import { useAuth } from '../../context/AuthContext';
 import { useAudit } from '../../context/AuditContext';
 import { 
@@ -59,6 +60,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <ScanQuotaIndicator />
           <button
             onClick={() => openNewScanModal()}
             className="p-1.5 rounded-lg bg-brand-emerald text-white text-xs font-semibold px-2.5 flex items-center gap-1"
@@ -97,11 +99,16 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             {/* Quick Action: Start Scan */}
             <button
               onClick={() => openNewScanModal()}
-              className="w-full mb-4 py-2.5 px-3.5 rounded-xl bg-brand-emerald text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-subtle hover:bg-brand-emerald-dark transition-all"
+              className="w-full mb-3 py-2.5 px-3.5 rounded-xl bg-brand-emerald text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-subtle hover:bg-brand-emerald-dark transition-all"
             >
               <PlusCircle className="w-4 h-4" />
               <span>New Audit Scan</span>
             </button>
+
+            {/* Live Scan Quota & Rate Limit Widget */}
+            <div className="mb-4">
+              <ScanQuotaIndicator showDetails />
+            </div>
 
             {/* Nav list */}
             <nav className="space-y-1">

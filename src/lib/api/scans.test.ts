@@ -58,4 +58,19 @@ describe('Scan API & Lifecycle State Machine', () => {
     expect(rescanned.scanId).not.toBe(initial.scanId);
     expect(rescanned.targetUrl).toBe(initial.targetUrl);
   });
+
+  it('correctly reports failure with reason and error message instead of mock data', async () => {
+    const submission = await submitScan({
+      url: 'https://fail-test-unreachable.dev',
+      profile: 'baseline_public',
+      acknowledgedTerms: true,
+    });
+
+    await new Promise((r) => setTimeout(r, 1400));
+    const report = await getScanStatus(submission.scanId);
+    expect(report.status).toBe('FAILED');
+    expect(report.errorMessage).toBeDefined();
+    expect(report.errorMessage).toContain('Target website is unreachable');
+    expect(report.findings).toHaveLength(0);
+  });
 });

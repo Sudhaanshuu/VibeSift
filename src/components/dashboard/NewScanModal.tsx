@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAudit } from '../../context/AuditContext';
 import { ScanProfile } from '../../types/audit';
 import { Button } from '../common/Button';
+import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
 import { 
   X, 
   Globe, 
@@ -14,7 +15,11 @@ import {
   ExternalLink 
 } from 'lucide-react';
 
-export const NewScanModal: React.FC = () => {
+interface NewScanModalProps {
+  onScanComplete?: (scanId: string) => void;
+}
+
+export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) => {
   const { 
     isNewScanModalOpen, 
     closeNewScanModal, 
@@ -50,19 +55,15 @@ export const NewScanModal: React.FC = () => {
       return;
     }
 
-    if (profile === 'authorized_deep' && !isVerifiedDomain) {
-      setErrorMsg('Deeper security testing requires verified domain ownership. Please select Baseline Public Scan or verify your domain in the Saved Websites tab first.');
-      return;
-    }
-
     if (!acknowledgedTerms) {
-      setErrorMsg('Please acknowledge that you have permission to audit this target.');
+      setErrorMsg('Please confirm that you own or are authorized to audit this target.');
       return;
     }
 
     setErrorMsg('');
     try {
-      await startNewScan(url, profile);
+      const scanId = await startNewScan(url, profile);
+      onScanComplete?.(scanId);
     } catch (err: any) {
       setErrorMsg(err.message || 'Scan dispatch failed');
     }
@@ -84,13 +85,16 @@ export const NewScanModal: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={closeNewScanModal}
-            disabled={isScanning}
-            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            <ScanQuotaIndicator />
+            <button
+              onClick={closeNewScanModal}
+              disabled={isScanning}
+              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body / Scanning Progress or Form */}
@@ -195,27 +199,37 @@ export const NewScanModal: React.FC = () => {
                       <Lock className="w-3 h-3 text-amber-600" /> Authorized Deep
                     </span>
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
-                      isVerifiedDomain ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
+                      isVerifiedDomain || acknowledgedTerms ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
                     }`}>
-                      {isVerifiedDomain ? 'Verified' : 'Verification Needed'}
+                      {isVerifiedDomain ? 'Verified' : acknowledgedTerms ? 'Owner Consent' : 'Consent Needed'}
                     </span>
                   </div>
                   <p className="text-[11px] text-brand-text-secondary leading-snug">
-                    OWASP ZAP baseline + Nuclei safe templates. Strictly requires verified domain ownership.
+                    OWASP ZAP baseline + Nuclei safe templates. Enabled via verified domain or confirmed ownership consent.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Verification Status Warning if Deep Profile Selected */}
+            {/* Verification Status Banner if Deep Profile Selected */}
             {profile === 'authorized_deep' && !isVerifiedDomain && (
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="block font-semibold">Ownership Verification Required:</strong>
-                  The target <span className="font-mono">{cleanHostname || 'domain'}</span> has not been verified yet. Run a Baseline Public scan first, or verify your domain in the Saved Websites dashboard.
+              acknowledgedTerms ? (
+                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-semibold">Ownership Authorization Confirmed:</strong>
+                    You have declared ownership authorization for <span className="font-mono">{cleanHostname || 'domain'}</span>. Authorized deep security scan (OWASP ZAP & Nuclei) is enabled.
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-semibold">Ownership Authorization Required:</strong>
+                    Confirm that you own or are authorized to audit <span className="font-mono">{cleanHostname || 'domain'}</span> using the checkbox below to unlock authorized deep scanning.
+                  </div>
+                </div>
+              )
             )}
 
             {/* Responsible Scanning Checkbox */}

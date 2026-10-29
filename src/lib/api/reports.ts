@@ -46,21 +46,45 @@ export async function resolveFinding(
  */
 export function generateReportMarkdown(report: AuditReport): string {
   const dateStr = new Date(report.createdAt).toUTCString();
-  const findingsBySev = {
-    critical: report.findings.filter((f) => f.severity === 'critical'),
-    high: report.findings.filter((f) => f.severity === 'high'),
-    medium: report.findings.filter((f) => f.severity === 'medium'),
-    low: report.findings.filter((f) => f.severity === 'low'),
-    info: report.findings.filter((f) => f.severity === 'info'),
-  };
 
-  let md = `# Website Launch-Readiness Audit Report\n\n`;
+  let md = `# Website Audit Report: ${report.normalizedHostname}\n\n`;
   md += `**Target Website:** ${report.targetUrl}  \n`;
+  md += `**Audit Mode:** ${report.scanProfile === 'authorized_deep' ? 'Authorized Deep Security & DPDP Audit' : 'Basic Public Quality & SEO Audit'}  \n`;
   md += `**Scan ID:** \`${report.scanId}\`  \n`;
   md += `**Audit Date:** ${dateStr}  \n`;
-  md += `**Scan Profile:** ${report.scanProfile}  \n`;
   md += `**Status:** ${report.status}  \n`;
   md += `**Launch Readiness Score:** ${report.summary.readinessScore}/100  \n\n`;
+
+  md += `## Audit Execution Summary\n\n`;
+  md += `| Metric | Count |\n`;
+  md += `|---|---|\n`;
+  md += `| Total Checks Evaluated | ${report.summary.totalChecks ?? report.checks?.length ?? report.summary.totalFindings} |\n`;
+  md += `| Checks Passed | ${report.summary.passedChecks ?? 0} |\n`;
+  md += `| Actionable Findings / Failures | ${report.summary.failedChecks ?? (report.summary.critical + report.summary.high)} |\n`;
+  md += `| Warnings | ${report.summary.warningChecks ?? (report.summary.medium + report.summary.low)} |\n`;
+  md += `| Not Tested / Skipped | ${report.summary.notTestedChecks ?? 0} |\n`;
+  md += `| Confirmed Vulnerabilities | ${report.summary.confirmedVulnerabilities ?? report.summary.critical} |\n`;
+  md += `| Potential Risks | ${report.summary.potentialRisks ?? report.summary.medium} |\n\n`;
+
+  if (report.deepComparison) {
+    const dc = report.deepComparison;
+    md += `## Deep Audit vs Basic Audit Comparison\n\n`;
+    md += `- **Additional Checks Executed:** ${dc.additionalChecksExecuted}\n`;
+    md += `- **Independent Security Tests:** ${dc.independentTestsCount}\n`;
+    md += `- **Reused Baseline Observations:** ${dc.reusedEvidenceCount}\n`;
+    md += `- **Tests Omitted with Reason:** ${dc.notTestedCount}\n\n`;
+  }
+
+  if (report.privacyCompliance) {
+    const pc = report.privacyCompliance;
+    md += `## Privacy & Indian DPDP Act (2023) Assessment\n\n`;
+    md += `> **Disclaimer:** ${pc.disclaimer}\n\n`;
+    md += `- **Compliance Rating:** **${(pc.complianceRating || pc.overallRating || 'needs_attention').toUpperCase()}**\n`;
+    md += `- **Privacy Signals Verified:** ${pc.checksPassed}/${pc.checksTotal}\n`;
+    md += `- **Grievance Officer in India:** ${pc.hasGrievanceOfficer ? 'Disclosed ✅' : 'Missing ⚠️'}\n`;
+    md += `- **Consent Reject Parity:** ${pc.hasRejectParity ? 'Balanced ✅' : 'Asymmetric / Missing ⚠️'}\n`;
+    md += `- **Pre-Consent Trackers:** ${pc.hasTrackersBeforeConsent ? 'Active before consent ⚠️' : 'None detected ✅'}\n\n`;
+  }
 
   md += `## Category Scores\n\n`;
   md += `| Category | Score |\n`;
@@ -69,14 +93,7 @@ export function generateReportMarkdown(report: AuditReport): string {
     md += `| ${cat.toUpperCase()} | ${score}/100 |\n`;
   });
 
-  md += `\n## Severity Breakdown\n\n`;
-  md += `- **Critical:** ${report.summary.critical}\n`;
-  md += `- **High:** ${report.summary.high}\n`;
-  md += `- **Medium:** ${report.summary.medium}\n`;
-  md += `- **Low:** ${report.summary.low}\n`;
-  md += `- **Informational:** ${report.summary.info}\n\n`;
-
-  md += `## Detailed Findings (${report.findings.length})\n\n`;
+  md += `\n## Detailed Findings (${report.findings.length})\n\n`;
   report.findings.forEach((f, idx) => {
     md += `### ${idx + 1}. [${f.severity.toUpperCase()}] ${f.title}\n\n`;
     md += `- **Rule ID:** \`${f.ruleId}\`\n`;
@@ -105,14 +122,17 @@ export function generateReportMarkdown(report: AuditReport): string {
 }
 
 /**
- * Downloads report as formatted JSON file.
+ * Initiates browser download of JSON report.
  */
 export function downloadReportJson(report: AuditReport): void {
-  const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(report, null, 2));
-  const link = document.createElement('a');
-  link.setAttribute('href', dataStr);
-  link.setAttribute('download', `audit-report-${report.normalizedHostname}-${report.scanId}.json`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  const jsonStr = JSON.stringify(report, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vibesift-audit-${report.normalizedHostname}-${report.scanId}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

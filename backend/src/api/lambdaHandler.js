@@ -34,10 +34,29 @@ export async function handler(event, context) {
       body: body && typeof body === 'string' ? (headers['content-type']?.includes('json') ? JSON.parse(body) : body) : body || {},
     };
 
+    const origin = req.headers.origin;
+    const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
+    const allowedOrigins = [
+      'https://vibesift.pixir.in',
+      ...(!isProd
+        ? ['http://localhost:5173', 'http://localhost:4000', 'http://localhost:3000', 'http://127.0.0.1:5173']
+        : []),
+    ];
+
+    let allowOriginHeader = isProd ? 'https://vibesift.pixir.in' : '*';
+    if (origin && allowedOrigins.includes(origin)) {
+      allowOriginHeader = origin;
+    } else if (origin && isProd) {
+      allowOriginHeader = 'https://vibesift.pixir.in';
+    }
+
     let statusCode = 200;
     const responseHeaders = {
       'content-type': 'application/json',
-      'access-control-allow-origin': '*',
+      'access-control-allow-origin': allowOriginHeader,
+      'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, Authorization, X-Request-ID, Idempotency-Key',
+      'vary': 'Origin',
     };
     let responseBody = '';
 

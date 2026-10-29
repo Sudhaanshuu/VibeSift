@@ -196,10 +196,8 @@ export class DynamoStorageService {
       })
     );
     const item = res.Items?.[0];
-    if (item && item.ownerUserId === ownerUserId) {
-      return item;
-    }
-    return null;
+    if (!item) return null;
+    return this.getScan(item.scanId, ownerUserId);
   }
 
   async listScansByUser(ownerUserId, options = {}) {

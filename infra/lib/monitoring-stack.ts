@@ -39,6 +39,36 @@ export class MonitoringStack extends cdk.Stack {
       period: cdk.Duration.minutes(5),
     });
 
+    // API Gateway & Security Rate Limit Metrics
+    const api4xxMetric = new cloudwatch.Metric({
+      namespace: 'AWS/ApiGateway',
+      metricName: '4xx',
+      dimensionsMap: { ApiId: props.api.apiId },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(5),
+    });
+    const api5xxMetric = new cloudwatch.Metric({
+      namespace: 'AWS/ApiGateway',
+      metricName: '5xx',
+      dimensionsMap: { ApiId: props.api.apiId },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(5),
+    });
+    const rateLimitBlockedMetric = new cloudwatch.Metric({
+      namespace: 'VibeSift/Audits',
+      metricName: 'RateLimitBlockedRequests',
+      dimensionsMap: { Environment: props.stage },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(5),
+    });
+    const botChallengeFailuresMetric = new cloudwatch.Metric({
+      namespace: 'VibeSift/Audits',
+      metricName: 'BotChallengeFailures',
+      dimensionsMap: { Environment: props.stage },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(5),
+    });
+
     // Add widgets
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
@@ -50,6 +80,17 @@ export class MonitoringStack extends cdk.Stack {
       new cloudwatch.GraphWidget({
         title: 'Dead-Letter Queue Messages (Failed Scans)',
         left: [dlqMessagesMetric],
+        width: 12,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'API Gateway HTTP Traffic & Error Rates (4xx / 5xx)',
+        left: [api4xxMetric],
+        right: [api5xxMetric],
+        width: 12,
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Security: Rate Limit Hits & Bot Shield Blocks',
+        left: [rateLimitBlockedMetric, botChallengeFailuresMetric],
         width: 12,
       })
     );

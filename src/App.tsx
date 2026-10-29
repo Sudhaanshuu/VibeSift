@@ -41,7 +41,7 @@ import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 type AppView = 'landing' | 'methodology' | 'sample-reports' | 'remediation' | 'privacy' | 'security' | 'dashboard';
 
 export const AppContent: React.FC = () => {
-  const { isAuthenticated, loginAsDemoUser } = useAuth();
+  const { isAuthenticated, openLoginModal } = useAuth();
   const { setActiveReport, scansList } = useAudit();
 
   const getInitialView = (): AppView => {
@@ -96,7 +96,8 @@ export const AppContent: React.FC = () => {
 
   const navigateToDashboard = () => {
     if (!isAuthenticated) {
-      loginAsDemoUser();
+      openLoginModal();
+      return;
     }
     setCurrentView('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -299,7 +300,13 @@ export const AppContent: React.FC = () => {
       )}
 
       {/* Global Modals */}
-      <NewScanModal />
+      <NewScanModal
+        onScanComplete={() => {
+          setCurrentView('dashboard');
+          setDashboardTab('report');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
       <LoginModal />
       <PolicyModal
         isOpen={policyModal.isOpen}

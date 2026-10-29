@@ -17,10 +17,12 @@ export interface ApiStackProps extends cdk.StackProps {
     kmsKey: kms.Key;
     scanQueue: sqs.Queue;
     stateMachine: sfn.StateMachine;
+    existingUserPoolId?: string;
+    existingUserPoolClientId?: string;
 }
 export declare class ApiStack extends cdk.Stack {
-    readonly userPool: cognito.UserPool;
-    readonly userPoolClient: cognito.UserPoolClient;
+    readonly userPool: cognito.IUserPool;
+    readonly userPoolClient: cognito.IUserPoolClient;
     readonly apiLambda: lambda.Function;
     readonly httpApi: apigwv2.HttpApi;
     constructor(scope: Construct, id: string, props: ApiStackProps);

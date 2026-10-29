@@ -6,7 +6,12 @@ export type Category =
   | 'accessibility' 
   | 'security' 
   | 'cookies' 
-  | 'exposure';
+  | 'exposure'
+  | 'privacy'
+  | 'completeness'
+  | 'trust'
+  | 'infrastructure'
+  | 'abuse';
 
 export type Confidence = 'certain' | 'high' | 'medium' | 'low';
 
@@ -16,6 +21,32 @@ export type EngineType = 'custom-python' | 'lighthouse' | 'owasp-zap' | 'nuclei'
 
 export type VerificationStatus = 'open' | 'fixed' | 'waived' | 'cannot_verify';
 
+export type CheckStatus = 
+  | 'pass' 
+  | 'fail' 
+  | 'warning' 
+  | 'info' 
+  | 'not_tested' 
+  | 'unknown' 
+  | 'not_applicable';
+
+export type FindingType = 
+  | 'confirmed' 
+  | 'suspected' 
+  | 'informational'
+  | 'confirmed_vulnerability'
+  | 'potential_risk'
+  | 'hardening_signal'
+  | 'inconclusive';
+
+export type AuditMode = 
+  | 'basic' 
+  | 'deep' 
+  | 'privacy'
+  | 'both'
+  | 'baseline_public'
+  | 'authorized_deep';
+
 export interface FindingEvidence {
   request?: string;
   responseSnippet?: string;
@@ -24,6 +55,14 @@ export interface FindingEvidence {
   expectedHeader?: string;
   metrics?: Record<string, string | number>;
   reproductionCurl?: string;
+  cwe?: string;
+  owaspCategory?: string;
+  testedUrl?: string;
+  statusCode?: number;
+  injectedPayload?: string;
+  linesCount?: number;
+  urlCount?: number;
+  [key: string]: any;
 }
 
 export interface FindingRemediation {
@@ -51,6 +90,63 @@ export interface Finding {
   remediation: FindingRemediation;
   verificationStatus: VerificationStatus;
   aiExplanation?: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+}
+
+export interface AuditCheckResult {
+  checkId: string;
+  name: string;
+  category: Category | string;
+  status: CheckStatus;
+  severity?: Severity;
+  findingType?: FindingType;
+  auditMode?: AuditMode;
+  mode?: string;
+  explanation?: string;
+  description?: string;
+  impact?: string;
+  remediation?: FindingRemediation | string | any;
+  evidence?: FindingEvidence | any;
+  testTimestamp?: string;
+  scope?: string;
+  isIndependent?: boolean;
+  isSecurityVulnerability?: boolean;
+  executionReason?: string;
+  legalCitation?: string;
+}
+
+export interface PrivacyComplianceSummary {
+  applicableLaw: string;
+  disclaimer: string;
+  complianceRating?: 'compliant' | 'needs_attention' | 'high_risk' | 'partially_compliant' | 'non_compliant' | 'needs_review';
+  overallRating?: 'compliant' | 'needs_attention' | 'high_risk' | 'partially_compliant' | 'non_compliant' | 'needs_review';
+  checksPassed?: number;
+  checksTotal?: number;
+  checksFailed?: number;
+  checksWarning?: number;
+  hasGrievanceOfficer?: boolean;
+  hasRejectParity?: boolean;
+  hasTrackersBeforeConsent?: boolean;
+  hasChildrenDataClause?: boolean;
+  keyDeficiencies?: string[];
+  dpdpChecks?: any[];
+}
+
+export interface DeepAuditComparison {
+  additionalChecksExecuted?: number;
+  independentTestsCount?: number;
+  reusedEvidenceCount?: number;
+  notTestedCount?: number;
+  confirmedVulnerabilitiesCount?: number;
+  potentialRisksCount?: number;
+  additionalTestNames?: string[];
+  additionalSecurityTests?: string[];
+  totalBasicChecks?: number;
+  totalDeepChecks?: number;
+  skippedBasicChecksInDeep?: string[];
+  scopeDifferenceDescription?: string;
+  skippedTestReasons?: Record<string, string>;
 }
 
 export type ScanStatus = 
@@ -68,9 +164,11 @@ export type ScanProfile = 'baseline_public' | 'authorized_deep';
 export interface EngineExecutionStatus {
   engine: EngineType | string;
   displayName: string;
-  status: 'passed' | 'partial' | 'failed' | 'skipped_unauthorized';
+  status: 'passed' | 'partial' | 'failed' | 'skipped_unauthorized' | 'skipped_profile';
   message?: string;
+  errorMessage?: string;
   executionTimeMs?: number;
+  rawArtifactKey?: string;
 }
 
 export interface ReportSummary {
@@ -81,8 +179,24 @@ export interface ReportSummary {
   low: number;
   info: number;
   readinessScore: number; // 0 to 100
-  categoryScores: Record<Category, number>;
+  categoryScores: Record<string, number>;
   executiveSummary?: string;
+  totalChecks?: number;
+  totalChecksEvaluated?: number;
+  passedChecks?: number;
+  checksPassed?: number;
+  failedChecks?: number;
+  checksFailed?: number;
+  warningChecks?: number;
+  checksWarning?: number;
+  infoChecks?: number;
+  notTestedChecks?: number;
+  checksNotTested?: number;
+  unknownChecks?: number;
+  notApplicableChecks?: number;
+  checksNotApplicable?: number;
+  confirmedVulnerabilities?: number;
+  potentialRisks?: number;
 }
 
 export interface AuditReport {
@@ -98,7 +212,12 @@ export interface AuditReport {
   enginesRun: EngineExecutionStatus[];
   checksNotPerformed: string[];
   findings: Finding[];
+  checks?: AuditCheckResult[];
+  privacyCompliance?: PrivacyComplianceSummary;
+  deepComparison?: DeepAuditComparison;
   isSampleData?: boolean;
+  errorCategory?: string;
+  errorMessage?: string;
 }
 
 export interface SavedWebsite {
@@ -106,7 +225,7 @@ export interface SavedWebsite {
   hostname: string;
   normalizedUrl: string;
   isVerified: boolean;
-  verificationMethod?: 'dns_txt' | 'html_meta';
+  verificationMethod?: 'dns_txt' | 'html_meta' | 'http_file' | 'owner_attestation';
   verificationToken?: string;
   verifiedAt?: string;
   lastScanId?: string;

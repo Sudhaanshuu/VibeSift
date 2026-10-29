@@ -1,9 +1,9 @@
 import React from 'react';
 import { Category } from '../../types/audit';
-import { Compass, Zap, Eye, ShieldCheck, Lock, AlertOctagon } from 'lucide-react';
+import { Compass, Zap, Eye, ShieldCheck, Lock, AlertOctagon, CheckSquare, Shield, Server, Activity } from 'lucide-react';
 
 interface CategoryBadgeProps {
-  category: Category;
+  category: Category | string;
   size?: 'sm' | 'md';
   showIcon?: boolean;
 }
@@ -13,7 +13,7 @@ export const CategoryBadge: React.FC<CategoryBadgeProps> = ({
   size = 'md',
   showIcon = true 
 }) => {
-  const configs: Record<Category, { label: string; icon: React.ElementType; classes: string }> = {
+  const configs: Record<string, { label: string; icon: React.ElementType; classes: string }> = {
     seo: {
       label: 'SEO',
       icon: Compass,
@@ -30,7 +30,7 @@ export const CategoryBadge: React.FC<CategoryBadgeProps> = ({
       classes: 'bg-purple-50/80 text-purple-800 border-purple-200/80',
     },
     security: {
-      label: 'Security Header',
+      label: 'Security',
       icon: ShieldCheck,
       classes: 'bg-teal-50/80 text-teal-800 border-teal-200/80',
     },
@@ -43,6 +43,31 @@ export const CategoryBadge: React.FC<CategoryBadgeProps> = ({
       label: 'Exposure / Leak',
       icon: AlertOctagon,
       classes: 'bg-rose-50/80 text-rose-800 border-rose-200/80',
+    },
+    privacy: {
+      label: 'DPDP / Privacy',
+      icon: Lock,
+      classes: 'bg-violet-50/80 text-violet-800 border-violet-200/80',
+    },
+    completeness: {
+      label: 'Completeness & Trust',
+      icon: CheckSquare,
+      classes: 'bg-cyan-50/80 text-cyan-800 border-cyan-200/80',
+    },
+    trust: {
+      label: 'Trust & Signals',
+      icon: Shield,
+      classes: 'bg-amber-50/80 text-amber-800 border-amber-200/80',
+    },
+    infrastructure: {
+      label: 'Infrastructure / DNS',
+      icon: Server,
+      classes: 'bg-sky-50/80 text-sky-800 border-sky-200/80',
+    },
+    abuse: {
+      label: 'Abuse Prevention',
+      icon: Activity,
+      classes: 'bg-orange-50/80 text-orange-800 border-orange-200/80',
     },
   };
 

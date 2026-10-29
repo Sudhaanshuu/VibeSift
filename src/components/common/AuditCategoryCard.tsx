@@ -9,11 +9,16 @@ import {
   FileSearch, 
   CheckCircle2, 
   AlertTriangle, 
-  XCircle 
+  XCircle,
+  Lock,
+  CheckSquare,
+  Shield,
+  Server,
+  Activity
 } from 'lucide-react';
 
 interface AuditCategoryCardProps {
-  category: Category;
+  category: Category | string;
   score: number;
   findingCount: number;
   criticalCount?: number;
@@ -23,7 +28,7 @@ interface AuditCategoryCardProps {
 }
 
 const CATEGORY_META: Record<
-  Category,
+  string,
   { label: string; icon: React.ElementType; description: string }
 > = {
   seo: {
@@ -42,9 +47,9 @@ const CATEGORY_META: Record<
     description: 'WCAG contrast, image alt texts, aria labels, and semantic DOM elements.',
   },
   security: {
-    label: 'HTTPS & Security Headers',
+    label: 'Web & Transport Security',
     icon: ShieldCheck,
-    description: 'TLS posture, CSP, HSTS, X-Content-Type-Options, and mixed content.',
+    description: 'TLS posture, CSP, XSS defenses, CORS, SQLi checks, and security headers.',
   },
   cookies: {
     label: 'Browser & Cookie Security',
@@ -52,9 +57,34 @@ const CATEGORY_META: Record<
     description: 'Secure, HttpOnly, SameSite flags, and detected tracker disclosures.',
   },
   exposure: {
-    label: 'Exposure & Misconfiguration',
+    label: 'Exposure & Sensitive Artifacts',
     icon: FileSearch,
     description: 'Public source maps, git artifacts, debug pages, and exposed secrets.',
+  },
+  privacy: {
+    label: 'DPDP Act (2023) & Privacy',
+    icon: Lock,
+    description: 'Affirmative consent, reject parity, Grievance Officer, and DPDP Act compliance.',
+  },
+  completeness: {
+    label: 'Completeness & Trust',
+    icon: CheckSquare,
+    description: 'Footer completeness, contact, about, legal pages, 404 handler, and link integrity.',
+  },
+  trust: {
+    label: 'Trust & Signals',
+    icon: Shield,
+    description: 'RFC 9116 security.txt, domain reputation signals, and trust verification.',
+  },
+  infrastructure: {
+    label: 'Infrastructure & DNS',
+    icon: Server,
+    description: 'SPF, DMARC email authentication, and DNS security posture.',
+  },
+  abuse: {
+    label: 'Abuse Prevention',
+    icon: Activity,
+    description: 'Rate limiting, burst mitigation, and brute force defenses.',
   },
 };
 

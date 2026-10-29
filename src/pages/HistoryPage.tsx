@@ -184,13 +184,13 @@ export const HistoryPage: React.FC = () => {
                               {scan.summary.critical} crit
                             </span>
                           )}
-                          {scan.summary.high > 0 && (
+                          {scan.summary && scan.summary.high > 0 && (
                             <span className="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-bold">
                               {scan.summary.high} high
                             </span>
                           )}
                           <span className="text-slate-500 text-[11px]">
-                            {scan.findings.length} total
+                            {(scan.findings || []).length} total
                           </span>
                         </div>
                       </td>

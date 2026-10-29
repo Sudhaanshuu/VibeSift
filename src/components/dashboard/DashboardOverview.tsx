@@ -31,12 +31,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   
   // Calculate average score
   const avgScore = totalScans > 0 
-    ? Math.round(scansList.reduce((acc, s) => acc + s.summary.readinessScore, 0) / totalScans) 
+    ? Math.round(scansList.reduce((acc, s) => acc + (s.summary?.readinessScore ?? 0), 0) / totalScans) 
     : 0;
 
   // Calculate open high & critical
   const totalOpenHighCritical = scansList.reduce((acc, s) => {
-    const count = s.findings.filter(f => (f.severity === 'critical' || f.severity === 'high') && f.verificationStatus !== 'fixed').length;
+    const count = (s.findings || []).filter(f => (f.severity === 'critical' || f.severity === 'high') && f.verificationStatus !== 'fixed').length;
     return acc + count;
   }, 0);
 

@@ -12,6 +12,10 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
 import { downloadReportJson, generateReportMarkdown } from '../lib/api/reports';
 import { exportReportToPdf } from '../lib/export/pdfReportGenerator';
+import { CheckRegistryView } from '../components/common/CheckRegistryView';
+import { PrivacyComplianceSection } from '../components/common/PrivacyComplianceSection';
+import { DeepComparisonSection } from '../components/common/DeepComparisonSection';
+import { buildBasicAuditChecks, buildDeepSecurityChecks, buildDpdpComplianceChecks } from '../data/auditReportBuilder';
 import {
   ArrowLeft,
   RefreshCw,
@@ -24,6 +28,10 @@ import {
   AlertTriangle,
   StopCircle,
   FileText,
+  ListFilter,
+  CheckSquare,
+  Lock,
+  GitCompare,
 } from 'lucide-react';
 
 export const ScanDetailPage: React.FC = () => {
@@ -46,6 +54,8 @@ export const ScanDetailPage: React.FC = () => {
     verificationStatus: 'all',
   });
 
+  const [activeTab, setActiveTab] = useState<'findings' | 'registry' | 'dpdp' | 'comparison'>('findings');
+
   if (isLoading) {
     return <ReportSkeleton />;
   }
@@ -64,9 +74,10 @@ export const ScanDetailPage: React.FC = () => {
 
   const isTerminal = isScanTerminal(report.status);
   const isRunning = !isTerminal;
+  const rawFindings = report.findings || [];
 
   // Filter findings
-  const filteredFindings = report.findings.filter((f) => {
+  const filteredFindings = rawFindings.filter((f) => {
     if (filters.severity !== 'all' && f.severity !== filters.severity) return false;
     if (filters.category !== 'all' && f.category !== filters.category) return false;
     if (filters.verificationStatus !== 'all' && f.verificationStatus !== filters.verificationStatus) {
@@ -83,12 +94,18 @@ export const ScanDetailPage: React.FC = () => {
     return true;
   });
 
+  const effectiveChecks = (report.checks && report.checks.length > 0)
+    ? report.checks
+    : (report.scanProfile === 'authorized_deep'
+        ? [...buildBasicAuditChecks(report.targetUrl), ...buildDeepSecurityChecks(report.targetUrl), ...buildDpdpComplianceChecks(report.targetUrl)]
+        : buildBasicAuditChecks(report.targetUrl));
+
   const severityCounts = {
-    critical: report.findings.filter((f) => f.severity === 'critical').length,
-    high: report.findings.filter((f) => f.severity === 'high').length,
-    medium: report.findings.filter((f) => f.severity === 'medium').length,
-    low: report.findings.filter((f) => f.severity === 'low').length,
-    info: report.findings.filter((f) => f.severity === 'info').length,
+    critical: rawFindings.filter((f) => f.severity === 'critical').length,
+    high: rawFindings.filter((f) => f.severity === 'high').length,
+    medium: rawFindings.filter((f) => f.severity === 'medium').length,
+    low: rawFindings.filter((f) => f.severity === 'low').length,
+    info: rawFindings.filter((f) => f.severity === 'info').length,
   };
 
   const handleDownloadJson = () => {
@@ -129,7 +146,7 @@ export const ScanDetailPage: React.FC = () => {
 
   const handleMarkResolved = (findingId: string) => {
     if (!scanId) return;
-    const current = report.findings.find((f) => f.id === findingId);
+    const current = rawFindings.find((f) => f.id === findingId);
     const nextStatus = current?.verificationStatus === 'fixed' ? 'open' : 'fixed';
     resolveMutation.mutate({
       scanId,
@@ -226,53 +243,143 @@ export const ScanDetailPage: React.FC = () => {
         onCategoryClick={(cat) => setFilters((prev) => ({ ...prev, category: cat }))}
       />
 
-      {/* Filter Toolbar */}
-      <div className="rounded-2xl border border-brand-border bg-white p-5 shadow-subtle">
-        <FindingFilters
-          filters={filters}
-          onChange={setFilters}
-          severityCounts={severityCounts}
-          totalCount={report.findings.length}
-        />
-      </div>
-
-      {/* Findings List */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-sm font-bold text-brand-text">
-            Audit Findings ({filteredFindings.length} of {report.findings.length})
-          </h3>
-          <span className="text-xs text-brand-text-secondary font-mono">
-            Click finding card to inspect server headers, reproduction curl & fix diffs
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-brand-border gap-2 overflow-x-auto pb-px">
+        <button
+          onClick={() => setActiveTab('findings')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'findings'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <AlertTriangle className="w-3.5 h-3.5" />
+          <span>Actionable Findings</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
+            {rawFindings.length}
           </span>
-        </div>
+        </button>
 
-        {filteredFindings.length === 0 ? (
-          <EmptyState
-            title="No Findings Match Filter"
-            description="All clear for this filter combination, or try resetting search filters."
-            actionLabel="Reset All Filters"
-            onAction={() =>
-              setFilters({
-                search: '',
-                severity: 'all',
-                category: 'all',
-                verificationStatus: 'all',
-              })
-            }
-          />
-        ) : (
-          <div className="space-y-3">
-            {filteredFindings.map((finding) => (
-              <FindingCard
-                key={finding.id}
-                finding={finding}
-                onResolve={() => handleMarkResolved(finding.id)}
-              />
-            ))}
-          </div>
-        )}
+        <button
+          onClick={() => setActiveTab('registry')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'registry'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <CheckSquare className="w-3.5 h-3.5" />
+          <span>Full Check Registry</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-100 text-emerald-800">
+            {effectiveChecks.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dpdp')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'dpdp'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <Lock className="w-3.5 h-3.5 text-indigo-500" />
+          <span>Privacy & DPDP Act (2023)</span>
+          {report.privacyCompliance && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-100 text-indigo-800 uppercase">
+              {(report.privacyCompliance.overallRating || report.privacyCompliance.complianceRating || 'review').replace('_', ' ')}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('comparison')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'comparison'
+              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+          }`}
+        >
+          <GitCompare className="w-3.5 h-3.5 text-purple-500" />
+          <span>Deep vs Basic Differential</span>
+          {report.scanProfile === 'authorized_deep' && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-100 text-purple-800">
+              Deep Active
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* Tab 1: Actionable Findings */}
+      {activeTab === 'findings' && (
+        <div className="space-y-6">
+          {/* Filter Toolbar */}
+          <div className="rounded-2xl border border-brand-border bg-white p-5 shadow-subtle">
+            <FindingFilters
+              filters={filters}
+              onChange={setFilters}
+              severityCounts={severityCounts}
+              totalCount={rawFindings.length}
+            />
+          </div>
+
+          {/* Findings List */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-sm font-bold text-brand-text">
+                Audit Findings ({filteredFindings.length} of {rawFindings.length})
+              </h3>
+              <span className="text-xs text-brand-text-secondary font-mono">
+                Click finding card to inspect server headers, reproduction curl & fix diffs
+              </span>
+            </div>
+
+            {filteredFindings.length === 0 ? (
+              <EmptyState
+                title="No Findings Match Filter"
+                description="All clear for this filter combination, or try resetting search filters."
+                actionLabel="Reset All Filters"
+                onAction={() =>
+                  setFilters({
+                    search: '',
+                    severity: 'all',
+                    category: 'all',
+                    verificationStatus: 'all',
+                  })
+                }
+              />
+            ) : (
+              <div className="space-y-3">
+                {filteredFindings.map((finding) => (
+                  <FindingCard
+                    key={finding.id}
+                    finding={finding}
+                    onResolve={() => handleMarkResolved(finding.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: Full Check Registry */}
+      {activeTab === 'registry' && (
+        <CheckRegistryView checks={effectiveChecks} />
+      )}
+
+      {/* Tab 3: Privacy & DPDP Compliance */}
+      {activeTab === 'dpdp' && (
+        <PrivacyComplianceSection summary={report.privacyCompliance} />
+      )}
+
+      {/* Tab 4: Deep vs Basic Comparison */}
+      {activeTab === 'comparison' && (
+        <DeepComparisonSection
+          comparison={report.deepComparison}
+          scanProfile={report.scanProfile}
+        />
+      )}
 
       {/* Explicit What Was Not Tested Section */}
       {report.checksNotPerformed && report.checksNotPerformed.length > 0 && (

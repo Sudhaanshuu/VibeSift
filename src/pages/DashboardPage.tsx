@@ -65,12 +65,12 @@ export const DashboardPage: React.FC = () => {
       : 0;
 
   const totalCriticalHigh = scansList.reduce((acc, s) => {
-    return acc + (s.summary.critical || 0) + (s.summary.high || 0);
+    return acc + (s.summary?.critical || 0) + (s.summary?.high || 0);
   }, 0);
 
   // Collect most recent findings across scans
   const recentFindings = scansList
-    .flatMap((s) => s.findings.map((f) => ({ ...f, scanId: s.scanId, host: s.normalizedHostname })))
+    .flatMap((s) => (s.findings || []).map((f) => ({ ...f, scanId: s.scanId, host: s.normalizedHostname })))
     .filter((f) => f.verificationStatus !== 'fixed')
     .slice(0, 5);
 
@@ -221,13 +221,13 @@ export const DashboardPage: React.FC = () => {
                           <span>·</span>
                           <span className="capitalize">{scan.scanProfile.replace('_', ' ')}</span>
                           <span>·</span>
-                          <span>{scan.findings.length} findings</span>
+                          <span>{(scan.findings || []).length} findings</span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
                         <div className={`px-2.5 py-1 rounded-lg border font-mono font-bold text-xs ${scoreBadge}`}>
-                          {scan.summary.readinessScore}/100
+                          {scan.summary?.readinessScore ?? 0}/100
                         </div>
                         <Button
                           variant="outline"

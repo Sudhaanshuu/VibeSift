@@ -22,11 +22,13 @@ export interface ApiStackProps extends cdk.StackProps {
   kmsKey: kms.Key;
   scanQueue: sqs.Queue;
   stateMachine: sfn.StateMachine;
+  existingUserPoolId?: string;
+  existingUserPoolClientId?: string;
 }
 
 export class ApiStack extends cdk.Stack {
-  public readonly userPool: cognito.UserPool;
-  public readonly userPoolClient: cognito.UserPoolClient;
+  public readonly userPool: cognito.IUserPool;
+  public readonly userPoolClient: cognito.IUserPoolClient;
   public readonly apiLambda: lambda.Function;
   public readonly httpApi: apigwv2.HttpApi;
 
@@ -35,32 +37,53 @@ export class ApiStack extends cdk.Stack {
 
     const isProd = props.stage === 'prod';
 
-    // 1. Amazon Cognito User Pool
-    this.userPool = new cognito.UserPool(this, 'UserPool', {
-      userPoolName: `vibesift-users-${props.stage}`,
-      selfSignUpEnabled: true,
-      signInAliases: { email: true },
-      autoVerify: { email: true },
-      passwordPolicy: {
-        minLength: 8,
-        requireLowercase: true,
-        requireUppercase: true,
-        requireDigits: true,
-        requireSymbols: false,
-      },
-      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
-    });
+    // 1. Amazon Cognito Identity Configuration Strategy
+    // Deliberate strategy: Import & reuse manually created Cognito resources (us-east-1_nW70Gohxd)
+    // when configured to prevent duplicate user pools. Fall back to CDK-managed creation if not provided.
+    const configuredUserPoolId =
+      props.existingUserPoolId ||
+      this.node.tryGetContext('cognitoUserPoolId') ||
+      process.env.COGNITO_USER_POOL_ID;
+    const configuredClientId =
+      props.existingUserPoolClientId ||
+      this.node.tryGetContext('cognitoClientId') ||
+      process.env.COGNITO_CLIENT_ID;
 
-    this.userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
-      userPool: this.userPool,
-      userPoolClientName: `vibesift-web-client-${props.stage}`,
-      generateSecret: false, // SPA frontend
-      authFlows: {
-        userSrp: true,
-        userPassword: true,
-      },
-    });
+    if (configuredUserPoolId && configuredClientId) {
+      this.userPool = cognito.UserPool.fromUserPoolId(this, 'ImportedUserPool', configuredUserPoolId);
+      this.userPoolClient = cognito.UserPoolClient.fromUserPoolClientId(
+        this,
+        'ImportedUserPoolClient',
+        configuredClientId
+      );
+    } else {
+      const managedPool = new cognito.UserPool(this, 'UserPool', {
+        userPoolName: `vibesift-users-${props.stage}`,
+        selfSignUpEnabled: true,
+        signInAliases: { email: true },
+        autoVerify: { email: true },
+        passwordPolicy: {
+          minLength: 8,
+          requireLowercase: true,
+          requireUppercase: true,
+          requireDigits: true,
+          requireSymbols: false,
+        },
+        accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+        removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      });
+
+      this.userPoolClient = new cognito.UserPoolClient(this, 'UserPoolClient', {
+        userPool: managedPool,
+        userPoolClientName: `vibesift-web-client-${props.stage}`,
+        generateSecret: false, // SPA frontend
+        authFlows: {
+          userSrp: true,
+          userPassword: true,
+        },
+      });
+      this.userPool = managedPool;
+    }
 
     // 2. Node.js API Lambda Function
     this.apiLambda = new lambda.Function(this, 'ApiHandlerFunction', {
@@ -106,9 +129,27 @@ export class ApiStack extends cdk.Stack {
     );
 
     // 3. API Gateway HTTP API (v2)
+    // Authorization Architecture Decision:
+    // HTTP API proxies all application traffic to the Express API Lambda handler.
+    // Routing & authorization are enforced inside the Express application middleware (authenticateToken):
+    // - Public endpoints (/api/health, /api/auth/login, /api/auth/signup, /security.txt) remain accessible unauthenticated.
+    // - Private endpoints (/api/scans, /api/sites, /api/reports, /api/artifacts/download) strictly require verified Cognito JWTs.
+    // Attaching a blanket HTTP API authorizer on /{proxy+} would block public login and signup calls at the gateway.
+    // The CognitoAuthorizer instance is exposed below if route-level authorizers are attached in future iterations.
     const authorizer = new authorizers.HttpUserPoolAuthorizer('CognitoAuthorizer', this.userPool, {
       userPoolClients: [this.userPoolClient],
     });
+
+    // Restrict production CORS strictly to https://vibesift.pixir.in; permit localhost only in dev stages
+    const allowedOrigins = isProd
+      ? ['https://vibesift.pixir.in']
+      : [
+          'https://vibesift.pixir.in',
+          'http://localhost:5173',
+          'http://localhost:4000',
+          'http://localhost:3000',
+          'http://127.0.0.1:5173',
+        ];
 
     this.httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       apiName: `vibesift-api-${props.stage}`,
@@ -121,7 +162,7 @@ export class ApiStack extends cdk.Stack {
           apigwv2.CorsHttpMethod.DELETE,
           apigwv2.CorsHttpMethod.OPTIONS,
         ],
-        allowOrigins: ['*'],
+        allowOrigins: allowedOrigins,
         maxAge: cdk.Duration.days(1),
       },
     });
@@ -140,7 +181,7 @@ export class ApiStack extends cdk.Stack {
       integration: lambdaIntegration,
     });
 
-    // Catch-all Proxy Route
+    // Catch-all Proxy Route: Dispatched to Express application which enforces authentication & tenant isolation
     this.httpApi.addRoutes({
       path: '/{proxy+}',
       methods: [
@@ -153,6 +194,9 @@ export class ApiStack extends cdk.Stack {
     });
 
     // 4. AWS WAF WebACL for public API protection
+    // Note on WAF Association: AWS WAFv2 regional WebACLs cannot be directly associated with API Gateway HTTP APIs (v2).
+    // In production, associate this WebACL with an Amazon CloudFront distribution fronting the API Gateway HTTP API,
+    // or migrate to API Gateway REST API. The WebACL definition is maintained here for that deployment architecture.
     const webAcl = new wafv2.CfnWebACL(this, 'ApiWebAcl', {
       name: `vibesift-waf-${props.stage}`,
       scope: 'REGIONAL',

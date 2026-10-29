@@ -13,10 +13,10 @@ flowchart TD
     APIGW -->|Cognito JWT Auth| Cognito["Amazon Cognito (User Pool)"]
     APIGW --> ApiLambda["API Lambda Handler (Node.js ES Modules)"]
     
-    subgraph Storage ["Encrypted Data Layer"]
-        DDB_Sites[("DynamoDB: SavedWebsites")]
-        DDB_Scans[("DynamoDB: Scans")]
-        DDB_Findings[("DynamoDB: Findings")]
+    subgraph Storage ["Encrypted Data Layer (SSE-KMS)"]
+        DDB_Sites[("DynamoDB: SavedWebsites-dev<br/>PK: id | GSI: ownerUserId")]
+        DDB_Scans[("DynamoDB: Scans-dev<br/>PK: scanId | GSIs: ownerUserId, idempotency")]
+        DDB_Findings[("DynamoDB: Findings-dev<br/>PK: id, SK: scanId | GSI: scanId")]
         S3_Reports[("Amazon S3: Audit Artifacts & Reports (KMS)")]
     end
     
@@ -51,15 +51,32 @@ flowchart TD
     NormalizerLambda -->|Save Final Report JSON & MD| S3_Reports
     NormalizerLambda -->|Update Status: COMPLETED/PARTIAL| DDB_Scans
     
-    subgraph OptionalAI ["Optional Explanation Engine"]
+    subgraph OptionalAI ["AI Explanation Engine"]
         Bedrock["Amazon Bedrock (Claude 3 Haiku)"]
+        FallbackAI["Deterministic Fallback Engine"]
     end
-    NormalizerLambda -.->|Deterministic Fallback if Disabled| Bedrock
+    NormalizerLambda -.->|Bedrock Enabled| Bedrock
+    NormalizerLambda -.->|Fallback if Disabled or Offline| FallbackAI
 ```
 
 ---
 
-## 2. Multi-Layer SSRF Defense Architecture
+## 2. Dual Runtime Topology: Hybrid vs Full Serverless
+
+| Dimension | Hybrid Development Mode *(Current)* | Production Serverless Mode *(Full Cloud)* |
+| :--- | :--- | :--- |
+| **Frontend** | Vite Dev Server (`http://localhost:5173`) | Amazon S3 + CloudFront Distribution (HTTPS) |
+| **Backend API** | Express Server (`http://localhost:4000`) | Amazon API Gateway HTTP API v2 + Lambda |
+| **Worker Engine** | Live Local Node/Python Process (`inspector.py`) | Amazon ECS Fargate Container Tasks |
+| **Container Engine** | Not Required (Local process execution) | Docker Daemon + Amazon ECR Container Images |
+| **Database** | Live AWS DynamoDB (3 On-Demand Tables) | Live AWS DynamoDB (3 On-Demand Tables) |
+| **Artifact Storage** | Live AWS S3 Bucket (`vibesift-audit-reports-dev`) | Live AWS S3 Bucket (`vibesift-audit-reports-dev`) |
+| **Job Queue** | Amazon SQS or in-memory async runner | Amazon SQS (`vibesift-scan-jobs-dev`) |
+| **AI Explanations** | Deterministic Engine (no LLM latency/costs) | Amazon Bedrock (Anthropic Claude 3 Haiku) |
+
+---
+
+## 3. Multi-Layer SSRF Defense Architecture
 
 Because VibeSift accepts user-supplied destination URLs, Server-Side Request Forgery (SSRF) is treated as a tier-1 threat vector. Defenses are applied across multiple layers:
 
@@ -91,7 +108,7 @@ Because VibeSift accepts user-supplied destination URLs, Server-Side Request For
 
 ---
 
-## 3. Scan Workflow State Machine
+## 4. Scan Workflow State Machine
 
 Valid state transitions are deterministic and monotonic:
 
@@ -105,7 +122,7 @@ Valid state transitions are deterministic and monotonic:
 
 - **QUEUED**: Scan request persisted, queued in SQS.
 - **VALIDATING**: Target URL syntax checked, DNS resolved safely, domain ownership checked if deep profile.
-- **RUNNING**: Baseline tasks (Python Inspector & Lighthouse) executing on ECS Fargate.
+- **RUNNING**: Baseline tasks (Python Inspector & Lighthouse) executing.
 - **NORMALIZING**: Raw outputs collected, deduplicated, secrets redacted, readiness score calculated.
 - **COMPLETED**: All engines passed successfully; final report persisted.
 - **PARTIAL**: At least one engine succeeded while another failed or was skipped; findings from successful engines are fully preserved.
@@ -114,7 +131,7 @@ Valid state transitions are deterministic and monotonic:
 
 ---
 
-## 4. Domain Verification & Scoping Protocol
+## 5. Domain Verification & Scoping Protocol
 
 Deep security scans (OWASP ZAP and ProjectDiscovery Nuclei) can only be initiated against targets with proven ownership:
 

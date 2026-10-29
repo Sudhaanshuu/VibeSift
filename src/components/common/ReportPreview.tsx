@@ -24,7 +24,9 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
     verificationStatus: 'all',
   });
 
-  const filteredFindings = report.findings.filter((f) => {
+  const rawFindings = report.findings || [];
+
+  const filteredFindings = rawFindings.filter((f) => {
     if (filters.severity !== 'all' && f.severity !== filters.severity) return false;
     if (filters.category !== 'all' && f.category !== filters.category) return false;
     if (filters.verificationStatus !== 'all' && f.verificationStatus !== filters.verificationStatus) {
@@ -42,11 +44,11 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
   });
 
   const severityCounts = {
-    critical: report.findings.filter((f) => f.severity === 'critical').length,
-    high: report.findings.filter((f) => f.severity === 'high').length,
-    medium: report.findings.filter((f) => f.severity === 'medium').length,
-    low: report.findings.filter((f) => f.severity === 'low').length,
-    info: report.findings.filter((f) => f.severity === 'info').length,
+    critical: rawFindings.filter((f) => f.severity === 'critical').length,
+    high: rawFindings.filter((f) => f.severity === 'high').length,
+    medium: rawFindings.filter((f) => f.severity === 'medium').length,
+    low: rawFindings.filter((f) => f.severity === 'low').length,
+    info: rawFindings.filter((f) => f.severity === 'info').length,
   };
 
   return (
@@ -64,7 +66,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
           filters={filters}
           onChange={setFilters}
           severityCounts={severityCounts}
-          totalCount={report.findings.length}
+          totalCount={rawFindings.length}
         />
       </div>
 
@@ -72,7 +74,7 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-sm font-bold text-brand-text">
-            Audit Findings ({filteredFindings.length} of {report.findings.length})
+            Audit Findings ({filteredFindings.length} of {rawFindings.length})
           </h3>
           <span className="text-xs text-brand-text-secondary font-mono">
             Click finding to inspect evidence & diffs

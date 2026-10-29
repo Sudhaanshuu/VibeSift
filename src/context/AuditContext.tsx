@@ -7,6 +7,11 @@ import {
   ScanStatus 
 } from '../types/audit';
 import { sampleReports } from '../data/sampleReports';
+import { buildBasicAuditReport, buildDeepAuditReport } from '../data/auditReportBuilder';
+import { submitScan } from '../lib/api/scans';
+import { getReport } from '../lib/api/reports';
+import { getAuthToken, USE_MOCK_API } from '../lib/api/client';
+import { authService } from '../lib/api/auth';
 
 interface AuditContextType {
   activeReport: AuditReport | null;
@@ -169,192 +174,155 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       normalized = `https://${normalized}`;
     }
     const hostname = normalized.replace(/^https?:\/\//i, '').split('/')[0];
-    const newScanId = `scan-${Date.now().toString(36)}`;
 
-    // Realistic pipeline steps:
-    // Step 1: Validating SSRF and DNS
-    setScanProgress({
-      status: 'VALIDATING',
-      stageMessage: 'Validating URL syntax, resolving DNS, and checking IP egress restrictions (SSRF filter)...',
-      percent: 15,
-      currentEngine: 'SSRF & Egress Gatekeeper'
-    });
-    await new Promise(r => setTimeout(r, 900));
+    // Explicit mock mode (only active when VITE_USE_MOCK_API=true or in mock test environment)
+    if (USE_MOCK_API) {
+      setScanProgress({
+        status: 'VALIDATING',
+        stageMessage: 'Validating URL syntax, resolving DNS, and checking IP egress restrictions (SSRF filter)...',
+        percent: 15,
+        currentEngine: 'SSRF & Egress Gatekeeper',
+      });
+      await new Promise((r) => setTimeout(r, 600));
 
-    // Step 2: HTTP & Meta Inspector
-    setScanProgress({
-      status: 'RUNNING',
-      stageMessage: 'Executing Python Public Inspector: analyzing title, canonicals, robots.txt, TLS & security headers...',
-      percent: 40,
-      currentEngine: 'Custom Python HTTP Inspector'
-    });
-    await new Promise(r => setTimeout(r, 1400));
+      setScanProgress({
+        status: 'RUNNING',
+        stageMessage: 'Executing Python Public Inspector: analyzing title, canonicals, robots.txt, TLS & security headers...',
+        percent: 45,
+        currentEngine: 'Custom Python HTTP Inspector',
+      });
+      await new Promise((r) => setTimeout(r, 800));
 
-    // Step 3: Lighthouse Core Web Vitals
-    setScanProgress({
-      status: 'RUNNING',
-      stageMessage: 'Launching headless Chromium worker: auditing Core Web Vitals, LCP, CLS, and WCAG accessibility...',
-      percent: 75,
-      currentEngine: 'Google Lighthouse 12.x Container'
-    });
-    await new Promise(r => setTimeout(r, 1600));
+      setScanProgress({
+        status: 'RUNNING',
+        stageMessage: 'Launching headless Chromium worker: auditing Core Web Vitals, LCP, CLS, and WCAG accessibility...',
+        percent: 75,
+        currentEngine: 'Google Lighthouse 12.x Container',
+      });
+      await new Promise((r) => setTimeout(r, 800));
 
-    // Step 4: Normalizing findings & scoring
-    setScanProgress({
-      status: 'NORMALIZING',
-      stageMessage: 'Normalizing engine outputs, filtering false positives, calculating readiness score...',
-      percent: 92,
-      currentEngine: 'Deterministic Rule Engine'
-    });
-    await new Promise(r => setTimeout(r, 800));
+      setScanProgress({
+        status: 'NORMALIZING',
+        stageMessage: 'Normalizing engine outputs, filtering false positives, calculating readiness score...',
+        percent: 92,
+        currentEngine: 'Deterministic Rule Engine',
+      });
+      await new Promise((r) => setTimeout(r, 600));
 
-    // Assemble completed report
-    const newReport: AuditReport = {
-      scanId: newScanId,
-      targetUrl: normalized,
-      normalizedHostname: hostname,
-      scanProfile: profile,
-      status: 'COMPLETED',
-      createdAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-      durationSeconds: 28,
-      isSampleData: false,
-      summary: {
-        totalFindings: 4,
-        critical: 0,
-        high: 1,
-        medium: 2,
-        low: 1,
-        info: 0,
-        readinessScore: 78,
-        categoryScores: {
-          seo: 84,
-          performance: 76,
-          accessibility: 88,
-          security: 62,
-          cookies: 85,
-          exposure: 80,
+      const newScanId = `scan-${Date.now().toString(36)}`;
+      const fullSimulated = profile === 'authorized_deep'
+        ? buildDeepAuditReport(normalized, newScanId)
+        : buildBasicAuditReport(normalized, newScanId);
+
+      const newReport: AuditReport = {
+        ...fullSimulated,
+        scanId: newScanId,
+        targetUrl: normalized,
+        normalizedHostname: hostname,
+        scanProfile: profile,
+        status: 'COMPLETED',
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        durationSeconds: 28,
+        isSampleData: true,
+      };
+
+      setScansList((prev) => [newReport, ...prev]);
+      setActiveReport(newReport);
+      setIsScanning(false);
+      setScanProgress(null);
+      closeNewScanModal();
+      return newScanId;
+    }
+
+    // Live backend execution mode (USE_MOCK_API = false)
+    let token = getAuthToken();
+    if (!token && authService.loginAsDemo) {
+      try {
+        const session = await authService.loginAsDemo();
+        token = session.token;
+      } catch (authErr) {
+        console.warn('[AuditContext] Demo session note:', authErr);
+      }
+    }
+
+    try {
+      setScanProgress({
+        status: 'VALIDATING',
+        stageMessage: 'Validating URL syntax, resolving DNS, and checking IP egress restrictions (SSRF filter)...',
+        percent: 20,
+        currentEngine: 'SSRF & Egress Gatekeeper',
+      });
+
+      const submission = await submitScan({
+        url: normalized,
+        profile,
+        acknowledgedTerms: true,
+      });
+
+      let attempts = 0;
+      while (attempts < 60) {
+        attempts++;
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
+          const report = await getReport(submission.scanId);
+          if (report.status === 'RUNNING') {
+            setScanProgress({
+              status: 'RUNNING',
+              stageMessage: 'Executing live Python Inspector & Lighthouse metrics...',
+              percent: 60,
+              currentEngine: 'Python Inspector & Headless Chromium',
+            });
+          } else if (report.status === 'NORMALIZING') {
+            setScanProgress({
+              status: 'NORMALIZING',
+              stageMessage: 'Normalizing engine outputs, calculating launch readiness score...',
+              percent: 90,
+              currentEngine: 'Scoring & Normalization Engine',
+            });
+          } else if (report.status === 'COMPLETED' || report.status === 'PARTIAL') {
+            setScanProgress({
+              status: report.status,
+              stageMessage: report.status === 'PARTIAL' 
+                ? 'Audit finished with partial engine results. Loading report...'
+                : 'Audit inspection complete! Loading report...',
+              percent: 100,
+              currentEngine: 'Report Generator',
+            });
+            await new Promise((r) => setTimeout(r, 400));
+            setScansList((prev) => [report, ...prev]);
+            setActiveReport(report);
+            setIsScanning(false);
+            setScanProgress(null);
+            closeNewScanModal();
+            return report.scanId;
+          } else if (report.status === 'FAILED') {
+            setScansList((prev) => [report, ...prev]);
+            setActiveReport(report);
+            setIsScanning(false);
+            setScanProgress(null);
+            closeNewScanModal();
+            const failureReason = report.errorMessage || 'Audit scan encountered an error during engine execution.';
+            throw new Error(failureReason);
+          } else if (report.status === 'CANCELLED') {
+            setIsScanning(false);
+            setScanProgress(null);
+            closeNewScanModal();
+            throw new Error('Audit scan was cancelled.');
+          }
+        } catch (pollErr: any) {
+          if (pollErr.message && !pollErr.message.includes('not exist') && !pollErr.message.includes('404')) {
+            throw pollErr;
+          }
         }
-      },
-      enginesRun: [
-        { engine: 'custom-python', displayName: 'HTTP & Meta Inspector', status: 'passed', executionTimeMs: 1100 },
-        { engine: 'lighthouse', displayName: 'Google Lighthouse 12.x', status: 'passed', executionTimeMs: 12500 },
-        { engine: 'owasp-zap', displayName: 'OWASP ZAP Baseline', status: 'passed', executionTimeMs: 14200 },
-        { engine: 'nuclei', displayName: 'ProjectDiscovery Nuclei (Safe Core)', status: profile === 'authorized_deep' ? 'passed' : 'skipped_unauthorized', message: profile === 'authorized_deep' ? undefined : 'Deeper active tests require verified domain ownership' }
-      ],
-      checksNotPerformed: [
-        'Private backend database connections & SQL query logging',
-        'Authenticated user session business logic',
-        'Source code repository branch scanning'
-      ],
-      findings: [
-        {
-          id: `find-${newScanId}-1`,
-          ruleId: 'SEC-HDR-CSP',
-          category: 'security',
-          severity: 'high',
-          confidence: 'certain',
-          title: 'Missing Content-Security-Policy (CSP) response header',
-          description: `The scanned domain ${hostname} returned no Content-Security-Policy header. Browsers will execute any client-side script loaded by dynamic components.`,
-          affectedUrl: normalized,
-          detectionMethod: 'passive',
-          engine: 'custom-python',
-          evidence: {
-            observedHeader: 'Content-Security-Policy: [None]',
-            expectedHeader: "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
-            reproductionCurl: `curl -I -s "${normalized}" | grep -i "content-security-policy"`
-          },
-          impact: 'Increases attack surface if user-supplied inputs or third-party packages execute untrusted scripts.',
-          remediation: {
-            summary: 'Inject a Content-Security-Policy header into your reverse proxy or framework config.',
-            diffBefore: '// missing security headers block',
-            diffAfter: '// security header added\nheaders: {\n  "Content-Security-Policy": "default-src \'self\'; img-src \'self\' https: data:;"\n}',
-            docUrl: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP'
-          },
-          verificationStatus: 'open'
-        },
-        {
-          id: `find-${newScanId}-2`,
-          ruleId: 'PERF-IMG-FORMAT',
-          category: 'performance',
-          severity: 'medium',
-          confidence: 'high',
-          title: 'Hero image served in uncompressed format',
-          description: 'Top-of-fold visual element is loaded as a 1.8 MB PNG file without modern WebP or AVIF compression.',
-          affectedUrl: `${normalized}/images/hero.png`,
-          detectionMethod: 'passive',
-          engine: 'lighthouse',
-          evidence: {
-            metrics: {
-              'Transfer Size': '1.84 MB',
-              'Estimated WebP Size': '220 KB (88% reduction)',
-              'Potential LCP speedup': '1.2s'
-            }
-          },
-          impact: 'Increases mobile data consumption and delays Largest Contentful Paint (LCP).',
-          remediation: {
-            summary: 'Convert images to WebP/AVIF format and add fetchpriority="high".',
-            docUrl: 'https://web.dev/serve-images-webp/'
-          },
-          verificationStatus: 'open'
-        },
-        {
-          id: `find-${newScanId}-3`,
-          ruleId: 'SEO-META-DESC',
-          category: 'seo',
-          severity: 'medium',
-          confidence: 'certain',
-          title: 'Meta description tag is missing on index page',
-          description: 'The <meta name="description"> tag was not found in the initial HTML head element.',
-          affectedUrl: normalized,
-          detectionMethod: 'passive',
-          engine: 'custom-python',
-          evidence: {
-            responseSnippet: '<head>\n  <title>Home</title>\n  <!-- meta description missing -->\n</head>',
-            reproductionCurl: `curl -s "${normalized}" | grep -i 'name="description"'`
-          },
-          impact: 'Search engines will generate arbitrary snippet text from body copy, reducing click-through rates in SERPs.',
-          remediation: {
-            summary: 'Add an informative 140–160 character meta description in the <head> tag.',
-            diffBefore: '<head>\n  <title>My Website</title>\n</head>',
-            diffAfter: '<head>\n  <title>My Website</title>\n  <meta name="description" content="Discover how our platform accelerates website quality and launch readiness." />\n</head>',
-            docUrl: 'https://developers.google.com/search/docs/appearance/snippet'
-          },
-          verificationStatus: 'open'
-        },
-        {
-          id: `find-${newScanId}-4`,
-          ruleId: 'A11Y-ARIA-LABELS',
-          category: 'accessibility',
-          severity: 'low',
-          confidence: 'high',
-          title: 'Icon-only buttons missing accessible `aria-label`',
-          description: 'Interactive button elements containing only SVG icons do not provide text alternatives for screen reader users.',
-          affectedUrl: normalized,
-          detectionMethod: 'passive',
-          engine: 'lighthouse',
-          evidence: {
-            domSelector: 'header button.menu-toggle',
-            responseSnippet: '<button class="p-2"><svg>...</svg></button>'
-          },
-          impact: 'Screen readers announce "button" with no name or purpose.',
-          remediation: {
-            summary: 'Add an `aria-label="Open navigation menu"` attribute to the button element.',
-            diffBefore: '<button className="p-2">\n  <MenuIcon />\n</button>',
-            diffAfter: '<button aria-label="Open navigation menu" className="p-2">\n  <MenuIcon />\n</button>',
-            docUrl: 'https://www.w3.org/WAI/WCAG21/Understanding/name-role-value.html'
-          },
-          verificationStatus: 'open'
-        }
-      ]
-    };
-
-    setScansList(prev => [newReport, ...prev]);
-    setActiveReport(newReport);
-    setIsScanning(false);
-    setScanProgress(null);
-    closeNewScanModal();
-    return newScanId;
+      }
+      throw new Error('Audit scan timed out waiting for engine execution.');
+    } catch (err: any) {
+      setIsScanning(false);
+      setScanProgress(null);
+      // Real error is surfaced with actual reason, never silently replaced with mock report
+      throw err;
+    }
   };
 
   const rescanWebsite = async (scanId: string) => {

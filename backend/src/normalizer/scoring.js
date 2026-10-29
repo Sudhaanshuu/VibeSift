@@ -6,7 +6,19 @@ const SEVERITY_PENALTIES = {
   info: 0,
 };
 
-const CATEGORIES = ['seo', 'performance', 'accessibility', 'security', 'cookies', 'exposure'];
+const CATEGORIES = [
+  'seo',
+  'performance',
+  'accessibility',
+  'security',
+  'cookies',
+  'exposure',
+  'privacy',
+  'completeness',
+  'trust',
+  'infrastructure',
+  'abuse',
+];
 
 /**
  * Calculates Launch Readiness Score (0-100) and category scores based on findings
@@ -43,6 +55,8 @@ export function calculateAuditScores(findings = []) {
     const cat = (finding.category || 'security').toLowerCase();
     if (categoryDeductions[cat] !== undefined) {
       categoryDeductions[cat] += penalty * 1.5;
+    } else {
+      categoryDeductions[cat] = penalty * 1.5;
     }
   }
 
@@ -52,7 +66,7 @@ export function calculateAuditScores(findings = []) {
   // Calculate category scores
   const categoryScores = {};
   for (const cat of CATEGORIES) {
-    const rawCatScore = 100 - categoryDeductions[cat];
+    const rawCatScore = 100 - (categoryDeductions[cat] || 0);
     categoryScores[cat] = Math.max(0, Math.min(100, Math.round(rawCatScore)));
   }
 

@@ -8,12 +8,18 @@ import { MonitoringStack } from '../lib/monitoring-stack';
 
 const app = new cdk.App();
 
-const env = {
-  account: process.env.CDK_DEFAULT_ACCOUNT || '123456789012',
-  region: process.env.CDK_DEFAULT_REGION || 'us-east-1',
-};
-
 const stage = app.node.tryGetContext('stage') || 'dev';
+const isProd = stage === 'prod';
+
+const account = process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID;
+if (isProd && !account) {
+  throw new Error('Production deployment requires CDK_DEFAULT_ACCOUNT or AWS_ACCOUNT_ID to be explicitly configured.');
+}
+
+const env = {
+  account: account || '501380833083',
+  region: process.env.CDK_DEFAULT_REGION || process.env.AWS_REGION || 'us-east-1',
+};
 
 // 1. Data Layer: DynamoDB & KMS Encrypted S3
 const dataStack = new DataStack(app, `VibeSift-Data-${stage}`, {
