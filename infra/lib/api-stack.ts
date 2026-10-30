@@ -22,6 +22,7 @@ export interface ApiStackProps extends cdk.StackProps {
   kmsKey: kms.Key;
   scanQueue: sqs.Queue;
   stateMachine: sfn.StateMachine;
+  pythonInspectorLambda?: lambda.Function;
   existingUserPoolId?: string;
   existingUserPoolClientId?: string;
 }
@@ -117,6 +118,12 @@ export class ApiStack extends cdk.Stack {
     props.kmsKey.grantEncryptDecrypt(this.apiLambda);
     props.scanQueue.grantSendMessages(this.apiLambda);
     props.stateMachine.grantStartExecution(this.apiLambda);
+
+    if (props.pythonInspectorLambda) {
+      props.pythonInspectorLambda.grantInvoke(this.apiLambda);
+      this.apiLambda.addEnvironment('USE_LAMBDA_INSPECTOR', 'true');
+      this.apiLambda.addEnvironment('LAMBDA_INSPECTOR_FUNCTION_NAME', props.pythonInspectorLambda.functionName);
+    }
 
     // Grant Amazon Bedrock invocation for optional AI explanations
     this.apiLambda.addToRolePolicy(

@@ -27,3 +27,11 @@ npm run dev
 - `npm run dev:backend` — Run only the Express backend
 - `npm test` — Run frontend test suite
 - `npm run test:backend` — Run backend test suite
+- `npm run test:lambda` — Run Python Lambda audit test suite
+- `npm run demo:lambda` — Trigger AWS Lambda Python Inspector locally
+- `npm run demo:inspect` — Real-time inspection dashboard for Cognito, SQLite & S3
+
+---
+
+### 📖 Live Demo Guide & Architecture Walkthrough
+See **[LAMBDA_IMPLEMENTATION.md](LAMBDA_IMPLEMENTATION.md)** for a complete step-by-step walkthrough covering Amazon Cognito user creation, AWS Lambda test events, SQLite real-time storage, and S3 artifact inspection.

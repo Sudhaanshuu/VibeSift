@@ -5,6 +5,7 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as kms from 'aws-cdk-lib/aws-kms';
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 
 export interface ComputeStackProps extends cdk.StackProps {
@@ -20,13 +21,10 @@ export class ComputeStack extends cdk.Stack {
 
   public readonly pythonRepo: ecr.Repository;
   public readonly lighthouseRepo: ecr.Repository;
-  public readonly zapRepo: ecr.Repository;
-  public readonly nucleiRepo: ecr.Repository;
 
   public readonly pythonInspectorTaskDef: ecs.FargateTaskDefinition;
   public readonly lighthouseTaskDef: ecs.FargateTaskDefinition;
-  public readonly zapTaskDef: ecs.FargateTaskDefinition;
-  public readonly nucleiTaskDef: ecs.FargateTaskDefinition;
+  public readonly pythonInspectorLambda: lambda.Function;
 
   constructor(scope: Construct, id: string, props: ComputeStackProps) {
     super(scope, id, props);
@@ -100,10 +98,26 @@ export class ComputeStack extends cdk.Stack {
 
     this.pythonRepo = createRepo('python-inspector');
     this.lighthouseRepo = createRepo('lighthouse');
-    this.zapRepo = createRepo('owasp-zap');
-    this.nucleiRepo = createRepo('nuclei');
 
-    // 5. Minimal Least-Privilege IAM Roles for Scanner Tasks
+    // 5. Serverless Python Inspector Lambda Function
+    this.pythonInspectorLambda = new lambda.Function(this, 'PythonInspectorLambda', {
+      functionName: `vibesift-python-inspector-${props.stage}`,
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'lambda_function.lambda_handler',
+      code: lambda.Code.fromAsset('../backend/src/workers/python-inspector'),
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 1024,
+      environment: {
+        STAGE: props.stage,
+        S3_REPORTS_BUCKET: props.reportsBucket.bucketName,
+      },
+    });
+
+    props.reportsBucket.grantPut(this.pythonInspectorLambda, 'scans/*/raw/*');
+    props.reportsBucket.grantRead(this.pythonInspectorLambda);
+    props.kmsKey.grantEncryptDecrypt(this.pythonInspectorLambda);
+
+    // 6. Minimal Least-Privilege IAM Roles for Scanner Tasks
     // Scanner tasks have ZERO access to DynamoDB, Secrets Manager, or user pools
     const taskRole = new iam.Role(this, 'ScannerTaskRole', {
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -122,7 +136,7 @@ export class ComputeStack extends cdk.Stack {
         taskRole,
       });
 
-    // 1. Python Inspector: 0.5 vCPU, 1 GB RAM
+    // 1. Python Inspector Fargate Task Definition: 0.5 vCPU, 1 GB RAM
     this.pythonInspectorTaskDef = createTaskDef('PythonInspectorTaskDef', 512, 1024);
     this.pythonInspectorTaskDef.addContainer('python-inspector', {
       image: ecs.ContainerImage.fromEcrRepository(this.pythonRepo),
@@ -132,31 +146,11 @@ export class ComputeStack extends cdk.Stack {
       },
     });
 
-    // 2. Lighthouse: 1 vCPU, 2 GB RAM (Chromium needs more memory)
+    // 2. Lighthouse Fargate Task Definition: 1 vCPU, 2 GB RAM (Chromium needs more memory)
     this.lighthouseTaskDef = createTaskDef('LighthouseTaskDef', 1024, 2048);
     this.lighthouseTaskDef.addContainer('lighthouse', {
       image: ecs.ContainerImage.fromEcrRepository(this.lighthouseRepo),
       logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'lighthouse' }),
-      environment: {
-        S3_BUCKET: props.reportsBucket.bucketName,
-      },
-    });
-
-    // 3. OWASP ZAP: 1 vCPU, 2 GB RAM
-    this.zapTaskDef = createTaskDef('ZapTaskDef', 1024, 2048);
-    this.zapTaskDef.addContainer('owasp-zap', {
-      image: ecs.ContainerImage.fromEcrRepository(this.zapRepo),
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'zap' }),
-      environment: {
-        S3_BUCKET: props.reportsBucket.bucketName,
-      },
-    });
-
-    // 4. Nuclei: 0.5 vCPU, 1 GB RAM
-    this.nucleiTaskDef = createTaskDef('NucleiTaskDef', 512, 1024);
-    this.nucleiTaskDef.addContainer('nuclei', {
-      image: ecs.ContainerImage.fromEcrRepository(this.nucleiRepo),
-      logging: ecs.LogDrivers.awsLogs({ streamPrefix: 'nuclei' }),
       environment: {
         S3_BUCKET: props.reportsBucket.bucketName,
       },

@@ -12,6 +12,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:backend": "cd backend && npm test",
+    "test:lambda": "python backend/src/workers/python-inspector/test_lambda.py",
+    "demo:lambda": "python backend/src/workers/python-inspector/lambda_function.py --test",
+    "demo:inspect": "node backend/src/local-dev/inspect-run.js",
     "build:infra": "cd infra && npm run build",
     "synth:infra": "cd infra && npm run synth"
   },

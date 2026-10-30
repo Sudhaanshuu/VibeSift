@@ -1,5 +1,6 @@
 import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -69,6 +70,78 @@ export async function startScanWorkflow(job) {
   });
 
   return { dispatched: true, mode: 'local_async' };
+}
+
+let lambdaClient = null;
+
+export function getLambdaClient() {
+  if (!lambdaClient) {
+    try {
+      lambdaClient = new LambdaClient({ region: config.awsRegion });
+    } catch (err) {
+      console.warn('[WorkflowHandler] Failed to initialize Lambda client:', err.message);
+    }
+  }
+  return lambdaClient;
+}
+
+export function setLambdaClient(customClient) {
+  lambdaClient = customClient;
+}
+
+/**
+ * Executes the Python website inspector suite via AWS Lambda
+ */
+export async function runPythonInspectorViaLambda(targetUrl, scanId, scanProfile = 'baseline_public') {
+  const functionName = config.orchestration.lambdaInspectorFunctionName;
+  const client = getLambdaClient();
+  if (!client) {
+    throw new Error('AWS Lambda client unavailable');
+  }
+
+  const payload = JSON.stringify({
+    targetUrl,
+    scanId,
+    scanProfile,
+    s3Bucket: config.storage.reportsBucket,
+  });
+
+  const command = new InvokeCommand({
+    FunctionName: functionName,
+    Payload: Buffer.from(payload),
+  });
+
+  const response = await client.send(command);
+  if (!response.Payload) {
+    throw new Error('Empty payload returned from Lambda function');
+  }
+
+  const rawResponse = Buffer.from(response.Payload).toString('utf-8');
+  const parsed = JSON.parse(rawResponse);
+
+  if (response.FunctionError) {
+    return {
+      success: false,
+      error: parsed.errorMessage || parsed.message || 'Lambda execution error',
+      report: parsed,
+    };
+  }
+
+  const report = parsed.report || (typeof parsed.body === 'string' ? JSON.parse(parsed.body).report : parsed.body) || parsed;
+  if (parsed.statusCode && parsed.statusCode >= 400) {
+    return {
+      success: false,
+      error: parsed.error?.message || report?.message || `Lambda returned status ${parsed.statusCode}`,
+      report,
+    };
+  }
+
+  return {
+    success: true,
+    report,
+    s3Key: parsed.s3Key || report.s3ArtifactKey,
+    invokedVia: 'aws_lambda',
+  };
 }
 
 /**
@@ -427,9 +500,28 @@ export async function executeScanPipelineLocally(job) {
     const enginesRun = [];
     const allFindings = [];
 
-    // --- Engine 1: Live Python Website Inspector ---
+    // --- Engine 1: Python Website Inspector (AWS Lambda or Live Safe Runner) ---
     const pyStart = Date.now();
-    const pyResult = await runLivePythonInspector(targetUrl, scanId, scanProfile);
+    let pyResult = null;
+    let pyDisplayName = 'Python Website Inspector (Live)';
+
+    if (config.orchestration.useLambdaInspector) {
+      try {
+        console.log(`[WorkflowHandler] Invoking Python inspector via AWS Lambda (${config.orchestration.lambdaInspectorFunctionName})...`);
+        pyResult = await runPythonInspectorViaLambda(targetUrl, scanId, scanProfile);
+        if (pyResult.success) {
+          pyDisplayName = 'Python Website Inspector (AWS Lambda)';
+        } else {
+          console.warn(`[WorkflowHandler] Lambda returned failure, falling back to local runner: ${pyResult.error}`);
+          pyResult = await runLivePythonInspector(targetUrl, scanId, scanProfile);
+        }
+      } catch (lambdaErr) {
+        console.warn(`[WorkflowHandler] Lambda invocation exception, falling back to local runner: ${lambdaErr.message}`);
+        pyResult = await runLivePythonInspector(targetUrl, scanId, scanProfile);
+      }
+    } else {
+      pyResult = await runLivePythonInspector(targetUrl, scanId, scanProfile);
+    }
     const pyDuration = Date.now() - pyStart;
 
     let rawPython = null;
@@ -438,7 +530,7 @@ export async function executeScanPipelineLocally(job) {
       await s3Service.saveRawEngineOutput(scanId, 'custom-python', rawPython);
       enginesRun.push({
         engine: 'custom-python',
-        displayName: 'Python Website Inspector (Live)',
+        displayName: pyDisplayName,
         status: 'passed',
         executionTimeMs: pyDuration,
       });
@@ -448,7 +540,7 @@ export async function executeScanPipelineLocally(job) {
       console.warn(`[WorkflowHandler] Python inspector failed for ${targetUrl}: ${errMsg}`);
       enginesRun.push({
         engine: 'custom-python',
-        displayName: 'Python Website Inspector (Live)',
+        displayName: pyDisplayName,
         status: 'failed',
         errorMessage: errMsg,
         executionTimeMs: pyDuration,
