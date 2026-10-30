@@ -9,6 +9,18 @@ export async function handler(event, context) {
     return { statusCode: 200, body: 'pong' };
   }
 
+  // Handle direct Step Functions invocation or background job
+  if (event.scanId && !event.httpMethod && !event.requestContext?.http && !event.rawPath) {
+    try {
+      const { executeScanPipelineLocally } = await import('../orchestration/workflowHandler.js');
+      await executeScanPipelineLocally(event);
+      return { statusCode: 200, status: 'SUCCESS', scanId: event.scanId };
+    } catch (err) {
+      console.error('[LambdaHandler] Background task execution error:', err);
+      return { statusCode: 500, status: 'FAILED', scanId: event.scanId, error: err.message };
+    }
+  }
+
   return new Promise((resolve, reject) => {
     // Map API Gateway event to Node HTTP request
     const method = event.httpMethod || event.requestContext?.http?.method || 'GET';

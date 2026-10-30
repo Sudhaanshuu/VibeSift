@@ -20,8 +20,7 @@ export interface OrchestrationStackProps extends cdk.StackProps {
   ecsCluster: ecs.Cluster;
   pythonTaskDef: ecs.FargateTaskDefinition;
   lighthouseTaskDef: ecs.FargateTaskDefinition;
-  zapTaskDef: ecs.FargateTaskDefinition;
-  nucleiTaskDef: ecs.FargateTaskDefinition;
+  pythonInspectorLambda?: lambda.Function;
   scannerSecurityGroup: ec2.SecurityGroup;
 }
 
@@ -107,22 +106,28 @@ export class OrchestrationStack extends cdk.Stack {
         ],
       });
 
-    const pythonTask = runFargateTask('RunPythonTask', props.pythonTaskDef, 'python-inspector');
-    const lighthouseTask = runFargateTask('RunLighthouseTask', props.lighthouseTaskDef, 'lighthouse');
-    const zapTask = runFargateTask('RunZapTask', props.zapTaskDef, 'owasp-zap');
-    const nucleiTask = runFargateTask('RunNucleiTask', props.nucleiTaskDef, 'nuclei');
+    // Serverless Python Inspector Task (executed directly via Lambda if available, or Fargate fallback)
+    const pythonInspectorTask = props.pythonInspectorLambda
+      ? new tasks.LambdaInvoke(this, 'InvokePythonInspectorLambda', {
+          lambdaFunction: props.pythonInspectorLambda,
+          payload: sfn.TaskInput.fromObject({
+            targetUrl: sfn.JsonPath.stringAt('$.targetUrl'),
+            scanId: sfn.JsonPath.stringAt('$.scanId'),
+            scanProfile: sfn.JsonPath.stringAt('$.scanProfile'),
+            s3Bucket: props.reportsBucket.bucketName,
+          }),
+          resultPath: '$.pythonResult',
+        })
+      : runFargateTask('RunPythonTask', props.pythonTaskDef, 'python-inspector');
 
-    // Baseline Scanners Parallel Branch
-    const baselineParallel = new sfn.Parallel(this, 'RunBaselineScanners')
-      .branch(pythonTask)
+    const lighthouseTask = runFargateTask('RunLighthouseTask', props.lighthouseTaskDef, 'lighthouse');
+
+    // Parallel Scanner Execution
+    const scannersParallel = new sfn.Parallel(this, 'RunAuditScanners')
+      .branch(pythonInspectorTask)
       .branch(lighthouseTask);
 
-    // Deep Scanners Parallel Branch
-    const deepParallel = new sfn.Parallel(this, 'RunAuthorizedDeepScanners')
-      .branch(zapTask)
-      .branch(nucleiTask);
-
-    // Normalizer Task
+    // Normalizer Task: aggregates findings, runs Bedrock / AI explanation, updates DynamoDB & S3
     const normalizerTask = new tasks.LambdaInvoke(this, 'InvokeNormalizer', {
       lambdaFunction: normalizerLambda,
       payload: sfn.TaskInput.fromObject({
@@ -133,12 +138,7 @@ export class OrchestrationStack extends cdk.Stack {
       }),
     });
 
-    // Profile Decision Choice
-    const profileChoice = new sfn.Choice(this, 'EvaluateProfileChoice')
-      .when(sfn.Condition.stringEquals('$.scanProfile', 'authorized_deep'), deepParallel.next(normalizerTask))
-      .otherwise(normalizerTask);
-
-    const definition = baselineParallel.next(profileChoice);
+    const definition = scannersParallel.next(normalizerTask);
 
     // 6. Step Functions State Machine
     this.stateMachine = new sfn.StateMachine(this, 'ScanWorkflowStateMachine', {

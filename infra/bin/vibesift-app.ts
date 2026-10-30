@@ -49,8 +49,7 @@ const orchestrationStack = new OrchestrationStack(app, `VibeSift-Orchestration-$
   ecsCluster: computeStack.ecsCluster,
   pythonTaskDef: computeStack.pythonInspectorTaskDef,
   lighthouseTaskDef: computeStack.lighthouseTaskDef,
-  zapTaskDef: computeStack.zapTaskDef,
-  nucleiTaskDef: computeStack.nucleiTaskDef,
+  pythonInspectorLambda: computeStack.pythonInspectorLambda,
   scannerSecurityGroup: computeStack.scannerSecurityGroup,
   description: 'VibeSift Orchestration: SQS Queue, DLQ, Step Functions Multi-Engine State Machine',
 });
@@ -67,6 +66,7 @@ const apiStack = new ApiStack(app, `VibeSift-Api-${stage}`, {
   kmsKey: dataStack.kmsKey,
   scanQueue: orchestrationStack.scanQueue,
   stateMachine: orchestrationStack.stateMachine,
+  pythonInspectorLambda: computeStack.pythonInspectorLambda,
   description: 'VibeSift API: Amazon Cognito, Node.js Lambda API, API Gateway v2, WAF',
 });
 apiStack.addStackDependency(orchestrationStack);

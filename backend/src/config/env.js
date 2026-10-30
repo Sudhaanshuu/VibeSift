@@ -41,6 +41,8 @@ export const config = {
   orchestration: {
     scanQueueUrl: process.env.SCAN_QUEUE_URL || 'https://sqs.us-east-1.amazonaws.com/501380833083/vibesift-scan-jobs-dev',
     scanStateMachineArn: process.env.SCAN_SFN_ARN || '',
+    useLambdaInspector: process.env.USE_LAMBDA_INSPECTOR === 'true',
+    lambdaInspectorFunctionName: process.env.LAMBDA_INSPECTOR_FUNCTION_NAME || 'vibesift-python-inspector-dev',
   },
 
   // Amazon Cognito
