@@ -61,7 +61,7 @@ export const DashboardPage: React.FC = () => {
   const verifiedCount = savedWebsites.filter((s) => s.isVerified).length;
   const avgScore =
     totalScans > 0
-      ? Math.round(scansList.reduce((acc, s) => acc + s.summary.readinessScore, 0) / totalScans)
+      ? Math.round(scansList.reduce((acc, s) => acc + (s.summary?.readinessScore ?? 0), 0) / totalScans)
       : 0;
 
   const totalCriticalHigh = scansList.reduce((acc, s) => {
@@ -195,8 +195,9 @@ export const DashboardPage: React.FC = () => {
               <div className="divide-y divide-brand-border">
                 {scansList.slice(0, 5).map((scan) => {
                   let scoreBadge = 'text-emerald-700 bg-emerald-50 border-emerald-200';
-                  if (scan.summary.readinessScore < 70) scoreBadge = 'text-red-700 bg-red-50 border-red-200';
-                  else if (scan.summary.readinessScore < 80) scoreBadge = 'text-amber-800 bg-amber-50 border-amber-200';
+                  const readiness = scan.summary?.readinessScore ?? 0;
+                  if (readiness < 70) scoreBadge = 'text-red-700 bg-red-50 border-red-200';
+                  else if (readiness < 80) scoreBadge = 'text-amber-800 bg-amber-50 border-amber-200';
 
                   return (
                     <div
