@@ -9,8 +9,8 @@ describe('SiteUrlForm Component', () => {
     render(<SiteUrlForm onSubmitScan={onSubmit} />);
 
     expect(screen.getByLabelText(/Target Website URL/i)).toBeInTheDocument();
-    expect(screen.getByText(/Baseline Public Scan/i)).toBeInTheDocument();
-    expect(screen.getByText(/Authorized Deep Scan/i)).toBeInTheDocument();
+    expect(screen.getByText(/Quick Search/i)).toBeInTheDocument();
+    expect(screen.getByText(/Deep Search/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Start Website Audit/i })).toBeInTheDocument();
   });
 
