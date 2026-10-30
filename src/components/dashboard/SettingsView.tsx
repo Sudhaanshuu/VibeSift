@@ -3,11 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
 import { 
   User, 
-  Key, 
   Trash2, 
   Bell, 
   ShieldCheck, 
-  Copy, 
   Check, 
   AlertTriangle,
   Scale
@@ -15,16 +13,8 @@ import {
 
 export const SettingsView: React.FC = () => {
   const { user, logout } = useAuth();
-  const [apiKey, setApiKey] = useState('sra_live_9d8f37b1029c4ef7a8e2');
-  const [copiedKey, setCopiedKey] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState(false);
   const [emailAlerts, setEmailAlerts] = useState(true);
-
-  const copyKey = () => {
-    navigator.clipboard.writeText(apiKey);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
-  };
 
   const handlePurgeHistory = () => {
     if (window.confirm('Are you sure you want to purge your scan history and cached artifacts? This action is irreversible.')) {
@@ -75,34 +65,6 @@ export const SettingsView: React.FC = () => {
         <div className="pt-2 text-xs text-brand-text-secondary flex items-center justify-between">
           <span>Identity Provider: Amazon Cognito User Pool</span>
           <span className="font-semibold text-brand-emerald">Verified Active</span>
-        </div>
-      </div>
-
-      {/* CI/CD & API Keys */}
-      <div className="rounded-2xl bg-white border border-brand-border p-6 shadow-subtle space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
-            <Key className="w-4 h-4 text-brand-emerald" />
-            <span>CI/CD & API Integration Key</span>
-          </h2>
-          <span className="text-[10px] font-mono text-brand-emerald-dark bg-brand-mint px-2 py-0.5 rounded border border-brand-border">
-            Read/Write Scope
-          </span>
-        </div>
-
-        <p className="text-xs text-brand-text-secondary leading-relaxed">
-          Use this key in your GitHub Actions, GitLab CI, or Vercel deploy hooks to automate launch-readiness audits on every pull request.
-        </p>
-
-        <div className="p-3 bg-gray-900 text-gray-100 rounded-xl font-mono text-xs flex items-center justify-between">
-          <span className="truncate pr-2">{apiKey}</span>
-          <button
-            onClick={copyKey}
-            className="flex items-center gap-1 text-gray-300 hover:text-white bg-gray-800 px-2.5 py-1 rounded text-xs"
-          >
-            {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedKey ? 'Copied' : 'Copy Key'}</span>
-          </button>
         </div>
       </div>
 

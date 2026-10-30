@@ -45,7 +45,25 @@ async function run() {
       process.exit(1);
     }
 
-    const chrome = await chromeLauncher.launch({
+    // Detect Chrome/Chromium executable path
+    const candidatePaths = [
+      process.env.CHROME_PATH,
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      '/snap/bin/chromium',
+      '/usr/bin/google-chrome',
+    ].filter(Boolean);
+
+    let chromePath;
+    for (const p of candidatePaths) {
+      try {
+        await fs.access(p);
+        chromePath = p;
+        break;
+      } catch {}
+    }
+
+    const launchOpts = {
       chromeFlags: [
         '--headless',
         '--no-sandbox',
@@ -53,7 +71,12 @@ async function run() {
         '--disable-dev-shm-usage',
         '--disable-software-rasterizer',
       ],
-    });
+    };
+    if (chromePath) {
+      launchOpts.chromePath = chromePath;
+    }
+
+    const chrome = await chromeLauncher.launch(launchOpts);
 
     const lhOptions = {
       port: chrome.port,

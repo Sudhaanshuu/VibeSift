@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAudit } from '../../context/AuditContext';
+import { useAuth } from '../../context/AuthContext';
 import { ScanProfile } from '../../types/audit';
 import { Button } from '../common/Button';
 import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
@@ -29,6 +30,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     isScanning,
     scanProgress 
   } = useAudit();
+  const { isAuthenticated, openLoginModal } = useAuth();
 
   const [url, setUrl] = useState('');
   const [profile, setProfile] = useState<ScanProfile>('baseline_public');
@@ -98,7 +100,33 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
         </div>
 
         {/* Modal Body / Scanning Progress or Form */}
-        {isScanning && scanProgress ? (
+        {!isAuthenticated ? (
+          <div className="p-8 text-center space-y-5">
+            <div className="w-14 h-14 rounded-full bg-brand-mint text-brand-emerald-dark flex items-center justify-center mx-auto border border-brand-border">
+              <Lock className="w-7 h-7" />
+            </div>
+            <div>
+              <h4 className="text-lg font-bold text-brand-text">Account Required to Run Audits</h4>
+              <p className="text-xs text-brand-text-secondary mt-1 max-w-sm mx-auto">
+                Sign in or register your free account to launch scans, check privacy & DPDP compliance, and store historical reports.
+              </p>
+            </div>
+            <div className="pt-2 flex justify-center gap-3">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  closeNewScanModal();
+                  openLoginModal();
+                }}
+              >
+                Sign In / Create Free Account
+              </Button>
+              <Button variant="ghost" onClick={closeNewScanModal}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : isScanning && scanProgress ? (
           <div className="p-8 text-center space-y-6">
             <div className="w-16 h-16 rounded-full bg-brand-mint text-brand-emerald flex items-center justify-center mx-auto border-2 border-brand-border animate-pulse">
               <ShieldCheck className="w-8 h-8 animate-bounce" />
@@ -161,11 +189,11 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
             {/* Scan Profile Selector */}
             <div className="space-y-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
-                Select Audit Profile
+                Select Audit Mode
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Option 1: Baseline Public */}
+                {/* Option 1: Quick Search */}
                 <div
                   onClick={() => setProfile('baseline_public')}
                   className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
@@ -175,64 +203,52 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-brand-text">Public Baseline</span>
+                    <span className="text-xs font-bold text-brand-text">Quick Search</span>
                     <span className="text-[10px] font-semibold text-brand-emerald bg-white px-2 py-0.5 rounded border border-brand-border">
-                      Free / Fast
+                      Fast (20s)
                     </span>
                   </div>
                   <p className="text-[11px] text-brand-text-secondary leading-snug">
-                    Technical SEO, Lighthouse performance, accessibility, public headers, cookies, and source map leakage.
+                    Lighthouse Core Web Vitals, SEO, SSL/TLS certificates, security headers, and public cookies.
                   </p>
                 </div>
 
-                {/* Option 2: Authorized Deep */}
+                {/* Option 2: Deep Search */}
                 <div
                   onClick={() => setProfile('authorized_deep')}
                   className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                     profile === 'authorized_deep'
-                      ? 'border-amber-500 bg-amber-50/60 ring-1 ring-amber-500'
+                      ? 'border-brand-emerald bg-brand-card-green ring-1 ring-brand-emerald'
                       : 'border-brand-border bg-white hover:bg-brand-muted'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-bold text-brand-text flex items-center gap-1">
-                      <Lock className="w-3 h-3 text-amber-600" /> Authorized Deep
+                      <ShieldCheck className="w-3.5 h-3.5 text-brand-emerald" /> Deep Search
                     </span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${
-                      isVerifiedDomain || acknowledgedTerms ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-amber-100 text-amber-800 border-amber-300'
-                    }`}>
-                      {isVerifiedDomain ? 'Verified' : acknowledgedTerms ? 'Owner Consent' : 'Consent Needed'}
+                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                      Comprehensive
                     </span>
                   </div>
                   <p className="text-[11px] text-brand-text-secondary leading-snug">
-                    OWASP ZAP baseline + Nuclei safe templates. Enabled via verified domain or confirmed ownership consent.
+                    Multi-page crawl, Indian DPDP Act privacy compliance, third-party tracker audits, and active security checks.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Verification Status Banner if Deep Profile Selected */}
-            {profile === 'authorized_deep' && !isVerifiedDomain && (
-              acknowledgedTerms ? (
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-semibold">Ownership Authorization Confirmed:</strong>
-                    You have declared ownership authorization for <span className="font-mono">{cleanHostname || 'domain'}</span>. Authorized deep security scan (OWASP ZAP & Nuclei) is enabled.
-                  </div>
+            {/* Deep Search Info Banner */}
+            {profile === 'authorized_deep' && (
+              <div className="p-3 bg-brand-card-green/50 rounded-xl border border-brand-emerald/30 text-xs text-brand-text flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-brand-emerald shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-semibold">Comprehensive Privacy & Security Audit:</strong>
+                  Deep Search will inspect {cleanHostname || 'this target'} across multiple pages, auditing third-party scripts, cookie banner consent, and sensitive data leakage.
                 </div>
-              ) : (
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-semibold">Ownership Authorization Required:</strong>
-                    Confirm that you own or are authorized to audit <span className="font-mono">{cleanHostname || 'domain'}</span> using the checkbox below to unlock authorized deep scanning.
-                  </div>
-                </div>
-              )
+              </div>
             )}
 
-            {/* Responsible Scanning Checkbox */}
+            {/* Simple Consent Checkbox */}
             <div className="pt-1">
               <label className="flex items-start gap-2 text-xs text-brand-text-secondary cursor-pointer">
                 <input
@@ -242,7 +258,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
                   className="rounded border-gray-300 text-brand-emerald focus:ring-brand-emerald mt-0.5"
                 />
                 <span>
-                  I confirm that I own or am authorized to audit this target, and agree to the non-destructive scanning policy.
+                  I authorize VibeSift to run an active, non-destructive audit on this website.
                 </span>
               </label>
             </div>

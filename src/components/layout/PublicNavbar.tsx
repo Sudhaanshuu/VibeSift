@@ -7,7 +7,7 @@ import { ArrowRight, Menu, X, ShieldCheck, ExternalLink, Sparkles } from 'lucide
 
 export const PublicNavbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAuthenticated, user, loginAsDemoUser } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   const handleLaunchApp = () => {

@@ -4,30 +4,20 @@ import { Button } from '../components/common/Button';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import {
   User,
-  Key,
   Trash2,
   Bell,
   ShieldCheck,
-  Copy,
-  Check,
   AlertTriangle,
   Server,
   Cloud,
+  Check,
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
   const { user, isMockMode, logout } = useAuth();
-  const [apiKey, setApiKey] = useState('sra_live_9d8f37b1029c4ef7a8e2');
-  const [copiedKey, setCopiedKey] = useState(false);
   const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState(false);
   const [emailAlerts, setEmailAlerts] = useState(true);
-
-  const copyKey = () => {
-    navigator.clipboard.writeText(apiKey);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
-  };
 
   const handlePurgeHistory = () => {
     localStorage.removeItem('vibesift_mock_scans');
@@ -86,61 +76,32 @@ export const SettingsPage: React.FC = () => {
       {/* Cloud & AWS Architecture Status */}
       <div className="rounded-2xl bg-white border border-brand-border p-6 shadow-subtle space-y-4">
         <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
-          <Cloud className="w-4 h-4 text-blue-600" />
-          <span>Backend & Cloud Architecture</span>
+          <Cloud className="w-4 h-4 text-emerald-600" />
+          <span>Production Cloud Architecture</span>
         </h2>
 
         <p className="text-xs text-brand-text-secondary leading-relaxed">
-          Production scans run isolated on AWS Fargate containers with Step Functions orchestration, DynamoDB finding storage, and S3 artifact repositories.
+          Zero-Docker flat-cost cloud architecture running native Linux processes on AWS Free Tier with Cloudflare global edge protection.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
           <div className="p-3 rounded-xl border border-brand-border bg-slate-50 space-y-1">
             <span className="text-[10px] uppercase font-bold text-slate-400 block">Identity Provider</span>
             <span className="font-semibold text-brand-text">Amazon Cognito</span>
-            <span className="text-[10px] text-slate-500 block truncate">Pool: us-east-1_sra</span>
+            <span className="text-[10px] text-slate-500 block truncate">Pool: us-east-1_nW70Gohxd</span>
           </div>
 
           <div className="p-3 rounded-xl border border-brand-border bg-slate-50 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Scan Execution</span>
-            <span className="font-semibold text-brand-text">AWS Fargate + ECS</span>
-            <span className="text-[10px] text-slate-500 block truncate">Isolated Network VPC</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Compute & Host</span>
+            <span className="font-semibold text-brand-text">AWS EC2 (Free Tier)</span>
+            <span className="text-[10px] text-slate-500 block truncate">Ubuntu 24.04 + Nginx + PM2</span>
           </div>
 
           <div className="p-3 rounded-xl border border-brand-border bg-slate-50 space-y-1">
-            <span className="text-[10px] uppercase font-bold text-slate-400 block">Environment Mode</span>
-            <span className="font-semibold text-amber-700">
-              {isMockMode ? 'Mock Development Mode' : 'Production Cloud'}
-            </span>
-            <span className="text-[10px] text-slate-500 block truncate">
-              {isMockMode ? 'Local Telemetry' : 'api.vibesift.pixir.in'}
-            </span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 block">Edge & CDN</span>
+            <span className="font-semibold text-brand-emerald-dark">Cloudflare Edge</span>
+            <span className="text-[10px] text-slate-500 block truncate">vibesift.pixir.in</span>
           </div>
-        </div>
-      </div>
-
-      {/* CI/CD API Key */}
-      <div className="rounded-2xl bg-white border border-brand-border p-6 shadow-subtle space-y-4">
-        <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
-          <Key className="w-4 h-4 text-brand-emerald" />
-          <span>API Key for GitHub Actions & CI/CD</span>
-        </h2>
-        <p className="text-xs text-brand-text-secondary leading-relaxed">
-          Trigger website launch audits directly from GitHub Actions, GitLab CI, or Vercel deploy hooks before merging to production.
-        </p>
-
-        <div className="flex items-center gap-2">
-          <code className="flex-1 p-3 bg-brand-muted rounded-xl border border-brand-border font-mono text-xs text-brand-text tracking-wider truncate">
-            {apiKey}
-          </code>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyKey}
-            leftIcon={copiedKey ? <Check className="w-4 h-4 text-brand-emerald" /> : <Copy className="w-4 h-4" />}
-          >
-            {copiedKey ? 'Copied' : 'Copy Key'}
-          </Button>
         </div>
       </div>
 

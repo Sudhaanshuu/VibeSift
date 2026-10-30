@@ -37,54 +37,15 @@ interface AuditContextType {
   prefilledScanUrl: string;
 }
 
-const initialSavedWebsites: SavedWebsite[] = [
-  {
-    id: 'site-001',
-    hostname: 'vibe-landing-demo.dev',
-    normalizedUrl: 'https://vibe-landing-demo.dev',
-    isVerified: true,
-    verificationMethod: 'dns_txt',
-    verificationToken: 'siteready-verify=89f41b2a7e',
-    verifiedAt: '2026-10-25T14:20:00Z',
-    lastScanId: 'scan-demo-vite-001',
-    lastScanDate: '2026-10-27T08:16:04Z',
-    lastScanScore: 74,
-    openFindingsCount: 6
-  },
-  {
-    id: 'site-002',
-    hostname: 'saas-market-starter.vercel.app',
-    normalizedUrl: 'https://saas-market-starter.vercel.app',
-    isVerified: false,
-    verificationToken: 'siteready-verify=72c09ef43d',
-    lastScanId: 'scan-demo-next-002',
-    lastScanDate: '2026-10-27T07:31:02Z',
-    lastScanScore: 68,
-    openFindingsCount: 5
-  },
-  {
-    id: 'site-003',
-    hostname: 'vibe-pulse-app.io',
-    normalizedUrl: 'https://vibe-pulse-app.io',
-    isVerified: true,
-    verificationMethod: 'html_meta',
-    verificationToken: 'siteready-verify=41ea63db19',
-    verifiedAt: '2026-10-26T09:45:00Z',
-    lastScanId: 'scan-demo-saas-003',
-    lastScanDate: '2026-10-27T06:11:12Z',
-    lastScanScore: 71,
-    openFindingsCount: 6
-  }
-];
-
-const initialScans: AuditReport[] = Object.values(sampleReports);
+const initialSavedWebsites: SavedWebsite[] = [];
+const initialScans: AuditReport[] = [];
 
 const AuditContext = createContext<AuditContextType | undefined>(undefined);
 
 export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [scansList, setScansList] = useState<AuditReport[]>(initialScans);
-  const [activeReport, setActiveReport] = useState<AuditReport | null>(sampleReports['react-vite-landing']);
-  const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>(initialSavedWebsites);
+  const [scansList, setScansList] = useState<AuditReport[]>([]);
+  const [activeReport, setActiveReport] = useState<AuditReport | null>(null);
+  const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>([]);
   const [isNewScanModalOpen, setIsNewScanModalOpen] = useState(false);
   const [prefilledScanUrl, setPrefilledScanUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
@@ -247,13 +208,8 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Live backend execution mode (USE_MOCK_API = false)
     let token = getAuthToken();
-    if (!token && authService.loginAsDemo) {
-      try {
-        const session = await authService.loginAsDemo();
-        token = session.token;
-      } catch (authErr) {
-        console.warn('[AuditContext] Demo session note:', authErr);
-      }
+    if (!token) {
+      throw new Error('Please sign in or create an account before launching an audit.');
     }
 
     try {

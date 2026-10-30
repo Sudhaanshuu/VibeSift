@@ -14,7 +14,7 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { login, confirmSignup, resendCode, loginAsDemoUser } = useAuth();
+  const { login, confirmSignup, resendCode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -82,19 +82,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleDemoSignIn = async () => {
-    setError(null);
-    setSubmitting(true);
-    try {
-      await loginAsDemoUser();
-      navigate(destination, { replace: true });
-    } catch (err: any) {
-      setError('Unable to activate demo user mode.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-brand-muted flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
@@ -113,32 +100,6 @@ export const LoginPage: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-brand-border shadow-card space-y-6">
-          {!needsConfirmation && (
-            <div className="p-4 rounded-xl bg-brand-mint/60 border border-brand-border space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-brand-emerald-deep flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Developer / Demo Mode
-                </span>
-                <span className="text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-slate-500">
-                  Instant Access
-                </span>
-              </div>
-              <p className="text-xs text-brand-text-secondary leading-relaxed">
-                Explore the auditing suite with sample telemetry for local testing.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleDemoSignIn}
-                isLoading={submitting}
-                className="w-full justify-center bg-white border-brand-emerald text-brand-emerald-deep hover:bg-brand-mint font-semibold text-xs"
-              >
-                Sign In as Demo Developer (Alex)
-              </Button>
-            </div>
-          )}
 
           {!needsConfirmation ? (
             <form onSubmit={handleLogin} className="space-y-4">

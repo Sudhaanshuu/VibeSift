@@ -5,7 +5,7 @@ import { BrandLogo } from '../brand/BrandLogo';
 import { X, Mail, Lock, ShieldCheck, ArrowRight, AlertTriangle, User, KeyRound, CheckCircle2, RotateCw } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
-  const { isLoginModalOpen, closeLoginModal, login, signup, confirmSignup, resendCode, loginAsDemoUser } = useAuth();
+  const { isLoginModalOpen, closeLoginModal, login, signup, confirmSignup, resendCode } = useAuth();
   
   const [mode, setMode] = useState<'signin' | 'signup' | 'verify'>('signin');
   const [name, setName] = useState('');
@@ -370,23 +370,6 @@ export const LoginModal: React.FC = () => {
             </div>
           </form>
         )}
-
-        {/* Development Helper link */}
-        <div className="pt-2 border-t border-brand-border/60 text-center">
-          <p className="text-[11px] text-brand-text-secondary">
-            Need quick demo access?{' '}
-            <button
-              type="button"
-              onClick={async () => {
-                await loginAsDemoUser();
-                closeLoginModal();
-              }}
-              className="font-semibold text-brand-emerald hover:underline"
-            >
-              Sign In as Demo Developer
-            </button>
-          </p>
-        </div>
 
       </div>
     </div>

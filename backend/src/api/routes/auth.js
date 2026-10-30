@@ -37,22 +37,6 @@ authRouter.post('/login', async (req, res, next) => {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Isolated developer mock fallback ONLY when demo auth is explicitly enabled in non-production
-    if (!config.isProduction && config.allowDemoAuth && (!config.cognito.clientId || req.body.isDemoRequest)) {
-      const demoToken = `demo_dev_${Buffer.from(cleanEmail).toString('hex').slice(0, 16)}`;
-      return res.json({
-        token: demoToken,
-        accessToken: demoToken,
-        user: {
-          id: `usr_${Buffer.from(cleanEmail).toString('hex').slice(0, 12)}`,
-          email: cleanEmail,
-          name: cleanEmail.split('@')[0],
-          plan: 'verified_developer',
-          isDemoUser: true,
-        },
-      });
-    }
-
     // Live Cognito authentication
     const session = await cognitoLogin({ email: cleanEmail, password });
     return res.json(session);
