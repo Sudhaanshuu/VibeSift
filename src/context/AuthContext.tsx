@@ -7,7 +7,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isMockMode: boolean;
-  loginAsDemoUser: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<SignupResult>;
   confirmSignup: (email: string, code: string) => Promise<{ success: boolean; message: string }>;
@@ -38,17 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     loadInitialSession();
   }, []);
-
-  const loginAsDemoUser = async () => {
-    setIsLoading(true);
-    try {
-      const session = await (authService.loginAsDemo ? authService.loginAsDemo() : mockAuthService.loginAsDemo());
-      setUser(session.user);
-      setIsLoginModalOpen(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -108,7 +96,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         isLoading,
         isMockMode: isMockAuthMode,
-        loginAsDemoUser,
         login,
         signup,
         confirmSignup,

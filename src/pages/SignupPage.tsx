@@ -15,7 +15,7 @@ export const SignupPage: React.FC = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { signup, confirmSignup, login, resendCode, loginAsDemoUser } = useAuth();
+  const { signup, confirmSignup, login, resendCode } = useAuth();
   const navigate = useNavigate();
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -81,16 +81,6 @@ export const SignupPage: React.FC = () => {
     }
   };
 
-  const handleDemoSignIn = async () => {
-    setSubmitting(true);
-    try {
-      await loginAsDemoUser();
-      navigate('/app', { replace: true });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-brand-muted flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
@@ -109,28 +99,6 @@ export const SignupPage: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-brand-border shadow-card space-y-6">
-          {step === 'register' && (
-            <div className="p-3.5 rounded-xl bg-brand-mint/60 border border-brand-border flex items-center justify-between">
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-mono font-bold text-brand-emerald-deep block">
-                  Testing the UI?
-                </span>
-                <p className="text-[11px] text-brand-text-secondary">
-                  Skip registration and test the full dashboard.
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleDemoSignIn}
-                className="text-xs bg-white text-brand-emerald-deep border-brand-emerald font-semibold"
-              >
-                Demo Sign In
-              </Button>
-            </div>
-          )}
-
           {step === 'register' ? (
             <form onSubmit={handleSignup} className="space-y-4">
               <div>

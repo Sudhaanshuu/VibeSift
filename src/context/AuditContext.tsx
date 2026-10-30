@@ -208,13 +208,8 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // Live backend execution mode (USE_MOCK_API = false)
     let token = getAuthToken();
-    if (!token && authService.loginAsDemo) {
-      try {
-        const session = await authService.loginAsDemo();
-        token = session.token;
-      } catch (authErr) {
-        console.warn('[AuditContext] Demo session note:', authErr);
-      }
+    if (!token) {
+      throw new Error('Please sign in or create an account before launching an audit.');
     }
 
     try {

@@ -33,14 +33,6 @@ export interface AuthSession {
   idToken?: string;
 }
 
-const DEMO_USER: AuthUser = {
-  id: 'usr_demo_developer_01',
-  email: 'alex.developer@example.com',
-  name: 'Alex Developer',
-  isDemoUser: true,
-  plan: 'verified_developer',
-};
-
 const STORAGE_KEY_USER = 'vibesift_user_session';
 
 /**
@@ -103,13 +95,6 @@ class ProductionAuthService {
       localStorage.removeItem(STORAGE_KEY_USER);
     }
   }
-
-  async loginAsDemo(): Promise<AuthSession> {
-    const token = 'demo_usr_alex_dev';
-    setAuthToken(token);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(DEMO_USER));
-    return { user: DEMO_USER, token };
-  }
 }
 
 /**
@@ -160,14 +145,6 @@ class MockAuthService {
   async resendCode(email: string): Promise<{ success: boolean; message: string }> {
     await new Promise((r) => setTimeout(r, 100));
     return { success: true, message: 'Verification code resent.' };
-  }
-
-  async loginAsDemo(): Promise<AuthSession> {
-    await new Promise((r) => setTimeout(r, 150));
-    const token = 'mock-jwt-token-demo';
-    setAuthToken(token);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(DEMO_USER));
-    return { user: DEMO_USER, token };
   }
 
   async getCurrentSession(): Promise<AuthUser | null> {
