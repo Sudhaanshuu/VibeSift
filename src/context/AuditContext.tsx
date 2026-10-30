@@ -152,12 +152,22 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     const fixedCount = updatedFindings.filter(f => f.verificationStatus === 'fixed').length;
-    const newScore = Math.min(100, Math.round(activeReport.summary.readinessScore + (fixedCount * 5)));
+    const currentScore = activeReport.summary?.readinessScore ?? 0;
+    const newScore = Math.min(100, Math.round(currentScore + (fixedCount * 5)));
 
     const updatedReport: AuditReport = {
       ...activeReport,
       summary: {
-        ...activeReport.summary,
+        ...(activeReport.summary || {
+          totalFindings: updatedFindings.length,
+          readinessScore: 0,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+          categoryScores: {},
+        }),
         readinessScore: newScore
       },
       findings: updatedFindings
@@ -302,13 +312,12 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setIsScanning(false);
             setScanProgress(null);
             closeNewScanModal();
-            const failureReason = report.errorMessage || 'Audit scan encountered an error during engine execution.';
-            throw new Error(failureReason);
+            return report.scanId;
           } else if (report.status === 'CANCELLED') {
             setIsScanning(false);
             setScanProgress(null);
             closeNewScanModal();
-            throw new Error('Audit scan was cancelled.');
+            return submission.scanId;
           }
         } catch (pollErr: any) {
           if (pollErr.message && !pollErr.message.includes('not exist') && !pollErr.message.includes('404')) {
@@ -316,12 +325,48 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
       }
-      throw new Error('Audit scan timed out waiting for engine execution.');
+
+      // If execution timed out after 60 seconds of polling, construct an explicit failure report
+      const timeoutReport: AuditReport = {
+        scanId: submission.scanId,
+        ownerUserId: 'current_user',
+        targetUrl: normalized,
+        normalizedHostname: hostname,
+        scanProfile: profile,
+        status: 'FAILED',
+        errorMessage: 'Audit scan timed out waiting for engine execution (the target website took longer than 60 seconds to inspect).',
+        summary: {
+          totalFindings: 0,
+          critical: 0,
+          high: 0,
+          medium: 0,
+          low: 0,
+          info: 0,
+          readinessScore: 0,
+          categoryScores: {},
+        },
+        findings: [],
+        enginesRun: [],
+        checksNotPerformed: [],
+        checks: [],
+        createdAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        durationSeconds: 60,
+      };
+      setScansList((prev) => [timeoutReport, ...prev]);
+      setActiveReport(timeoutReport);
+      setIsScanning(false);
+      setScanProgress(null);
+      closeNewScanModal();
+      return timeoutReport.scanId;
     } catch (err: any) {
       setIsScanning(false);
       setScanProgress(null);
-      // Real error is surfaced with actual reason, never silently replaced with mock report
-      throw err;
+      let message = err.message || 'Scan dispatch failed';
+      if (message.includes('Failed to fetch') || message.includes('NetworkError') || message.includes('ECONNREFUSED')) {
+        message = 'Could not connect to the backend server. If running locally, make sure the backend is running via "npm run dev".';
+      }
+      throw new Error(message);
     }
   };
 

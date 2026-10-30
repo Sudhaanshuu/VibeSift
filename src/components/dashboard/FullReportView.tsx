@@ -48,6 +48,18 @@ export const FullReportView: React.FC = () => {
     );
   }
 
+  const summary = activeReport.summary || {
+    totalFindings: (activeReport.findings || []).length,
+    readinessScore: 0,
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    categoryScores: {},
+  };
+  const categoryScores = summary.categoryScores || {};
+
   const effectiveChecks = (activeReport.checks && activeReport.checks.length > 0)
     ? activeReport.checks
     : (activeReport.scanProfile === 'authorized_deep'
@@ -139,7 +151,7 @@ export const FullReportView: React.FC = () => {
               <span>·</span>
               <span>Duration: {activeReport.durationSeconds || 32}s</span>
               <span>·</span>
-              <span>Total findings: {activeReport.summary.totalFindings}</span>
+              <span>Total findings: {summary.totalFindings}</span>
             </div>
           </div>
 
@@ -151,11 +163,11 @@ export const FullReportView: React.FC = () => {
                   Launch Readiness
                 </div>
                 <div className="text-3xl font-black text-brand-emerald-dark font-mono">
-                  {activeReport.summary.readinessScore}%
+                  {summary.readinessScore}%
                 </div>
               </div>
               <div className="w-12 h-12 rounded-full border-4 border-brand-mint border-t-brand-emerald flex items-center justify-center font-bold text-xs text-brand-emerald">
-                {activeReport.summary.readinessScore}
+                {summary.readinessScore}
               </div>
             </div>
 
@@ -189,35 +201,35 @@ export const FullReportView: React.FC = () => {
             className={`p-3 text-center transition-colors ${severityFilter === 'critical' ? 'bg-red-100/70 font-bold' : 'hover:bg-red-50'}`}
           >
             <div className="text-red-700 font-semibold mb-0.5">Critical</div>
-            <div className="text-xl font-bold text-red-900">{activeReport.summary.critical}</div>
+            <div className="text-xl font-bold text-red-900">{summary.critical}</div>
           </button>
           <button
             onClick={() => setSeverityFilter(severityFilter === 'high' ? 'all' : 'high')}
             className={`p-3 text-center transition-colors ${severityFilter === 'high' ? 'bg-orange-100/70 font-bold' : 'hover:bg-orange-50'}`}
           >
             <div className="text-orange-800 font-semibold mb-0.5">High</div>
-            <div className="text-xl font-bold text-orange-950">{activeReport.summary.high}</div>
+            <div className="text-xl font-bold text-orange-950">{summary.high}</div>
           </button>
           <button
             onClick={() => setSeverityFilter(severityFilter === 'medium' ? 'all' : 'medium')}
             className={`p-3 text-center transition-colors ${severityFilter === 'medium' ? 'bg-amber-100/70 font-bold' : 'hover:bg-amber-50'}`}
           >
             <div className="text-amber-800 font-semibold mb-0.5">Medium</div>
-            <div className="text-xl font-bold text-amber-950">{activeReport.summary.medium}</div>
+            <div className="text-xl font-bold text-amber-950">{summary.medium}</div>
           </button>
           <button
             onClick={() => setSeverityFilter(severityFilter === 'low' ? 'all' : 'low')}
             className={`p-3 text-center transition-colors ${severityFilter === 'low' ? 'bg-emerald-100/70 font-bold' : 'hover:bg-emerald-50'}`}
           >
             <div className="text-emerald-800 font-semibold mb-0.5">Low</div>
-            <div className="text-xl font-bold text-emerald-950">{activeReport.summary.low}</div>
+            <div className="text-xl font-bold text-emerald-950">{summary.low}</div>
           </button>
           <button
             onClick={() => setSeverityFilter(severityFilter === 'info' ? 'all' : 'info')}
             className={`p-3 text-center col-span-2 sm:col-span-1 transition-colors ${severityFilter === 'info' ? 'bg-slate-200/70 font-bold' : 'hover:bg-slate-100'}`}
           >
             <div className="text-slate-700 font-semibold mb-0.5">Info</div>
-            <div className="text-xl font-bold text-slate-900">{activeReport.summary.info}</div>
+            <div className="text-xl font-bold text-slate-900">{summary.info}</div>
           </button>
         </div>
 
@@ -230,7 +242,7 @@ export const FullReportView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {Object.entries(activeReport.summary.categoryScores).map(([cat, score]) => (
+            {Object.entries(categoryScores).map(([cat, score]) => (
               <button
                 key={cat}
                 onClick={() => setCategoryFilter(categoryFilter === cat ? 'all' : cat as Category)}
@@ -251,32 +263,32 @@ export const FullReportView: React.FC = () => {
       </div>
 
       {/* Check Execution Statistics Banner */}
-      {activeReport.summary.totalChecksEvaluated !== undefined && activeReport.summary.totalChecksEvaluated > 0 && (
+      {summary.totalChecksEvaluated !== undefined && summary.totalChecksEvaluated > 0 && (
         <div className="p-4 rounded-2xl bg-white border border-brand-border grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-xs shadow-subtle">
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Evaluated Checks</span>
-            <span className="text-base font-mono font-extrabold text-slate-900">{activeReport.summary.totalChecksEvaluated}</span>
+            <span className="text-base font-mono font-extrabold text-slate-900">{summary.totalChecksEvaluated}</span>
           </div>
           <div className="p-2.5 rounded-lg bg-emerald-50/60 border border-emerald-200">
             <span className="text-[10px] uppercase font-bold text-emerald-600 block">Checks Passed</span>
-            <span className="text-base font-mono font-extrabold text-emerald-800">{activeReport.summary.checksPassed ?? 0}</span>
+            <span className="text-base font-mono font-extrabold text-emerald-800">{summary.checksPassed ?? 0}</span>
           </div>
           <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200">
             <span className="text-[10px] uppercase font-bold text-amber-600 block">Warnings</span>
-            <span className="text-base font-mono font-extrabold text-amber-800">{activeReport.summary.checksWarning ?? 0}</span>
+            <span className="text-base font-mono font-extrabold text-amber-800">{summary.checksWarning ?? 0}</span>
           </div>
           <div className="p-2.5 rounded-lg bg-red-50/60 border border-red-200">
             <span className="text-[10px] uppercase font-bold text-red-600 block">Failed Checks</span>
-            <span className="text-base font-mono font-extrabold text-red-800">{activeReport.summary.checksFailed ?? 0}</span>
+            <span className="text-base font-mono font-extrabold text-red-800">{summary.checksFailed ?? 0}</span>
           </div>
           <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-200">
             <span className="text-[10px] uppercase font-bold text-blue-600 block">Confirmed Vulns</span>
-            <span className="text-base font-mono font-extrabold text-blue-800">{activeReport.summary.confirmedVulnerabilities ?? 0}</span>
+            <span className="text-base font-mono font-extrabold text-blue-800">{summary.confirmedVulnerabilities ?? 0}</span>
           </div>
           <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
             <span className="text-[10px] uppercase font-bold text-slate-500 block">Not Tested / N/A</span>
             <span className="text-base font-mono font-extrabold text-slate-700">
-              {(activeReport.summary.checksNotTested ?? 0) + (activeReport.summary.checksNotApplicable ?? 0)}
+              {(summary.checksNotTested ?? 0) + (summary.checksNotApplicable ?? 0)}
             </span>
           </div>
         </div>

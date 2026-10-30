@@ -144,8 +144,9 @@ export const HistoryPage: React.FC = () => {
               <tbody className="divide-y divide-brand-border">
                 {scansList.map((scan) => {
                   let scoreBadge = 'text-emerald-700 bg-emerald-50 border-emerald-200';
-                  if (scan.summary.readinessScore < 70) scoreBadge = 'text-red-700 bg-red-50 border-red-200';
-                  else if (scan.summary.readinessScore < 80) scoreBadge = 'text-amber-800 bg-amber-50 border-amber-200';
+                  const readiness = scan.summary?.readinessScore ?? 0;
+                  if (readiness < 70) scoreBadge = 'text-red-700 bg-red-50 border-red-200';
+                  else if (readiness < 80) scoreBadge = 'text-amber-800 bg-amber-50 border-amber-200';
 
                   return (
                     <tr
@@ -173,13 +174,13 @@ export const HistoryPage: React.FC = () => {
 
                       <td className="py-4 px-4">
                         <span className={`inline-block px-2.5 py-1 rounded-lg border font-mono font-bold text-xs ${scoreBadge}`}>
-                          {scan.summary.readinessScore}/100
+                          {readiness}/100
                         </span>
                       </td>
 
                       <td className="py-4 px-4 font-mono">
                         <div className="flex items-center gap-1.5 text-xs">
-                          {scan.summary.critical > 0 && (
+                          {scan.summary && scan.summary.critical > 0 && (
                             <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">
                               {scan.summary.critical} crit
                             </span>

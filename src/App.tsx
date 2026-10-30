@@ -89,9 +89,10 @@ export const AppContent: React.FC = () => {
     const found = scansList.find(s => s.scanId === scanId);
     if (found) {
       setActiveReport(found);
-      setDashboardTab('report');
-      setCurrentView('dashboard');
     }
+    setDashboardTab('report');
+    setCurrentView('dashboard');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navigateToDashboard = () => {
@@ -301,10 +302,14 @@ export const AppContent: React.FC = () => {
 
       {/* Global Modals */}
       <NewScanModal
-        onScanComplete={() => {
-          setCurrentView('dashboard');
-          setDashboardTab('report');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+        onScanComplete={(scanId) => {
+          if (scanId) {
+            handleSelectReportInApp(scanId);
+          } else {
+            setCurrentView('dashboard');
+            setDashboardTab('report');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
         }}
       />
       <LoginModal />

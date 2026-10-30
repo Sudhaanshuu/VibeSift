@@ -201,6 +201,7 @@ export interface ReportSummary {
 
 export interface AuditReport {
   scanId: string;
+  ownerUserId?: string;
   targetUrl: string;
   normalizedHostname: string;
   scanProfile: ScanProfile;
