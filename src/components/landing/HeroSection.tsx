@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAudit } from '../../context/AuditContext';
+import { useAuth } from '../../context/AuthContext';
 import { normalizeTargetUrl } from '../../lib/validation/urlSchema';
 import { 
   ArrowRight, 
@@ -22,6 +23,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
   const [inputUrl, setInputUrl] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const { openNewScanModal, isScanning } = useAudit();
+  const { isAuthenticated, openLoginModal } = useAuth();
 
   const handleQuickSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +33,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
     }
     setErrorMsg('');
     const normalized = normalizeTargetUrl(inputUrl);
+
+    if (!isAuthenticated) {
+      // Store requested URL and require user to sign in or create account first
+      openNewScanModal(normalized);
+      openLoginModal();
+      return;
+    }
+
     openNewScanModal(normalized);
   };
 
@@ -132,8 +142,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
 
             {/* Scope clarification notice */}
             <div className="p-3 rounded-xl bg-white/80 border border-brand-border/80 text-xs text-brand-text-secondary max-w-xl">
-              <strong className="text-brand-text">Testing Scope: </strong>
-              Start with public website checks. Deeper security testing requires verified ownership or explicit authorization.
+              <strong className="text-brand-text">Simple vs. Deep Search: </strong>
+              Run a quick 20-second public quality check, or sign in to launch a deep privacy and security audit across your pages.
             </div>
 
           </div>

@@ -68,14 +68,7 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   const onFormSubmit = async (values: FormValues) => {
     setInternalError(null);
 
-    // If deep scan is chosen and domain is not verified, reject submission
-    if (values.profile === 'authorized_deep' && !isDomainVerified) {
-      setInternalError(
-        `Domain "${cleanHostname}" is not yet verified. Deeper security testing requires verified domain ownership via DNS TXT or HTML meta tag.`
-      );
-      return;
-    }
-
+    // If deep scan is chosen, user authorizes via acknowledgedTerms
     try {
       await onSubmitScan({
         url: values.url,
@@ -147,29 +140,16 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
         />
       )}
 
-      {/* Domain Verification Banner if Authorized Deep selected without verification */}
-      {watchedProfile === 'authorized_deep' && !isDomainVerified && cleanHostname && (
-        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <Lock className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-amber-900">Domain Verification Required</p>
-              <p className="text-amber-800 text-[11px] mt-0.5">
-                Active security scans require proof of domain control to prevent unauthorized testing. A checkbox alone does not grant ownership.
-              </p>
-            </div>
+      {/* Deep Search Information Banner */}
+      {watchedProfile === 'authorized_deep' && cleanHostname && (
+        <div className="p-3.5 rounded-xl bg-brand-card-green/50 border border-brand-emerald/30 text-xs text-brand-text flex items-start gap-2">
+          <ShieldCheck className="w-4 h-4 text-brand-emerald flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-brand-text">Comprehensive Privacy & Security Audit</p>
+            <p className="text-brand-text-secondary text-[11px] mt-0.5">
+              Deep Search will audit {cleanHostname} for DPDP Act privacy compliance, cookie consent tracking, and security vulnerabilities.
+            </p>
           </div>
-          {onVerifyDomainClick && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onVerifyDomainClick(cleanHostname)}
-              className="text-xs bg-white text-amber-900 border-amber-300 hover:bg-amber-100 flex-shrink-0"
-            >
-              Verify Domain
-            </Button>
-          )}
         </div>
       )}
 

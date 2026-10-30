@@ -52,8 +52,8 @@ export const ScanScopeSelector: React.FC<ScanScopeSelectorProps> = ({
                 <Zap className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-brand-text">Baseline Public Scan</h4>
-                <span className="text-[11px] text-brand-text-secondary">Safe, observable inspection</span>
+                <h4 className="text-sm font-bold text-brand-text">Quick Search</h4>
+                <span className="text-[11px] text-brand-text-secondary">Fast public quality inspection (20s)</span>
               </div>
             </div>
             {value === 'baseline_public' && (
@@ -62,23 +62,23 @@ export const ScanScopeSelector: React.FC<ScanScopeSelectorProps> = ({
           </div>
 
           <p className="mt-3 text-xs text-brand-text-secondary leading-relaxed">
-            Audits SEO, Lighthouse performance, accessibility signals, security headers, cookie flags, and observable misconfigurations. No authorization required.
+            Audits SEO, Lighthouse Core Web Vitals, accessibility signals, security headers, broken links, and public cookies.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-1">
             <span className="inline-block text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-brand-text-secondary">
-              Lighthouse 12
+              Lighthouse CWV
             </span>
             <span className="inline-block text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-brand-text-secondary">
-              HTTP/TLS Inspect
+              Security Headers
             </span>
             <span className="inline-block text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-brand-text-secondary">
-              Zero Burden
+              Fast 20s
             </span>
           </div>
         </div>
 
-        {/* Authorized Deep Security Scan */}
+        {/* Deep Search */}
         <div
           role="radio"
           aria-checked={value === 'authorized_deep'}
@@ -102,18 +102,17 @@ export const ScanScopeSelector: React.FC<ScanScopeSelectorProps> = ({
                 className={`p-2 rounded-lg ${
                   value === 'authorized_deep'
                     ? 'bg-brand-emerald text-white'
-                    : 'bg-amber-100 text-amber-800'
+                    : 'bg-brand-mint text-brand-emerald-dark'
                 }`}
               >
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
                 <h4 className="text-sm font-bold text-brand-text flex items-center gap-1.5">
-                  Authorized Deep Scan
-                  {!isDomainVerified && <Lock className="w-3.5 h-3.5 text-amber-600" />}
+                  Deep Search
                 </h4>
-                <span className="text-[11px] text-amber-700 font-medium">
-                  {isDomainVerified ? 'Ownership verified' : 'Domain verification required'}
+                <span className="text-[11px] text-emerald-800 font-medium">
+                  Comprehensive privacy & security audit
                 </span>
               </div>
             </div>
@@ -123,21 +122,19 @@ export const ScanScopeSelector: React.FC<ScanScopeSelectorProps> = ({
           </div>
 
           <p className="mt-3 text-xs text-brand-text-secondary leading-relaxed">
-            Runs deep active security tests via isolated OWASP ZAP and ProjectDiscovery Nuclei workers. Prohibits destructive payloads.
+            Multi-page crawl, Indian DPDP Act privacy compliance, third-party tracker audit, and security vulnerability testing.
           </p>
 
-          <div className="mt-3">
-            {!isDomainVerified ? (
-              <div className="flex items-center gap-1.5 text-[11px] text-amber-800 bg-amber-50 p-1.5 rounded-lg border border-amber-200">
-                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 text-amber-600" />
-                <span>Requires DNS TXT or HTML tag challenge before execution.</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-[11px] text-emerald-800 bg-emerald-50 p-1.5 rounded-lg border border-emerald-200">
-                <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 text-emerald-600" />
-                <span>Domain verified. Deeper security testing is authorized.</span>
-              </div>
-            )}
+          <div className="mt-3 flex flex-wrap gap-1">
+            <span className="inline-block text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-brand-text-secondary">
+              DPDP Act 2023
+            </span>
+            <span className="inline-block text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-brand-text-secondary">
+              Tracker Audit
+            </span>
+            <span className="inline-block text-[10px] font-mono bg-white px-2 py-0.5 rounded border border-brand-border text-brand-text-secondary">
+              Multi-Page
+            </span>
           </div>
         </div>
       </div>

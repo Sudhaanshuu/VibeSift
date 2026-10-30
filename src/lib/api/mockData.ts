@@ -8,45 +8,7 @@ const STORAGE_KEYS = {
 };
 
 // Default initial saved sites
-const initialMockSites: SavedWebsite[] = [
-  {
-    id: 'site-001',
-    hostname: 'vibe-landing-demo.dev',
-    normalizedUrl: 'https://vibe-landing-demo.dev',
-    isVerified: true,
-    verificationMethod: 'dns_txt',
-    verificationToken: 'siteready-verify=89f41b2a7e',
-    verifiedAt: '2026-10-25T14:20:00Z',
-    lastScanId: 'scan-demo-vite-001',
-    lastScanDate: '2026-10-27T08:16:04Z',
-    lastScanScore: 74,
-    openFindingsCount: 6,
-  },
-  {
-    id: 'site-002',
-    hostname: 'saas-market-starter.vercel.app',
-    normalizedUrl: 'https://saas-market-starter.vercel.app',
-    isVerified: false,
-    verificationToken: 'siteready-verify=72c09ef43d',
-    lastScanId: 'scan-demo-next-002',
-    lastScanDate: '2026-10-27T07:31:02Z',
-    lastScanScore: 68,
-    openFindingsCount: 5,
-  },
-  {
-    id: 'site-003',
-    hostname: 'vibe-pulse-app.io',
-    normalizedUrl: 'https://vibe-pulse-app.io',
-    isVerified: true,
-    verificationMethod: 'html_meta',
-    verificationToken: 'siteready-verify=41ea63db19',
-    verifiedAt: '2026-10-26T09:45:00Z',
-    lastScanId: 'scan-demo-saas-003',
-    lastScanDate: '2026-10-27T06:11:12Z',
-    lastScanScore: 71,
-    openFindingsCount: 6,
-  },
-];
+const initialMockSites: SavedWebsite[] = [];
 
 // In-memory mock store
 class MockDataStore {
@@ -66,11 +28,9 @@ class MockDataStore {
       if (storedScans) {
         const parsed: AuditReport[] = JSON.parse(storedScans);
         parsed.forEach((scan) => this.scans.set(scan.scanId, scan));
-      } else {
-        Object.values(sampleReports).forEach((scan) => this.scans.set(scan.scanId, { ...scan, isSampleData: true }));
       }
     } catch {
-      Object.values(sampleReports).forEach((scan) => this.scans.set(scan.scanId, { ...scan, isSampleData: true }));
+      // Empty by default
     }
 
     // Load sites
