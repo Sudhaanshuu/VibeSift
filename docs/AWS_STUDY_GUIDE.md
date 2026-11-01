@@ -137,7 +137,7 @@ The system is monitored 24/7 without human intervention:
 | **3** | **SSM Parameter Store** | Parameters under `/vibesift/prod/...` | Systems Manager $\rightarrow$ Parameter Store (`us-east-1`) | `aws ssm describe-parameters --region us-east-1` |
 | **4** | **Amazon S3** | `vibesift-audit-reports-dev-501380833083` | S3 $\rightarrow$ Buckets (`us-east-1`) | `aws s3 ls s3://vibesift-audit-reports-dev-501380833083` |
 | **5** | **Amazon CloudWatch** | CPU Alarm (`> 85%`) & Status Alarms | Lightsail Metrics / CloudWatch (`us-east-1`) | `aws lightsail get-alarms --region us-east-1` |
-| **6** | **AWS Lambda** | `vibesift-scheduled-scanner` | Lambda $\rightarrow$ Functions (`us-east-1`) | `aws lambda list-functions --region us-east-1` |
+| **6** | **AWS Lambda** | `vibesift-python-inspector-dev`, `vibesift-scheduled-scanner` | Lambda $\rightarrow$ Functions (`us-east-1`) | `aws lambda list-functions --region us-east-1` |
 | **\*** | **Cloudflare Edge** | Domain: `vibesift.pixir.in` (Proxied A-record) | Cloudflare Dashboard (DNS / SSL) | `nslookup vibesift.pixir.in` |
 
 ---
@@ -373,13 +373,15 @@ aws lightsail get-alarms --region us-east-1 --query "alarms[].{Name:name,Metric:
 
 ---
 
-### 6. AWS Lambda (Scheduled Audit Webhooks)
+### 6. AWS Lambda (Serverless Inspector & Scheduled Audit Webhooks)
 
 #### What is this service? (Plain English with Real-World Examples, 10–15 lines)
-Imagine an automated sprinkler system installed in a community park. You do not need to hire a full-time gardener to sleep in a tent in the park 24 hours a day just to turn the water valve on at 5:00 AM every Tuesday. Instead, an electronic timer switch automatically opens the valve for 10 minutes, waters the grass, and shuts off completely. You pay zero wages for an idle worker. AWS Lambda is this on-demand electronic timer switch. It is a serverless compute service that runs a small piece of code only when triggered by an event or schedule, finishes its job in a fraction of a second, and immediately shuts down, incurring **$0.00** in costs when idle.
+Imagine an automated sprinkler system and an on-demand specialist inspector. You do not need to hire a full-time gardener to sleep in a tent in the park 24 hours a day just to turn the water valve on at 5:00 AM every Tuesday. Nor do you need a full-time structural tester on permanent payroll when you only test buildings on demand. Instead, an electronic timer switch automatically opens the valve when scheduled, waters the grass, and shuts off completely. When an inspection is requested, a certified inspector arrives in seconds, completes the tests, and leaves. You pay zero wages when idle. AWS Lambda is this on-demand serverless compute power. It runs code only when triggered by an event, an HTTP request, or a schedule, finishes its job in milliseconds or seconds, and immediately shuts down, incurring **$0.00** in costs when idle.
 
 #### Why we are using it in VibeSift
-Developers need recurring automated scans (e.g., verifying their website health every night or after scheduled deploys). Rather than running heavy cron daemons on our $5 host, we deploy a serverless AWS Lambda function (`vibesift-scheduled-scanner`) triggered by **Amazon EventBridge** (100% Free Tier). When the schedule triggers, Lambda sends an authenticated HTTP request (`POST /api/scans/scheduled`) to our API and shuts down in under 400 milliseconds.
+In VibeSift, AWS Lambda serves two critical architectural functions:
+1. **Serverless Python Inspector (`vibesift-python-inspector-dev`):** Runs the full 71-check security, performance, SEO, and Indian DPDP Act 2023 audit suite in an isolated, auto-scaling ephemeral environment. Offloading heavy HTTP probing from the host prevents host CPU spikes during burst traffic.
+2. **Scheduled Audit Webhooks (`vibesift-scheduled-scanner`):** Developers require recurring website health monitoring. Rather than running cron daemons on the host, a lightweight Lambda function triggered by **Amazon EventBridge** dispatches authenticated re-audit requests to our API.
 
 #### AWS CLI Verification Command
 ```powershell
@@ -389,27 +391,31 @@ aws lambda list-functions --region us-east-1 --query "Functions[?contains(Functi
 ```text
 -----------------------------------------------------------------
 |                         ListFunctions                         |
-+------------------------------+--------------+-----------------+
-|            Name              |   Runtime    |     Timeout     |
-+------------------------------+--------------+-----------------+
-|  vibesift-scheduled-scanner  |  nodejs20.x  |  30             |
-+------------------------------+--------------+-----------------+
++--------------------------------+--------------+---------------+
+|             Name               |   Runtime    |    Timeout    |
++--------------------------------+--------------+---------------+
+|  vibesift-python-inspector-dev |  python3.11  |  120          |
+|  vibesift-scheduled-scanner    |  nodejs20.x  |  30           |
++--------------------------------+--------------+---------------+
 ```
 
 #### Step-by-Step AWS Console Navigation
 1. Open AWS Console $\rightarrow$ Region: **`us-east-1` (N. Virginia)**.
 2. In the top search bar, type `Lambda` and select **Lambda**.
-3. In the Functions list, click **`vibesift-scheduled-scanner`**.
-4. In the **Function overview** section, see the **EventBridge (CloudWatch Events)** trigger on the left side.
-5. Click **Configuration** $\rightarrow$ **Triggers** to view the cron schedule (e.g. `cron(0 2 * * ? *)` for 2:00 AM daily re-audits).
-6. Click the **Monitor** tab to view execution duration and success rates.
+3. In the Functions list, view both:
+   * **`vibesift-python-inspector-dev`**: Open the **Test** tab to dispatch test events (`{"targetUrl": "https://example.com", "scanProfile": "baseline_public"}`).
+   * **`vibesift-scheduled-scanner`**: View the **EventBridge (CloudWatch Events)** cron schedule trigger.
+4. Click the **Monitor** tab to view execution duration, invocation count, and CloudWatch logs.
 
 #### Key Metrics, Popular Parameters & Features
 * **Navigation to Metrics:** Function details $\rightarrow$ **Monitor** tab.
 * **Key Metrics:** 
-  * `Invocations`: Total number of scheduled triggers dispatched.
-  * `Duration`: Average execution time (typically under 350ms).
-* **Important Parameter:** **Environment Variables**: Stores `CRON_TRIGGER_SECRET` and API endpoint URL so the Lightsail backend can verify scheduled calls originate from an authorized Lambda runner.
+  * `Invocations`: Total number of inspection runs and scheduled triggers dispatched.
+  * `Duration`: Average execution time (typically 1.2s–3.5s for python inspector, <350ms for scheduled scanner).
+  * `Errors`: Track execution exceptions and timeout events.
+* **Important Parameters:** 
+  * **MemorySize & Timeout**: 512MB RAM and 120-second timeout configured for Python inspector to prevent execution truncation.
+  * **Environment Variables**: Stores S3 bucket destination (`vibesift-audit-reports-dev-501380833083`) and HMAC trigger secrets.
 
 ---
 

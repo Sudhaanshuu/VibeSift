@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { Button } from '../components/common/Button';
-import { ShieldCheck, Mail, Lock, ArrowRight, AlertTriangle, Sparkles, KeyRound, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, ArrowRight, AlertTriangle, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -83,7 +83,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-brand-muted flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-dvh bg-brand-muted flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <Link to="/" className="inline-block mb-4">
           <BrandLogo size="lg" />
@@ -98,9 +98,8 @@ export const LoginPage: React.FC = () => {
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md w-full">
         <div className="bg-white py-8 px-6 sm:px-8 rounded-2xl border border-brand-border shadow-card space-y-6">
-
           {!needsConfirmation ? (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -108,13 +107,14 @@ export const LoginPage: React.FC = () => {
                   Email address
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="alex@example.com"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-border text-xs font-mono text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-emerald"
+                    autoComplete="email"
+                    className="w-full min-h-[44px] pl-10 pr-3.5 py-2.5 rounded-xl border border-brand-border text-xs font-mono text-brand-text placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-emerald focus:border-brand-emerald"
                     required
                   />
                 </div>
@@ -125,13 +125,14 @@ export const LoginPage: React.FC = () => {
                   Password
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-border text-xs font-mono text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-emerald"
+                    autoComplete="current-password"
+                    className="w-full min-h-[44px] pl-10 pr-3.5 py-2.5 rounded-xl border border-brand-border text-xs font-mono text-brand-text placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-emerald focus:border-brand-emerald"
                     required
                   />
                 </div>
@@ -149,7 +150,7 @@ export const LoginPage: React.FC = () => {
                 variant="primary"
                 size="md"
                 isLoading={submitting}
-                className="w-full justify-center"
+                className="w-full justify-center min-h-[44px]"
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
                 Sign In
@@ -169,14 +170,14 @@ export const LoginPage: React.FC = () => {
                   Verification Code
                 </label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={confirmationCode}
                     onChange={(e) => setConfirmationCode(e.target.value)}
                     placeholder="123456"
                     maxLength={10}
-                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-border text-sm font-mono tracking-widest text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-emerald text-center"
+                    className="w-full min-h-[44px] pl-10 pr-3.5 py-2.5 rounded-xl border border-brand-border text-sm font-mono tracking-widest text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-emerald focus:border-brand-emerald text-center"
                     required
                   />
                 </div>
@@ -194,7 +195,7 @@ export const LoginPage: React.FC = () => {
                 variant="primary"
                 size="md"
                 isLoading={submitting}
-                className="w-full justify-center"
+                className="w-full justify-center min-h-[44px]"
                 rightIcon={<ArrowRight className="w-4 h-4" />}
               >
                 Verify & Sign In
@@ -205,14 +206,14 @@ export const LoginPage: React.FC = () => {
                   type="button"
                   onClick={handleResend}
                   disabled={submitting}
-                  className="text-xs text-brand-emerald hover:underline font-semibold"
+                  className="min-h-[44px] text-xs text-brand-emerald hover:underline font-semibold flex items-center"
                 >
                   Resend Code
                 </button>
                 <button
                   type="button"
                   onClick={() => setNeedsConfirmation(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700"
+                  className="min-h-[44px] text-xs text-slate-500 hover:text-slate-700 flex items-center"
                 >
                   Back to Sign In
                 </button>

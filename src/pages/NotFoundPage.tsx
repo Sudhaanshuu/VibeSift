@@ -6,7 +6,7 @@ import { Home, ArrowLeft, ShieldAlert } from 'lucide-react';
 
 export const NotFoundPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-brand-muted flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 text-center antialiased">
+    <div className="min-h-dvh bg-brand-muted flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 text-center antialiased">
       <div className="max-w-md mx-auto space-y-6">
         <Link to="/" className="inline-block">
           <BrandLogo size="lg" />
@@ -26,12 +26,12 @@ export const NotFoundPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <Link to="/app">
-            <Button variant="primary" size="sm" leftIcon={<Home className="w-4 h-4" />}>
+            <Button variant="primary" size="md" leftIcon={<Home className="w-4 h-4" />} className="min-h-[44px]">
               Go to Dashboard
             </Button>
           </Link>
           <Link to="/">
-            <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />}>
+            <Button variant="outline" size="md" leftIcon={<ArrowLeft className="w-4 h-4" />} className="min-h-[44px]">
               Back to Homepage
             </Button>
           </Link>

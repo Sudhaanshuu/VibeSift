@@ -8,7 +8,6 @@ import { FindingFilters, FindingFilterState } from '../components/common/Finding
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { ReportSkeleton } from '../components/common/LoadingSkeleton';
-import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
 import { downloadReportJson, generateReportMarkdown } from '../lib/api/reports';
 import { exportReportToPdf } from '../lib/export/pdfReportGenerator';
@@ -20,15 +19,12 @@ import {
   ArrowLeft,
   RefreshCw,
   Download,
-  Share2,
   Copy,
   Check,
   ShieldCheck,
-  ExternalLink,
   AlertTriangle,
   StopCircle,
   FileText,
-  ListFilter,
   CheckSquare,
   Lock,
   GitCompare,
@@ -94,11 +90,16 @@ export const ScanDetailPage: React.FC = () => {
     return true;
   });
 
-  const effectiveChecks = (report.checks && report.checks.length > 0)
-    ? report.checks
-    : (report.scanProfile === 'authorized_deep'
-        ? [...buildBasicAuditChecks(report.targetUrl), ...buildDeepSecurityChecks(report.targetUrl), ...buildDpdpComplianceChecks(report.targetUrl)]
-        : buildBasicAuditChecks(report.targetUrl));
+  const effectiveChecks =
+    report.checks && report.checks.length > 0
+      ? report.checks
+      : report.scanProfile === 'authorized_deep'
+      ? [
+          ...buildBasicAuditChecks(report.targetUrl),
+          ...buildDeepSecurityChecks(report.targetUrl),
+          ...buildDpdpComplianceChecks(report.targetUrl),
+        ]
+      : buildBasicAuditChecks(report.targetUrl);
 
   const severityCounts = {
     critical: rawFindings.filter((f) => f.severity === 'critical').length,
@@ -156,14 +157,14 @@ export const ScanDetailPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 animate-fade-in min-w-0">
       {/* Top Breadcrumb & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link
           to="/app/history"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-text-secondary hover:text-brand-text transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-text-secondary hover:text-brand-text transition-colors min-h-[36px]"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
+          <ArrowLeft className="w-4 h-4" />
           <span>Back to Scan History</span>
         </Link>
 
@@ -176,7 +177,7 @@ export const ScanDetailPage: React.FC = () => {
               onClick={handleCancel}
               isLoading={cancelMutation.isPending}
               leftIcon={<StopCircle className="w-4 h-4 text-red-500" />}
-              className="text-xs border-red-200 text-red-700 hover:bg-red-50"
+              className="text-xs border-red-200 text-red-700 hover:bg-red-50 min-h-[36px]"
             >
               Cancel Scan
             </Button>
@@ -188,7 +189,7 @@ export const ScanDetailPage: React.FC = () => {
                 onClick={handleExportPdf}
                 isLoading={pdfExporting}
                 leftIcon={<FileText className="w-3.5 h-3.5 text-brand-emerald" />}
-                className="text-xs font-semibold"
+                className="text-xs font-semibold min-h-[36px]"
               >
                 Export PDF
               </Button>
@@ -197,8 +198,10 @@ export const ScanDetailPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={handleCopyMarkdown}
-                leftIcon={copiedMd ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                className="text-xs"
+                leftIcon={
+                  copiedMd ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />
+                }
+                className="text-xs min-h-[36px]"
               >
                 {copiedMd ? 'Markdown Copied!' : 'Copy Markdown'}
               </Button>
@@ -207,8 +210,14 @@ export const ScanDetailPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={handleDownloadJson}
-                leftIcon={downloadSuccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Download className="w-3.5 h-3.5" />}
-                className="text-xs"
+                leftIcon={
+                  downloadSuccess ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )
+                }
+                className="text-xs min-h-[36px]"
               >
                 {downloadSuccess ? 'Downloaded!' : 'Export JSON'}
               </Button>
@@ -219,7 +228,7 @@ export const ScanDetailPage: React.FC = () => {
                 onClick={handleRescan}
                 isLoading={rescanMutation.isPending}
                 leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                className="text-xs"
+                className="text-xs min-h-[36px]"
               >
                 Rescan Target
               </Button>
@@ -244,16 +253,16 @@ export const ScanDetailPage: React.FC = () => {
       />
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-brand-border gap-2 overflow-x-auto pb-px">
+      <div className="flex border-b border-brand-border gap-2 overflow-x-auto pb-px scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('findings')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
             activeTab === 'findings'
               ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
               : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
           }`}
         >
-          <AlertTriangle className="w-3.5 h-3.5" />
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
           <span>Actionable Findings</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
             {rawFindings.length}
@@ -262,13 +271,13 @@ export const ScanDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('registry')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
             activeTab === 'registry'
               ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
               : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
           }`}
         >
-          <CheckSquare className="w-3.5 h-3.5" />
+          <CheckSquare className="w-3.5 h-3.5 shrink-0" />
           <span>Full Check Registry</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-100 text-emerald-800">
             {effectiveChecks.length}
@@ -277,30 +286,34 @@ export const ScanDetailPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('dpdp')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
             activeTab === 'dpdp'
               ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
               : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
           }`}
         >
-          <Lock className="w-3.5 h-3.5 text-indigo-500" />
+          <Lock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
           <span>Privacy & DPDP Act (2023)</span>
           {report.privacyCompliance && (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-100 text-indigo-800 uppercase">
-              {(report.privacyCompliance.overallRating || report.privacyCompliance.complianceRating || 'review').replace('_', ' ')}
+              {(
+                report.privacyCompliance.overallRating ||
+                report.privacyCompliance.complianceRating ||
+                'review'
+              ).replace('_', ' ')}
             </span>
           )}
         </button>
 
         <button
           onClick={() => setActiveTab('comparison')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
             activeTab === 'comparison'
               ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
               : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
           }`}
         >
-          <GitCompare className="w-3.5 h-3.5 text-purple-500" />
+          <GitCompare className="w-3.5 h-3.5 text-purple-500 shrink-0" />
           <span>Deep vs Basic Differential</span>
           {report.scanProfile === 'authorized_deep' && (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-100 text-purple-800">
@@ -312,9 +325,9 @@ export const ScanDetailPage: React.FC = () => {
 
       {/* Tab 1: Actionable Findings */}
       {activeTab === 'findings' && (
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           {/* Filter Toolbar */}
-          <div className="rounded-2xl border border-brand-border bg-white p-5 shadow-subtle">
+          <div className="rounded-2xl border border-brand-border bg-white p-4 sm:p-5 shadow-subtle min-w-0">
             <FindingFilters
               filters={filters}
               onChange={setFilters}
@@ -324,8 +337,8 @@ export const ScanDetailPage: React.FC = () => {
           </div>
 
           {/* Findings List */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
+          <div className="space-y-4 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-1">
               <h3 className="text-sm font-bold text-brand-text">
                 Audit Findings ({filteredFindings.length} of {rawFindings.length})
               </h3>
@@ -349,7 +362,7 @@ export const ScanDetailPage: React.FC = () => {
                 }
               />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 min-w-0">
                 {filteredFindings.map((finding) => (
                   <FindingCard
                     key={finding.id}
@@ -364,14 +377,10 @@ export const ScanDetailPage: React.FC = () => {
       )}
 
       {/* Tab 2: Full Check Registry */}
-      {activeTab === 'registry' && (
-        <CheckRegistryView checks={effectiveChecks} />
-      )}
+      {activeTab === 'registry' && <CheckRegistryView checks={effectiveChecks} />}
 
       {/* Tab 3: Privacy & DPDP Compliance */}
-      {activeTab === 'dpdp' && (
-        <PrivacyComplianceSection summary={report.privacyCompliance} />
-      )}
+      {activeTab === 'dpdp' && <PrivacyComplianceSection summary={report.privacyCompliance} />}
 
       {/* Tab 4: Deep vs Basic Comparison */}
       {activeTab === 'comparison' && (
@@ -383,9 +392,9 @@ export const ScanDetailPage: React.FC = () => {
 
       {/* Explicit What Was Not Tested Section */}
       {report.checksNotPerformed && report.checksNotPerformed.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-6 space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:p-6 space-y-3 min-w-0">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
@@ -402,10 +411,10 @@ export const ScanDetailPage: React.FC = () => {
             {report.checksNotPerformed.map((item, idx) => (
               <div
                 key={idx}
-                className="p-2.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-700 flex items-start gap-2"
+                className="p-2.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-700 flex items-start gap-2 min-w-0"
               >
-                <span className="text-slate-400 font-bold">•</span>
-                <span>{item}</span>
+                <span className="text-slate-400 font-bold shrink-0">•</span>
+                <span className="break-all">{item}</span>
               </div>
             ))}
           </div>

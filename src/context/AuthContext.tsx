@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthUser } from '../types/audit';
-import { authService, mockAuthService, isMockAuthMode, SignupResult } from '../lib/api/auth';
+import { authService, SignupResult } from '../lib/api/auth';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         isAuthenticated: !!user,
         isLoading,
-        isMockMode: isMockAuthMode,
+        isMockMode: false,
         login,
         signup,
         confirmSignup,

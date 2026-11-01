@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuditProvider, useAudit } from './context/AuditContext';
-import { brandConfig } from './config/brand';
 
-// Home Landing Page Components
+// Landing Page Components
 import { Navbar } from './components/landing/Navbar';
 import { HeroSection } from './components/landing/HeroSection';
 import { CapabilityStrip } from './components/landing/CapabilityStrip';
@@ -24,13 +24,18 @@ import { RemediationSpecsPage } from './components/pages/RemediationSpecsPage';
 import { PrivacyPolicyPage } from './components/pages/PrivacyPolicyPage';
 import { SecurityPolicyPage } from './components/pages/SecurityPolicyPage';
 
-// Dashboard Components
-import { DashboardLayout } from './components/dashboard/DashboardLayout';
-import { DashboardOverview } from './components/dashboard/DashboardOverview';
-import { ScanHistoryView } from './components/dashboard/ScanHistoryView';
-import { SavedWebsitesView } from './components/dashboard/SavedWebsitesView';
-import { FullReportView } from './components/dashboard/FullReportView';
-import { SettingsView } from './components/dashboard/SettingsView';
+// Real App Routes & Pages
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { AppShell } from './components/layout/AppShell';
+import { DashboardPage } from './pages/DashboardPage';
+import { NewScanPage } from './pages/NewScanPage';
+import { ScanDetailPage } from './pages/ScanDetailPage';
+import { HistoryPage } from './pages/HistoryPage';
+import { SitesPage } from './pages/SitesPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 // Global Modals & Legal Utilities
 import { NewScanModal } from './components/dashboard/NewScanModal';
@@ -38,60 +43,64 @@ import { LoginModal } from './components/common/LoginModal';
 import { PolicyModal } from './components/common/PolicyModals';
 import { CookieConsentBanner } from './components/common/CookieConsentBanner';
 
-type AppView = 'landing' | 'methodology' | 'sample-reports' | 'remediation' | 'privacy' | 'security' | 'dashboard';
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 export const AppContent: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, openLoginModal } = useAuth();
   const { setActiveReport, scansList } = useAudit();
-
-  const getInitialView = (): AppView => {
-    if (typeof window === 'undefined') return 'landing';
-    const path = window.location.pathname.toLowerCase();
-    const hash = window.location.hash.toLowerCase();
-
-    if (path === '/privacy' || hash === '#privacy') return 'privacy';
-    if (path === '/security' || hash === '#security' || hash === '#hall-of-fame') return 'security';
-    if (path === '/methodology' || hash === '#methodology') return 'methodology';
-    if (path === '/sample-reports' || hash === '#sample-reports') return 'sample-reports';
-    if (path === '/remediation' || hash === '#remediation') return 'remediation';
-    if (path === '/dashboard' || path === '/app') return 'dashboard';
-    return 'landing';
-  };
-
-  // Mode: 'landing' | 'methodology' | 'sample-reports' | 'remediation' | 'privacy' | 'security' | 'dashboard'
-  const [currentView, setCurrentView] = useState<AppView>(getInitialView);
-  const [dashboardTab, setDashboardTab] = useState<'overview' | 'new-scan' | 'history' | 'saved-sites' | 'report' | 'settings'>('overview');
 
   // Policy Modals State
   const [policyModal, setPolicyModal] = useState<{ isOpen: boolean; type: 'security' | 'privacy' }>({
     isOpen: false,
-    type: 'security'
+    type: 'security',
   });
 
-  // Dynamic SEO metadata & title manager
+  // Dynamic SEO metadata & title manager based on route
   useEffect(() => {
-    const titles: Record<AppView, string> = {
-      landing: 'VibeSift by Pixir — Website Launch-Readiness Auditor',
-      methodology: 'Audit Methodology & Detection Vectors — VibeSift by Pixir',
-      'sample-reports': 'Sample Launch Readiness Reports & Diffs — VibeSift by Pixir',
-      remediation: 'Actionable Remediation Specs & Quick Fixes — VibeSift by Pixir',
-      privacy: 'Privacy Policy & Data Collection Disclosures — VibeSift by Pixir',
-      security: 'Security & Responsible Disclosure (RFC 9116) — VibeSift by Pixir',
-      dashboard: 'Developer Console & Live Audits — VibeSift by Pixir',
-    };
-
-    if (titles[currentView]) {
-      document.title = titles[currentView];
+    const path = location.pathname.toLowerCase();
+    if (path.startsWith('/app/scans/new')) {
+      document.title = 'New Launch Audit — VibeSift';
+    } else if (path.startsWith('/app/scans/')) {
+      document.title = 'Audit Report & Diffs — VibeSift';
+    } else if (path.startsWith('/app/history')) {
+      document.title = 'Scan History — VibeSift';
+    } else if (path.startsWith('/app/sites')) {
+      document.title = 'Saved Websites & Verification — VibeSift';
+    } else if (path.startsWith('/app/settings')) {
+      document.title = 'Settings & Account — VibeSift';
+    } else if (path.startsWith('/app')) {
+      document.title = 'Developer Console & Live Audits — VibeSift by Pixir';
+    } else if (path === '/methodology') {
+      document.title = 'Audit Methodology & Detection Vectors — VibeSift by Pixir';
+    } else if (path === '/sample-reports') {
+      document.title = 'Sample Launch Readiness Reports & Diffs — VibeSift by Pixir';
+    } else if (path === '/remediation') {
+      document.title = 'Actionable Remediation Specs & Quick Fixes — VibeSift by Pixir';
+    } else if (path === '/privacy') {
+      document.title = 'Privacy Policy & Data Collection Disclosures — VibeSift by Pixir';
+    } else if (path === '/security') {
+      document.title = 'Security & Responsible Disclosure (RFC 9116) — VibeSift by Pixir';
+    } else if (path === '/login') {
+      document.title = 'Sign In — VibeSift';
+    } else if (path === '/signup') {
+      document.title = 'Create Developer Account — VibeSift';
+    } else {
+      document.title = 'VibeSift by Pixir — Website Launch-Readiness Auditor';
     }
-  }, [currentView]);
+  }, [location.pathname]);
 
-  const handleSelectReportInApp = (scanId: string) => {
-    const found = scansList.find(s => s.scanId === scanId);
-    if (found) {
-      setActiveReport(found);
-    }
-    setDashboardTab('report');
-    setCurrentView('dashboard');
+  const onBackToHome = () => {
+    navigate('/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -100,216 +109,140 @@ export const AppContent: React.FC = () => {
       openLoginModal();
       return;
     }
-    setCurrentView('dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const navigateToLanding = () => {
-    setCurrentView('landing');
+    navigate('/app');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navigateToMethodology = () => {
-    setCurrentView('methodology');
+    navigate('/methodology');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navigateToSampleReports = () => {
-    setCurrentView('sample-reports');
+    navigate('/sample-reports');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navigateToRemediation = () => {
-    setCurrentView('remediation');
+    navigate('/remediation');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navigateToPrivacy = () => {
-    setCurrentView('privacy');
+    navigate('/privacy');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const navigateToSecurity = () => {
-    setCurrentView('security');
+    navigate('/security');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const commonNavProps = {
+    onBackToHome,
+    onNavigateToApp: navigateToDashboard,
+    onNavigateToMethodology: navigateToMethodology,
+    onNavigateToSampleReports: navigateToSampleReports,
+    onNavigateToRemediation: navigateToRemediation,
+    onNavigateToPrivacy: navigateToPrivacy,
+    onNavigateToSecurity: navigateToSecurity,
+    onOpenPrivacyNotice: () => setPolicyModal({ isOpen: true, type: 'privacy' }),
+    onOpenSecurityPolicy: () => setPolicyModal({ isOpen: true, type: 'security' }),
   };
 
   return (
     <div className="min-h-screen bg-white text-brand-text font-sans antialiased selection:bg-brand-mint selection:text-brand-emerald-deep">
-      
-      {/* View 1: Clean, Simplified High-Conversion Home Landing Page */}
-      {currentView === 'landing' && (
-        <div className="flex flex-col min-h-screen">
-          <Navbar 
-            onNavigateToApp={navigateToDashboard} 
-          />
+      <Routes>
+        {/* View 1: Home Landing Page */}
+        <Route
+          path="/"
+          element={
+            <div className="flex flex-col min-h-screen">
+              <Navbar onNavigateToApp={navigateToDashboard} />
 
-          <main className="flex-1">
-            {/* 1. Hero Section with 3D Illustration & Floating Metric Tiles */}
-            <HeroSection
-              onViewSampleReport={navigateToSampleReports}
-            />
+              <main className="flex-1">
+                <HeroSection onViewSampleReport={navigateToSampleReports} />
+                <CapabilityStrip />
+                <LaunchStudioSection />
+                <BeforeAfterPrecisionSection />
+                <ShowcaseUseCasesSection onExploreReport={navigateToSampleReports} />
+                <HowItWorksSection />
+                <PrivacyTestingScopeSection />
+                <FaqSection />
+                <PreFooterCta />
+              </main>
 
-            {/* 2. Comprehensive Launch-Readiness Dimensions (Three Core Pillars, Elevated & Non-Flat) */}
-            <CapabilityStrip />
-
-            {/* 3. Pre-Launch Studio: Drop Any Website URL & Developer Avatars */}
-            <LaunchStudioSection />
-
-            {/* 4. Precision Benchmark: Before / After Split Slider with Real Mockup Images */}
-            <BeforeAfterPrecisionSection />
-
-            {/* 5. Multi-Sector Showcase: 3 High-Impact Visual Mockup Cards */}
-            <ShowcaseUseCasesSection
-              onExploreReport={navigateToSampleReports}
-            />
-
-            {/* 6. How It Works (Clean 3-Step Sequence) */}
-            <HowItWorksSection />
-
-            {/* 7. Testing Scope Boundaries & Compliance Disclaimers */}
-            <PrivacyTestingScopeSection />
-
-            {/* 8. FAQ Accordion */}
-            <FaqSection />
-
-            {/* 9. Pre-Footer Call to Action */}
-            <PreFooterCta />
-          </main>
-
-          {/* 10. Rich Non-Flat Footer with Status Pill, Newsletter & Subpage Routes */}
-          <Footer
-            onNavigateToApp={navigateToDashboard}
-            onNavigateToMethodology={navigateToMethodology}
-            onNavigateToSampleReports={navigateToSampleReports}
-            onNavigateToRemediation={navigateToRemediation}
-            onNavigateToPrivacy={navigateToPrivacy}
-            onNavigateToSecurity={navigateToSecurity}
-            onOpenPrivacyNotice={() => setPolicyModal({ isOpen: true, type: 'privacy' })}
-            onOpenSecurityPolicy={() => setPolicyModal({ isOpen: true, type: 'security' })}
-          />
-        </div>
-      )}
-
-      {/* View 2: Dedicated Audit Methodology & Vectors Page */}
-      {currentView === 'methodology' && (
-        <AuditMethodologyPage
-          onBackToHome={navigateToLanding}
-          onNavigateToApp={navigateToDashboard}
-          onNavigateToMethodology={navigateToMethodology}
-          onNavigateToSampleReports={navigateToSampleReports}
-          onNavigateToRemediation={navigateToRemediation}
-          onNavigateToPrivacy={navigateToPrivacy}
-          onNavigateToSecurity={navigateToSecurity}
-          onOpenPrivacyNotice={() => setPolicyModal({ isOpen: true, type: 'privacy' })}
-          onOpenSecurityPolicy={() => setPolicyModal({ isOpen: true, type: 'security' })}
+              <Footer {...commonNavProps} />
+            </div>
+          }
         />
-      )}
 
-      {/* View 3: Dedicated Sample Audit Reports & Diffs Page */}
-      {currentView === 'sample-reports' && (
-        <SampleReportsPage
-          onBackToHome={navigateToLanding}
-          onNavigateToApp={navigateToDashboard}
-          onNavigateToMethodology={navigateToMethodology}
-          onNavigateToSampleReports={navigateToSampleReports}
-          onNavigateToRemediation={navigateToRemediation}
-          onNavigateToPrivacy={navigateToPrivacy}
-          onNavigateToSecurity={navigateToSecurity}
-          onOpenPrivacyNotice={() => setPolicyModal({ isOpen: true, type: 'privacy' })}
-          onOpenSecurityPolicy={() => setPolicyModal({ isOpen: true, type: 'security' })}
+        {/* View 2: Dedicated Audit Methodology & Vectors Page */}
+        <Route
+          path="/methodology"
+          element={<AuditMethodologyPage {...commonNavProps} />}
         />
-      )}
 
-      {/* View 4: Dedicated Actionable Remediation Specs Page */}
-      {currentView === 'remediation' && (
-        <RemediationSpecsPage
-          onBackToHome={navigateToLanding}
-          onNavigateToApp={navigateToDashboard}
-          onNavigateToMethodology={navigateToMethodology}
-          onNavigateToSampleReports={navigateToSampleReports}
-          onNavigateToRemediation={navigateToRemediation}
-          onNavigateToPrivacy={navigateToPrivacy}
-          onNavigateToSecurity={navigateToSecurity}
-          onOpenPrivacyNotice={() => setPolicyModal({ isOpen: true, type: 'privacy' })}
-          onOpenSecurityPolicy={() => setPolicyModal({ isOpen: true, type: 'security' })}
+        {/* View 3: Dedicated Sample Audit Reports & Diffs Page */}
+        <Route
+          path="/sample-reports"
+          element={<SampleReportsPage {...commonNavProps} />}
         />
-      )}
 
-      {/* View 5: Dedicated Privacy Policy & Data Collection Page */}
-      {currentView === 'privacy' && (
-        <PrivacyPolicyPage
-          onBackToHome={navigateToLanding}
-          onNavigateToApp={navigateToDashboard}
-          onNavigateToMethodology={navigateToMethodology}
-          onNavigateToSampleReports={navigateToSampleReports}
-          onNavigateToRemediation={navigateToRemediation}
-          onNavigateToPrivacy={navigateToPrivacy}
-          onNavigateToSecurity={navigateToSecurity}
-          onOpenPrivacyNotice={() => setPolicyModal({ isOpen: true, type: 'privacy' })}
-          onOpenSecurityPolicy={() => setPolicyModal({ isOpen: true, type: 'security' })}
+        {/* View 4: Dedicated Actionable Remediation Specs Page */}
+        <Route
+          path="/remediation"
+          element={<RemediationSpecsPage {...commonNavProps} />}
         />
-      )}
 
-      {/* View 6: Dedicated Security & Responsible Disclosure (RFC 9116) Page */}
-      {currentView === 'security' && (
-        <SecurityPolicyPage
-          onBackToHome={navigateToLanding}
-          onNavigateToApp={navigateToDashboard}
-          onNavigateToMethodology={navigateToMethodology}
-          onNavigateToSampleReports={navigateToSampleReports}
-          onNavigateToRemediation={navigateToRemediation}
-          onNavigateToPrivacy={navigateToPrivacy}
-          onNavigateToSecurity={navigateToSecurity}
-          onOpenPrivacyNotice={() => setPolicyModal({ isOpen: true, type: 'privacy' })}
-          onOpenSecurityPolicy={() => setPolicyModal({ isOpen: true, type: 'security' })}
+        {/* View 5: Dedicated Privacy Policy & Data Collection Page */}
+        <Route
+          path="/privacy"
+          element={<PrivacyPolicyPage {...commonNavProps} />}
         />
-      )}
 
-      {/* View 7: Authenticated Developer Dashboard Console */}
-      {currentView === 'dashboard' && (
-        <DashboardLayout
-          currentTab={dashboardTab}
-          setCurrentTab={setDashboardTab}
-          onBackToLanding={navigateToLanding}
-        >
-          {dashboardTab === 'overview' && (
-            <DashboardOverview
-              onViewReport={handleSelectReportInApp}
-              onNavigateTab={(tab) => setDashboardTab(tab as any)}
-            />
-          )}
+        {/* View 6: Dedicated Security & Responsible Disclosure (RFC 9116) Page */}
+        <Route
+          path="/security"
+          element={<SecurityPolicyPage {...commonNavProps} />}
+        />
 
-          {dashboardTab === 'history' && (
-            <ScanHistoryView
-              onSelectReport={handleSelectReportInApp}
-            />
-          )}
+        {/* Auth Routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
-          {dashboardTab === 'saved-sites' && (
-            <SavedWebsitesView />
-          )}
+        {/* Authenticated Dashboard Routes */}
+        <Route path="/app" element={<ProtectedRoute />}>
+          <Route element={<AppShell />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="scans/new" element={<NewScanPage />} />
+            <Route path="scans/:scanId" element={<ScanDetailPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="sites" element={<SitesPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Route>
 
-          {dashboardTab === 'report' && (
-            <FullReportView />
-          )}
+        {/* Legacy /dashboard alias */}
+        <Route path="/dashboard" element={<Navigate to="/app" replace />} />
 
-          {dashboardTab === 'settings' && (
-            <SettingsView />
-          )}
-        </DashboardLayout>
-      )}
+        {/* 404 Catch-All */}
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
 
       {/* Global Modals */}
       <NewScanModal
         onScanComplete={(scanId) => {
           if (scanId) {
-            handleSelectReportInApp(scanId);
+            const found = scansList.find((s) => s.scanId === scanId);
+            if (found) {
+              setActiveReport(found);
+            }
+            navigate(`/app/scans/${scanId}`);
           } else {
-            setCurrentView('dashboard');
-            setDashboardTab('report');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            navigate('/app');
           }
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
       <LoginModal />
@@ -323,19 +256,20 @@ export const AppContent: React.FC = () => {
 
       {/* Cookie Consent Manager Banner & Preferences Modal */}
       <CookieConsentBanner onOpenPrivacyPolicy={navigateToPrivacy} />
-
     </div>
   );
 };
 
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AuditProvider>
-          <AppContent />
-        </AuditProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <AuditProvider>
+            <AppContent />
+          </AuditProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 };

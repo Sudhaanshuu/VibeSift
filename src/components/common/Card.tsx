@@ -1,7 +1,7 @@
 import React from 'react';
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'white' | 'mint' | 'light-green' | 'muted';
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: 'white' | 'mint' | 'card-green' | 'muted';
   border?: boolean;
   elevation?: 'none' | 'subtle' | 'card' | 'elevated';
 }
@@ -17,7 +17,7 @@ export const Card: React.FC<CardProps> = ({
   const variants = {
     white: 'bg-white',
     mint: 'bg-brand-mint',
-    'light-green': 'bg-brand-card-green',
+    'card-green': 'bg-brand-card-green',
     muted: 'bg-brand-muted',
   };
 

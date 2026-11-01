@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useSubmitScan } from '../hooks/useScans';
 import { useSavedSites } from '../hooks/useSites';
 import { SiteUrlForm } from '../components/common/SiteUrlForm';
+import { PageHeader } from '../components/common/PageHeader';
+import { Card } from '../components/common/Card';
 import { ScanProfile } from '../types/audit';
-import { ShieldCheck, Info, ArrowLeft, Lock, Zap } from 'lucide-react';
+import { ArrowLeft, Info, ShieldCheck } from 'lucide-react';
 
 export const NewScanPage: React.FC = () => {
   const navigate = useNavigate();
@@ -41,49 +43,41 @@ export const NewScanPage: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
-      {/* Back Link */}
-      <Link
-        to="/app"
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-text-secondary hover:text-brand-text transition-colors"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        <span>Back to Overview</span>
-      </Link>
+      {/* Consistent Page Header with Back Link */}
+      <PageHeader
+        backAction={
+          <Link
+            to="/app"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-text-secondary hover:text-brand-text transition-colors mb-2"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Dashboard</span>
+          </Link>
+        }
+        title="Start a New Website Audit"
+        description="Inspect SEO crawlability, Core Web Vitals, accessibility indicators, and HTTPS security response headers in one evidence-backed report."
+      />
 
-      {/* Main Card */}
-      <div className="bg-white rounded-2xl border border-brand-border p-6 sm:p-8 shadow-card space-y-6">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-mint text-brand-emerald-dark text-xs font-semibold mb-3 border border-brand-border">
-            <ShieldCheck className="w-3.5 h-3.5 text-brand-emerald" />
-            <span>Launch-Readiness Preflight</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-text">
-            Start a New Website Audit
-          </h1>
-          <p className="text-xs sm:text-sm text-brand-text-secondary mt-1.5 leading-relaxed">
-            Enter any public website URL to test SEO indexability, Lighthouse performance, accessibility indicators, and HTTPS security headers.
-          </p>
-        </div>
-
-        {/* SiteUrlForm Component */}
+      {/* Main Form Card */}
+      <Card variant="white" elevation="card" className="p-6 sm:p-8 space-y-6">
         <SiteUrlForm
           initialUrl={initialUrlFromQuery}
           onSubmitScan={handleStartScan}
           isSubmitting={submitMutation.isPending}
           backendError={submissionError}
           savedSites={savedSitesList}
-          onVerifyDomainClick={(hostname) => navigate('/app/sites')}
+          onVerifyDomainClick={() => navigate('/app/sites')}
         />
-      </div>
+      </Card>
 
       {/* Scope Details & Security Notice */}
-      <div className="rounded-2xl border border-brand-border bg-brand-muted/40 p-5 space-y-3 text-xs text-brand-text-secondary">
+      <div className="rounded-2xl border border-brand-border bg-brand-muted/50 p-5 space-y-2 text-xs text-brand-text-secondary">
         <h4 className="font-bold uppercase tracking-wider text-brand-text flex items-center gap-1.5 text-[11px]">
           <Info className="w-4 h-4 text-brand-emerald" />
-          <span>Audit Guardrails & Testing Ethics</span>
+          <span>Audit Guardrails & Testing Scope</span>
         </h4>
         <p className="leading-relaxed">
-          All baseline scans are passive and non-destructive. We do not inject malicious payloads, fuzz private database queries, or flood web servers. Deeper active scans are strictly gated behind DNS domain verification.
+          Baseline public audits are safe and passive. We do not inject malicious payloads, flood servers with traffic, or test denial-of-service vectors. Deeper security scans (OWASP ZAP & Nuclei) require verified domain ownership.
         </p>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { NavLink, useNavigate, Outlet } from 'react-router-dom';
 import { BrandLogo } from '../brand/BrandLogo';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../common/Button';
@@ -12,19 +12,13 @@ import {
   LogOut,
   Menu,
   X,
-  ShieldCheck,
-  AlertTriangle,
   ExternalLink,
-  ChevronRight,
-  User,
-  FlaskConical,
 } from 'lucide-react';
 
 export const AppShell: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, logout, isMockMode } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const navItems = [
     { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -42,35 +36,40 @@ export const AppShell: React.FC = () => {
   return (
     <div className="min-h-screen bg-brand-muted flex flex-col md:flex-row antialiased text-brand-text">
       {/* Mobile Top Header */}
-      <div className="md:hidden bg-white border-b border-brand-border px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+      <header className="md:hidden bg-white border-b border-brand-border px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <NavLink to="/" className="flex items-center gap-2">
           <BrandLogo size="sm" />
         </NavLink>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg text-brand-text-secondary hover:bg-slate-100"
-          aria-label="Toggle mobile navigation menu"
+          className="p-2.5 rounded-xl text-brand-text-secondary hover:bg-slate-100 hover:text-brand-text min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
+          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5 text-brand-text" />}
         </button>
-      </div>
+      </header>
 
       {/* Mobile Backdrop & Drawer */}
       {mobileMenuOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs md:hidden"
           onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
         >
           <div
-            className="w-72 bg-white h-full p-5 flex flex-col justify-between shadow-elevated"
+            className="w-72 bg-white h-dvh max-h-screen p-5 flex flex-col justify-between shadow-elevated"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Mobile Navigation"
           >
             <div className="space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-brand-border">
                 <BrandLogo size="sm" />
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-600 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label="Close menu"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -86,14 +85,14 @@ export const AppShell: React.FC = () => {
                       end={item.end}
                       onClick={() => setMobileMenuOpen(false)}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                        `flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-semibold min-h-[44px] transition-colors ${
                           isActive
-                            ? 'bg-brand-mint text-brand-emerald-dark font-bold'
+                            ? 'bg-brand-mint text-brand-emerald-deep font-bold border border-brand-border/60'
                             : 'text-brand-text-secondary hover:bg-slate-50 hover:text-brand-text'
                         }`
                       }
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-4 h-4 shrink-0" />
                       <span>{item.label}</span>
                     </NavLink>
                   );
@@ -102,20 +101,20 @@ export const AppShell: React.FC = () => {
             </div>
 
             <div className="pt-4 border-t border-brand-border space-y-3">
-              <div className="flex items-center gap-2 px-1">
-                <div className="w-8 h-8 rounded-full bg-brand-mint text-brand-emerald-dark flex items-center justify-center font-mono font-bold text-xs">
+              <div className="flex items-center gap-2.5 px-1">
+                <div className="w-8 h-8 rounded-full bg-brand-mint text-brand-emerald-deep flex items-center justify-center font-mono font-bold text-xs border border-brand-border shrink-0">
                   {user?.name?.charAt(0) || 'U'}
                 </div>
                 <div className="truncate">
-                  <p className="text-xs font-bold text-brand-text truncate">{user?.name}</p>
+                  <p className="text-xs font-bold text-brand-text truncate">{user?.name || 'Developer'}</p>
                   <p className="text-[10px] text-slate-400 font-mono truncate">{user?.email}</p>
                 </div>
               </div>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50"
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 min-h-[44px] transition-colors"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-4 h-4 shrink-0" />
                 <span>Sign Out</span>
               </button>
             </div>
@@ -124,7 +123,7 @@ export const AppShell: React.FC = () => {
       )}
 
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-brand-border h-screen sticky top-0 z-30 select-none">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-brand-border min-h-screen md:h-dvh sticky top-0 z-30 select-none">
         {/* Brand Header */}
         <div className="p-5 border-b border-brand-border">
           <NavLink to="/" className="block">
@@ -138,7 +137,7 @@ export const AppShell: React.FC = () => {
             variant="primary"
             size="sm"
             onClick={() => navigate('/app/scans/new')}
-            className="w-full justify-center shadow-subtle hover:shadow-glow-green"
+            className="w-full justify-center shadow-subtle"
             leftIcon={<PlusCircle className="w-4 h-4" />}
           >
             New Audit Scan
@@ -157,12 +156,12 @@ export const AppShell: React.FC = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
                     isActive
-                      ? 'bg-brand-mint text-brand-emerald-dark font-bold shadow-subtle border border-brand-border/60'
+                      ? 'bg-brand-mint text-brand-emerald-deep font-bold shadow-subtle border border-brand-border/60'
                       : 'text-brand-text-secondary hover:bg-slate-50 hover:text-brand-text'
                   }`
                 }
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4 shrink-0" />
                 <span>{item.label}</span>
               </NavLink>
             );
@@ -172,33 +171,26 @@ export const AppShell: React.FC = () => {
         {/* User Profile & Logout Bottom */}
         <div className="p-4 border-t border-brand-border space-y-3 bg-brand-muted/40">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-brand-mint text-brand-emerald-dark flex items-center justify-center font-mono font-bold text-xs border border-brand-border">
+            <div className="w-8 h-8 rounded-full bg-brand-mint text-brand-emerald-deep flex items-center justify-center font-mono font-bold text-xs border border-brand-border shrink-0">
               {user?.name?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-brand-text truncate">{user?.name || 'Developer'}</p>
-              <div className="flex items-center gap-1">
-                {user?.isDemoUser && (
-                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-semibold">
-                    Demo Mode
-                  </span>
-                )}
-                <span className="text-[10px] text-slate-400 font-mono truncate">{user?.email}</span>
-              </div>
+              <span className="text-[10px] text-slate-400 font-mono truncate block">{user?.email || 'developer@example.com'}</span>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-1">
             <NavLink
               to="/"
-              className="text-[11px] text-slate-500 hover:text-brand-emerald flex items-center gap-1 font-medium"
+              className="text-[11px] text-slate-500 hover:text-brand-emerald-deep flex items-center gap-1 font-medium transition-colors"
             >
-              <span>Marketing Site</span>
+              <span>Public Landing</span>
               <ExternalLink className="w-3 h-3" />
             </NavLink>
             <button
               onClick={handleLogout}
-              className="text-[11px] text-red-600 hover:text-red-700 font-medium flex items-center gap-1 p-1 rounded"
+              className="text-[11px] text-red-600 hover:text-red-700 font-medium flex items-center gap-1 p-1 rounded-md transition-colors"
               title="Sign Out"
             >
               <LogOut className="w-3 h-3" />
@@ -210,21 +202,6 @@ export const AppShell: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Mock Mode Alert Banner */}
-        {isMockMode && (
-          <div className="bg-amber-500 text-white px-4 py-2 text-xs font-mono flex items-center justify-between shadow-subtle">
-            <div className="flex items-center gap-2">
-              <FlaskConical className="w-4 h-4 flex-shrink-0" />
-              <span>
-                <strong>Mock Mode Active:</strong> Running with simulated scan telemetry and local fixtures. No real AWS resources or active scanners are engaged.
-              </span>
-            </div>
-            <span className="hidden sm:inline-block text-[10px] bg-black/20 px-2 py-0.5 rounded font-mono">
-              VITE_USE_MOCK_API=true
-            </span>
-          </div>
-        )}
-
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>

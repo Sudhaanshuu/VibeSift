@@ -7,11 +7,9 @@ import {
   ScanStatus 
 } from '../types/audit';
 import { sampleReports } from '../data/sampleReports';
-import { buildBasicAuditReport, buildDeepAuditReport } from '../data/auditReportBuilder';
 import { submitScan } from '../lib/api/scans';
 import { getReport } from '../lib/api/reports';
-import { getAuthToken, USE_MOCK_API } from '../lib/api/client';
-import { authService } from '../lib/api/auth';
+import { getAuthToken } from '../lib/api/client';
 
 interface AuditContextType {
   activeReport: AuditReport | null;
@@ -36,9 +34,6 @@ interface AuditContextType {
   closeNewScanModal: () => void;
   prefilledScanUrl: string;
 }
-
-const initialSavedWebsites: SavedWebsite[] = [];
-const initialScans: AuditReport[] = [];
 
 const AuditContext = createContext<AuditContextType | undefined>(undefined);
 
@@ -73,7 +68,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const addSavedWebsite = (rawUrl: string): SavedWebsite => {
-    let hostname = rawUrl.replace(/^https?:\/\//i, '').split('/')[0];
+    const hostname = rawUrl.replace(/^https?:\/\//i, '').split('/')[0];
     const newSite: SavedWebsite = {
       id: `site-${Date.now().toString(36)}`,
       hostname,
@@ -87,8 +82,6 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const verifyDomain = async (siteId: string): Promise<boolean> => {
-    // Simulates DNS TXT / HTML Meta tag lookup
-    await new Promise(r => setTimeout(r, 1200));
     setSavedWebsites(prev => prev.map(s => {
       if (s.id === siteId) {
         return {
@@ -145,72 +138,6 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       normalized = `https://${normalized}`;
     }
     const hostname = normalized.replace(/^https?:\/\//i, '').split('/')[0];
-
-    // Explicit mock mode (only active when VITE_USE_MOCK_API=true or in mock test environment)
-    if (USE_MOCK_API) {
-      setScanProgress({
-        status: 'VALIDATING',
-        stageMessage: 'Validating URL syntax, resolving DNS, and checking IP egress restrictions (SSRF filter)...',
-        percent: 15,
-        currentEngine: 'SSRF & Egress Gatekeeper',
-      });
-      await new Promise((r) => setTimeout(r, 600));
-
-      setScanProgress({
-        status: 'RUNNING',
-        stageMessage: 'Executing Python Public Inspector: analyzing title, canonicals, robots.txt, TLS & security headers...',
-        percent: 45,
-        currentEngine: 'Custom Python HTTP Inspector',
-      });
-      await new Promise((r) => setTimeout(r, 800));
-
-      setScanProgress({
-        status: 'RUNNING',
-        stageMessage: 'Launching headless Chromium worker: auditing Core Web Vitals, LCP, CLS, and WCAG accessibility...',
-        percent: 75,
-        currentEngine: 'Google Lighthouse 12.x Container',
-      });
-      await new Promise((r) => setTimeout(r, 800));
-
-      setScanProgress({
-        status: 'NORMALIZING',
-        stageMessage: 'Normalizing engine outputs, filtering false positives, calculating readiness score...',
-        percent: 92,
-        currentEngine: 'Deterministic Rule Engine',
-      });
-      await new Promise((r) => setTimeout(r, 600));
-
-      const newScanId = `scan-${Date.now().toString(36)}`;
-      const fullSimulated = profile === 'authorized_deep'
-        ? buildDeepAuditReport(normalized, newScanId)
-        : buildBasicAuditReport(normalized, newScanId);
-
-      const newReport: AuditReport = {
-        ...fullSimulated,
-        scanId: newScanId,
-        targetUrl: normalized,
-        normalizedHostname: hostname,
-        scanProfile: profile,
-        status: 'COMPLETED',
-        createdAt: new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        durationSeconds: 28,
-        isSampleData: true,
-      };
-
-      setScansList((prev) => [newReport, ...prev]);
-      setActiveReport(newReport);
-      setIsScanning(false);
-      setScanProgress(null);
-      closeNewScanModal();
-      return newScanId;
-    }
-
-    // Live backend execution mode (USE_MOCK_API = false)
-    let token = getAuthToken();
-    if (!token) {
-      throw new Error('Please sign in or create an account before launching an audit.');
-    }
 
     try {
       setScanProgress({
@@ -282,7 +209,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // If execution timed out after 60 seconds of polling, construct an explicit failure report
+      // If execution timed out after 60 seconds
       const timeoutReport: AuditReport = {
         scanId: submission.scanId,
         ownerUserId: 'current_user',

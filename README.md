@@ -14,7 +14,7 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
 - **TanStack Query v5 (`@tanstack/react-query`)**: Server-state management and smart scan-status polling with terminal-state detection.
 - **React Hook Form & Zod**: Reusable URL validation, SSRF boundary defenses, and scan scope enforcement.
 - **Lucide React**: Clean, accessible icon system with semantic stroke weights.
-- **Vitest & React Testing Library**: Unit and integration test suite with 25 passing test assertions.
+- **Vitest & React Testing Library**: Comprehensive test suite with 51 passing frontend component and smoke tests.
 
 ---
 
@@ -48,7 +48,8 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
    - Instant execution; no authorization barrier required.
 
 2. **Authorized Deep Scan (`authorized_deep`)**:
-   - Containerized active inspection via isolated OWASP ZAP baseline and ProjectDiscovery Nuclei workers.
+   - Active security and resilience verification via the Python DeepAuditor (22 active tests) and PrivacyAuditor (15 Indian DPDP Act 2023 checks).
+   - Evaluates XSS reflection, SQLi error resilience, CORS misconfigurations, and cookie tampering.
    - Strictly requires proven domain ownership via DNS TXT record or HTML `<meta>` challenge.
    - Prohibits destructive payloads, database fuzzing, and denial-of-service tests.
 
@@ -141,10 +142,8 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
   - Rate limiting (3 scans/min, 15 scans/hour) and idempotency enforcement.
   - Domain ownership verification (DNS TXT, HTML `<meta>`, and HTTP `/.well-known/`).
 - **Inspection Workers (`backend/src/workers/`)**:
-  - `python-inspector`: Safe externally-observable inspection (TLS certificates, security headers, cookie flags, HTML SEO hierarchy, robots.txt, sitemaps, broken link crawling, sensitive file exposures) with built-in SSRF socket guards.
-  - `lighthouse`: Containerized Headless Chromium collecting Performance (Core Web Vitals), Accessibility, and Best Practices.
-  - `zap`: OWASP ZAP baseline scanner container, gated strictly by proven domain ownership.
-  - `nuclei`: ProjectDiscovery Nuclei container running curated safe templates (prohibiting DoS, fuzzing, and invasive RCE).
+  - `python-inspector`: High-speed inspection engine (34 Basic checks, 22 Deep security probes, 15 Indian DPDP Act 2023 compliance checks) with built-in SSRF socket guards. Runs natively or as a serverless AWS Lambda function.
+  - `lighthouse`: Native Linux Headless Chromium collecting Core Web Vitals (LCP, CLS, FCP, TBT), Performance, Accessibility, and SEO.
 - **Normalizer & Scoring (`backend/src/normalizer/`)**:
   - Unifies multi-engine outputs into a common schema (`src/types/audit.ts`).
   - Redacts sensitive secrets, AWS keys (`AKIA...`), and tokens.

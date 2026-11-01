@@ -168,50 +168,50 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
               </div>
             </div>
 
-            {/* 4 Floating Metric Tiles in 2x2 Grid (Matching Reference Screenshot layout) */}
+            {/* 4 Feature Capability Tiles in 2x2 Grid */}
             <div className="grid grid-cols-2 gap-3">
               {/* Tile 1 */}
               <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-subtle">
                 <div className="flex items-center justify-between text-[11px] text-brand-text-secondary font-medium">
-                  <span>Audits Completed</span>
+                  <span>Coverage</span>
                   <span className="text-[10px] font-bold text-brand-emerald-deep bg-brand-mint px-1.5 py-0.5 rounded-full border border-brand-border">
-                    +24%
+                    Full Stack
                   </span>
                 </div>
-                <div className="text-xl font-extrabold text-brand-text mt-1">14,800+</div>
-                <div className="text-[10px] text-brand-text-secondary">AI & Web Builder Sites</div>
+                <div className="text-xl font-extrabold text-brand-text mt-1">24 Checks</div>
+                <div className="text-[10px] text-brand-text-secondary">Security, Performance & SEO</div>
               </div>
 
               {/* Tile 2 */}
               <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-subtle">
                 <div className="flex items-center justify-between text-[11px] text-brand-text-secondary font-medium">
-                  <span>Scan Latency</span>
+                  <span>Inspection</span>
                   <span className="text-[10px] font-bold text-brand-emerald-deep bg-brand-mint px-1.5 py-0.5 rounded-full border border-brand-border">
-                    Fast
+                    Passive
                   </span>
                 </div>
-                <div className="text-xl font-extrabold text-brand-text mt-1">0.4s</div>
-                <div className="text-[10px] text-brand-text-secondary">Passive HTTP Inspection</div>
+                <div className="text-xl font-extrabold text-brand-text mt-1">Zero Intrude</div>
+                <div className="text-[10px] text-brand-text-secondary">Non-destructive evaluation</div>
               </div>
 
               {/* Tile 3 */}
               <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-subtle">
                 <div className="flex items-center justify-between text-[11px] text-brand-text-secondary font-medium">
-                  <span>Cloud Secrets</span>
+                  <span>Privacy</span>
                   <Lock className="w-3.5 h-3.5 text-brand-emerald" />
                 </div>
-                <div className="text-xl font-extrabold text-brand-text mt-1">0 Leaks</div>
-                <div className="text-[10px] text-brand-text-secondary">Strict Egress Filtering</div>
+                <div className="text-xl font-extrabold text-brand-text mt-1">Redacted</div>
+                <div className="text-[10px] text-brand-text-secondary">Tokens stripped from logs</div>
               </div>
 
               {/* Tile 4 */}
               <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-subtle">
                 <div className="flex items-center justify-between text-[11px] text-brand-text-secondary font-medium">
-                  <span>Accuracy Rate</span>
+                  <span>Verification</span>
                   <CheckCircle2 className="w-3.5 h-3.5 text-brand-emerald" />
                 </div>
-                <div className="text-xl font-extrabold text-brand-text mt-1">99.8%</div>
-                <div className="text-[10px] text-brand-text-secondary">Deterministic Rules</div>
+                <div className="text-xl font-extrabold text-brand-text mt-1">Evidence</div>
+                <div className="text-[10px] text-brand-text-secondary">Reproducible curl & diffs</div>
               </div>
             </div>
 
