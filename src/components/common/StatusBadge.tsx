@@ -2,7 +2,7 @@ import React from 'react';
 import { ScanStatus } from '../../types/audit';
 import { CheckCircle2, Clock, RefreshCw, AlertTriangle, XCircle } from 'lucide-react';
 
-interface StatusBadgeProps {
+export interface StatusBadgeProps {
   status: ScanStatus;
   size?: 'sm' | 'md';
 }
@@ -15,15 +15,15 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
       classes: 'bg-slate-100 text-slate-700 border-slate-200',
     },
     VALIDATING: {
-      label: 'Validating Target',
+      label: 'Validating',
       icon: RefreshCw,
       classes: 'bg-blue-50 text-blue-700 border-blue-200',
       animate: true,
     },
     RUNNING: {
-      label: 'Auditing Active',
+      label: 'Auditing',
       icon: RefreshCw,
-      classes: 'bg-brand-mint text-brand-emerald-dark border-brand-border',
+      classes: 'bg-brand-mint text-brand-emerald-deep border-brand-border',
       animate: true,
     },
     NORMALIZING: {
@@ -38,12 +38,12 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
       classes: 'bg-emerald-50 text-emerald-800 border-emerald-200',
     },
     PARTIAL: {
-      label: 'Partial Results',
+      label: 'Partial',
       icon: AlertTriangle,
       classes: 'bg-amber-50 text-amber-800 border-amber-200',
     },
     FAILED: {
-      label: 'Scan Failed',
+      label: 'Failed',
       icon: XCircle,
       classes: 'bg-red-50 text-red-700 border-red-200',
     },

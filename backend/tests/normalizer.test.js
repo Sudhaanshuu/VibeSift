@@ -5,8 +5,6 @@ import {
   deduplicateFindings,
   normalizePythonFindings,
   normalizeLighthouseFindings,
-  normalizeZapFindings,
-  normalizeNucleiFindings,
 } from '../src/normalizer/findingsNormalizer.js';
 import { calculateAuditScores } from '../src/normalizer/scoring.js';
 import { buildAuditReport } from '../src/normalizer/reportBuilder.js';

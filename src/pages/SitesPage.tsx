@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSavedSites, useAddSavedSite, useDeleteSavedSite, useConfirmVerification } from '../hooks/useSites';
 import { requestDomainVerification, VerificationInstructions } from '../lib/api/sites';
+import { PageHeader } from '../components/common/PageHeader';
 import { Button } from '../components/common/Button';
 import { EmptyState } from '../components/common/EmptyState';
+import { ErrorState } from '../components/common/ErrorState';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { CardSkeleton } from '../components/common/LoadingSkeleton';
 import {
@@ -15,12 +17,10 @@ import {
   Copy,
   Check,
   RefreshCw,
-  ExternalLink,
   AlertTriangle,
   Terminal,
   FileCode,
   Trash2,
-  X,
 } from 'lucide-react';
 
 export const SitesPage: React.FC = () => {
@@ -37,8 +37,6 @@ export const SitesPage: React.FC = () => {
   const [copiedToken, setCopiedToken] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  // Delete dialog state
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const savedSites = sites || [];
@@ -51,7 +49,7 @@ export const SitesPage: React.FC = () => {
       const instructions = await requestDomainVerification(siteId, verifyMethod);
       setVerifyInstructions(instructions);
     } catch {
-      // Error handled
+      // Handled
     }
   };
 
@@ -67,7 +65,7 @@ export const SitesPage: React.FC = () => {
     e.preventDefault();
     if (!newDomainInput.trim()) return;
     try {
-      const created = await addSiteMutation.mutateAsync(newDomainInput);
+      const created = await addSiteMutation.mutateAsync(newDomainInput.trim());
       setNewDomainInput('');
       handleOpenVerification(created.id);
     } catch {
@@ -110,7 +108,7 @@ export const SitesPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="max-w-7xl mx-auto space-y-4">
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="h-10 w-48 bg-slate-200 rounded-lg animate-pulse" />
         <CardSkeleton />
         <CardSkeleton />
@@ -118,19 +116,24 @@ export const SitesPage: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <ErrorState
+          title="Failed to Load Saved Websites"
+          message={error.message || 'Unable to retrieve your saved domains.'}
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
-      {/* Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-text">
-            Saved Websites & Domain Verification
-          </h1>
-          <p className="text-xs sm:text-sm text-brand-text-secondary mt-1">
-            Prove domain ownership via DNS or HTML tags to unlock authorized deep security scanning (OWASP ZAP & Nuclei).
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Saved Websites"
+        description="Prove domain ownership via DNS or HTML tags to unlock authorized deep security scanning."
+      />
 
       {/* Domain Verification Notice */}
       <div className="p-4 rounded-2xl bg-brand-card-green border border-brand-border flex items-start gap-3">
@@ -138,33 +141,35 @@ export const SitesPage: React.FC = () => {
         <div className="text-xs space-y-1">
           <p className="font-bold text-brand-text">Why does deep security testing require domain verification?</p>
           <p className="text-brand-text-secondary leading-relaxed">
-            Unlike baseline public audits, active penetration testing actively probes endpoints. In compliance with security standards and law, deeper scans are restricted to proven domain owners. A frontend checkbox alone does not grant authorization.
+            Unlike baseline public audits, active penetration testing actively probes endpoints. In compliance with security standards, deeper scans are restricted to proven domain owners.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Add Domain & List */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Add Domain Input Box */}
+        <div className="lg:col-span-7 space-y-6 min-w-0">
+          {/* Add Domain Form */}
           <div className="bg-white rounded-2xl border border-brand-border p-5 shadow-subtle space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
               Register New Domain Target
             </h3>
-            <form onSubmit={handleAddDomain} className="flex gap-2">
+            <form onSubmit={handleAddDomain} className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={newDomainInput}
                 onChange={(e) => setNewDomainInput(e.target.value)}
                 placeholder="app.yourdomain.com"
-                className="flex-1 px-4 py-2.5 rounded-xl border border-brand-border font-mono text-xs text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-emerald"
+                aria-label="New domain hostname"
+                className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-brand-border font-mono text-xs text-brand-text placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-emerald focus:border-brand-emerald"
               />
               <Button
                 type="submit"
                 variant="primary"
-                size="sm"
+                size="md"
                 isLoading={addSiteMutation.isPending}
                 leftIcon={<Plus className="w-4 h-4" />}
+                className="min-h-[44px] justify-center"
               >
                 Add Domain
               </Button>
@@ -187,55 +192,64 @@ export const SitesPage: React.FC = () => {
                   <div
                     key={site.id}
                     onClick={() => handleOpenVerification(site.id)}
-                    className={`rounded-2xl border p-5 transition-all duration-200 cursor-pointer ${
+                    className={`rounded-2xl border p-4 sm:p-5 transition-all duration-200 cursor-pointer ${
                       isSelected
                         ? 'border-brand-emerald bg-brand-card-green ring-2 ring-brand-emerald shadow-subtle'
                         : 'border-brand-border bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1 truncate">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-brand-text truncate">
+                    <div className="flex items-start justify-between gap-3 min-w-0">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-bold text-sm text-brand-text truncate break-all">
                             {site.hostname}
                           </span>
                           {site.isVerified ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                               Verified
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
                               <Lock className="w-3 h-3 text-amber-600" />
                               Unverified
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-brand-text-secondary font-mono">
+                        <p className="text-xs text-brand-text-secondary font-mono truncate break-all">
                           {site.normalizedUrl}
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => setDeleteTargetId(site.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                          className="min-h-[44px] min-w-[44px] p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 flex items-center justify-center transition-colors"
                           title="Delete saved domain"
+                          aria-label={`Delete domain ${site.hostname}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-brand-border flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-brand-text-secondary">
-                      <div className="flex items-center gap-3">
+                    <div className="mt-4 pt-3 border-t border-brand-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono text-brand-text-secondary">
+                      <div className="flex flex-wrap items-center gap-3">
                         <span>
                           Score:{' '}
                           <strong className="text-brand-text">
-                            {site.latestScore !== undefined && site.latestScore !== null ? `${site.latestScore}/100` : site.lastScanScore ? `${site.lastScanScore}/100` : 'Not audited'}
+                            {site.latestScore !== undefined && site.latestScore !== null
+                              ? `${site.latestScore}/100`
+                              : site.lastScanScore
+                              ? `${site.lastScanScore}/100`
+                              : 'Not audited'}
                           </strong>
                           {site.scoreTrend?.delta !== undefined && site.scoreTrend.delta !== 0 && (
-                            <span className={`ml-1.5 font-bold ${site.scoreTrend.delta > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            <span
+                              className={`ml-1.5 font-bold ${
+                                site.scoreTrend.delta > 0 ? 'text-emerald-600' : 'text-red-500'
+                              }`}
+                            >
                               ({site.scoreTrend.delta > 0 ? `+${site.scoreTrend.delta}` : site.scoreTrend.delta})
                             </span>
                           )}
@@ -247,7 +261,7 @@ export const SitesPage: React.FC = () => {
                           </strong>
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Button
                           variant="outline"
                           size="sm"
@@ -255,7 +269,7 @@ export const SitesPage: React.FC = () => {
                             e.stopPropagation();
                             navigate(`/app/scans/new?url=${encodeURIComponent(site.normalizedUrl)}`);
                           }}
-                          className="text-xs"
+                          className="text-xs min-h-[36px]"
                         >
                           Run Audit
                         </Button>
@@ -266,7 +280,7 @@ export const SitesPage: React.FC = () => {
                             e.stopPropagation();
                             handleOpenVerification(site.id);
                           }}
-                          className="text-xs"
+                          className="text-xs min-h-[36px]"
                         >
                           {site.isVerified ? 'Verification Details' : 'Verify Ownership'}
                         </Button>
@@ -280,25 +294,25 @@ export const SitesPage: React.FC = () => {
         </div>
 
         {/* Right Column: Verification Procedure Drawer */}
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-5 min-w-0">
           {selectedSite && verifyInstructions ? (
-            <div className="bg-white rounded-2xl border border-brand-border p-6 shadow-subtle space-y-6 sticky top-24">
-              <div className="flex items-center justify-between pb-4 border-b border-brand-border">
-                <div>
+            <div className="bg-white rounded-2xl border border-brand-border p-5 sm:p-6 shadow-subtle space-y-6 sticky top-24">
+              <div className="flex items-center justify-between pb-4 border-b border-brand-border min-w-0">
+                <div className="min-w-0 flex-1 pr-2">
                   <span className="text-[10px] font-mono uppercase font-bold text-brand-text-secondary">
                     Domain Verification Challenge
                   </span>
-                  <h3 className="text-base font-extrabold font-mono text-brand-text mt-0.5">
+                  <h3 className="text-base font-extrabold font-mono text-brand-text mt-0.5 truncate break-all">
                     {selectedSite.hostname}
                   </h3>
                 </div>
                 {selectedSite.isVerified ? (
-                  <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
+                  <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1 shrink-0">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     Verified
                   </span>
                 ) : (
-                  <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1">
+                  <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1 shrink-0">
                     <Lock className="w-3.5 h-3.5" />
                     Pending
                   </span>
@@ -314,25 +328,25 @@ export const SitesPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleMethodChange('dns_txt')}
-                    className={`p-2.5 rounded-xl border text-xs font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`min-h-[44px] p-2.5 rounded-xl border text-xs font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
                       verifyMethod === 'dns_txt'
-                        ? 'border-brand-emerald bg-brand-card-green text-brand-emerald-dark'
+                        ? 'border-brand-emerald bg-brand-card-green text-brand-emerald-dark font-bold'
                         : 'border-brand-border bg-white text-brand-text-secondary hover:bg-slate-50'
                     }`}
                   >
-                    <Terminal className="w-3.5 h-3.5" />
+                    <Terminal className="w-3.5 h-3.5 shrink-0" />
                     <span>DNS TXT Record</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleMethodChange('html_meta')}
-                    className={`p-2.5 rounded-xl border text-xs font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    className={`min-h-[44px] p-2.5 rounded-xl border text-xs font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
                       verifyMethod === 'html_meta'
-                        ? 'border-brand-emerald bg-brand-card-green text-brand-emerald-dark'
+                        ? 'border-brand-emerald bg-brand-card-green text-brand-emerald-dark font-bold'
                         : 'border-brand-border bg-white text-brand-text-secondary hover:bg-slate-50'
                     }`}
                   >
-                    <FileCode className="w-3.5 h-3.5" />
+                    <FileCode className="w-3.5 h-3.5 shrink-0" />
                     <span>HTML Meta Tag</span>
                   </button>
                 </div>
@@ -340,53 +354,63 @@ export const SitesPage: React.FC = () => {
 
               {/* Instructions Display */}
               {verifyMethod === 'dns_txt' ? (
-                <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-brand-border text-xs">
+                <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-brand-border text-xs min-w-0">
                   <p className="text-brand-text-secondary leading-relaxed">
                     Add the following TXT record to your DNS provider (Cloudflare, Route53, Namecheap):
                   </p>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
                       Host / Name
                     </span>
-                    <code className="block bg-white p-2 rounded border border-brand-border font-mono text-[11px] text-brand-text">
+                    <code className="block bg-white p-2.5 rounded-lg border border-brand-border font-mono text-[11px] text-brand-text break-all">
                       {verifyInstructions.dnsHostRecord}
                     </code>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
                       TXT Value
                     </span>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-white p-2 rounded border border-brand-border font-mono text-[11px] text-brand-text truncate">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <code className="flex-1 min-w-0 bg-white p-2.5 rounded-lg border border-brand-border font-mono text-[11px] text-brand-text break-all overflow-x-auto">
                         {verifyInstructions.token}
                       </code>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => copyToClipboard(verifyInstructions.token)}
-                        className="text-xs p-2"
+                        className="min-h-[44px] min-w-[44px] p-2 shrink-0 flex items-center justify-center"
+                        aria-label="Copy verification token"
                       >
-                        {copiedToken ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copiedToken ? (
+                          <Check className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-brand-border text-xs">
+                <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-brand-border text-xs min-w-0">
                   <p className="text-brand-text-secondary leading-relaxed">
-                    Place this meta tag in the <code className="font-mono bg-white px-1 py-0.5 rounded">&lt;head&gt;</code> of your homepage index.html:
+                    Place this meta tag in the <code className="font-mono bg-white px-1 py-0.5 rounded">&lt;head&gt;</code> of your homepage HTML:
                   </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 bg-white p-2.5 rounded border border-brand-border font-mono text-[11px] text-brand-text break-all">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <code className="flex-1 min-w-0 bg-white p-2.5 rounded-lg border border-brand-border font-mono text-[11px] text-brand-text break-all overflow-x-auto">
                       {verifyInstructions.metaHtmlTag}
                     </code>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => copyToClipboard(verifyInstructions.metaHtmlTag)}
-                      className="text-xs p-2"
+                      className="min-h-[44px] min-w-[44px] p-2 shrink-0 flex items-center justify-center"
+                      aria-label="Copy meta tag"
                     >
-                      {copiedToken ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiedToken ? (
+                        <Check className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -417,7 +441,7 @@ export const SitesPage: React.FC = () => {
                 onClick={handleConfirmVerification}
                 isLoading={verifying}
                 leftIcon={<RefreshCw className="w-4 h-4" />}
-                className="w-full justify-center shadow-subtle"
+                className="w-full justify-center min-h-[44px] shadow-subtle"
               >
                 {selectedSite.isVerified ? 'Re-Verify Domain Record' : 'Check Verification Now'}
               </Button>

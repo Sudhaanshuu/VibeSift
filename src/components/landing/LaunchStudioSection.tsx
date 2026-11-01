@@ -24,14 +24,6 @@ export const LaunchStudioSection: React.FC = () => {
     { name: 'SaaS Platform', url: 'https://vibe-pulse-app.io' },
   ];
 
-  const developers = [
-    { name: 'Sarah', role: 'CTO · Next.js', initial: 'S', color: 'bg-emerald-100 text-brand-emerald-deep' },
-    { name: 'Marcus', role: 'Lead Dev · Vite', initial: 'M', color: 'bg-blue-100 text-blue-800' },
-    { name: 'Priya', role: 'Founder · AI Builder', initial: 'P', color: 'bg-purple-100 text-purple-800' },
-    { name: 'David', role: 'Indie Hacker', initial: 'D', color: 'bg-amber-100 text-amber-800' },
-    { name: 'Elena', role: 'Design Engineer', initial: 'E', color: 'bg-teal-100 text-teal-800' },
-  ];
-
   const handleLaunchScan = (e: React.FormEvent) => {
     e.preventDefault();
     const target = studioUrl.trim() || 'https://vibe-landing-demo.dev';
@@ -158,23 +150,12 @@ export const LaunchStudioSection: React.FC = () => {
 
           </div>
 
-          {/* User/Developer Avatars Bar (Matching Reference Screenshot) */}
+          {/* Platform Compatibility Bar */}
           <div className="mt-8 pt-6 border-t border-brand-border/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="flex -space-x-2 overflow-hidden">
-                {developers.map((dev) => (
-                  <div
-                    key={dev.name}
-                    className={`inline-block h-8 w-8 rounded-full ring-2 ring-white flex items-center justify-center font-bold text-xs ${dev.color}`}
-                    title={`${dev.name} (${dev.role})`}
-                  >
-                    {dev.initial}
-                  </div>
-                ))}
-              </div>
-              <div className="text-xs font-semibold text-brand-text pl-2">
-                Audited by 2,400+ developers & vibe-coders this month
-              </div>
+            <div className="flex items-center gap-2 text-xs text-brand-text">
+              <span className="w-2 h-2 rounded-full bg-brand-emerald" />
+              <span className="font-semibold text-brand-text">Platform Agnostic:</span>
+              <span className="text-brand-text-secondary">Compatible with Next.js, Remix, Astro, Vite SPA, and static deployments</span>
             </div>
 
             <div className="text-xs font-bold text-brand-emerald-deep flex items-center gap-1">

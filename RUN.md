@@ -34,4 +34,5 @@ npm run dev
 ---
 
 ### 📖 Live Demo Guide & Architecture Walkthrough
-See **[LAMBDA_IMPLEMENTATION.md](LAMBDA_IMPLEMENTATION.md)** for a complete step-by-step walkthrough covering Amazon Cognito user creation, AWS Lambda test events, SQLite real-time storage, and S3 artifact inspection.
+- See **[LAMBDA_IMPLEMENTATION.md](LAMBDA_IMPLEMENTATION.md)** for a complete step-by-step walkthrough covering Amazon Cognito user creation, AWS Lambda test events, SQLite real-time storage, and S3 artifact inspection.
+- See **[ARCHITECTURE_DEEP_DIVE.md](ARCHITECTURE_DEEP_DIVE.md)** for the complete component dictionary covering the 6 Core AWS Services (S3, Lambda, SSM, Cognito, CloudWatch, EC2), architectural trade-offs, and 20 evaluator Q&As.

@@ -85,7 +85,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
               {finding.title}
             </h3>
 
-            <p className="text-xs text-brand-text-secondary font-mono truncate mt-1 max-w-xl">
+            <p className="text-xs text-brand-text-secondary font-mono truncate mt-1 max-w-xl break-all">
               Target: {finding.affectedUrl}
             </p>
           </div>
@@ -98,7 +98,7 @@ export const FindingCard: React.FC<FindingCardProps> = ({
                 e.stopPropagation();
                 resolveHandler(finding.id);
               }}
-              className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-all ${
+              className={`text-xs px-3 py-1.5 min-h-[36px] rounded-lg border font-medium transition-all flex items-center justify-center ${
                 isFixed 
                   ? 'bg-white text-brand-text-secondary border-brand-border hover:bg-gray-50' 
                   : 'bg-brand-mint text-brand-emerald-dark border-brand-border hover:bg-brand-emerald hover:text-white'
@@ -243,11 +243,11 @@ export const FindingCard: React.FC<FindingCardProps> = ({
               {finding.evidence.observedHeader && (
                 <div className="p-3 bg-white rounded-lg border border-brand-border space-y-1">
                   <div className="text-[11px] font-semibold text-brand-text-secondary uppercase">Observed Response Header:</div>
-                  <div className="text-red-700 bg-red-50 p-1.5 rounded">{finding.evidence.observedHeader}</div>
+                  <div className="text-red-700 bg-red-50 p-2 rounded-lg break-all overflow-x-auto">{finding.evidence.observedHeader}</div>
                   {finding.evidence.expectedHeader && (
                     <>
                       <div className="text-[11px] font-semibold text-brand-text-secondary uppercase pt-1">Expected Standard:</div>
-                      <div className="text-emerald-800 bg-emerald-50 p-1.5 rounded">{finding.evidence.expectedHeader}</div>
+                      <div className="text-emerald-800 bg-emerald-50 p-2 rounded-lg break-all overflow-x-auto">{finding.evidence.expectedHeader}</div>
                     </>
                   )}
                 </div>

@@ -4,17 +4,17 @@ import { useScansList } from '../hooks/useScans';
 import { useSavedSites } from '../hooks/useSites';
 import { useAuth } from '../context/AuthContext';
 import { StatusBadge } from '../components/common/StatusBadge';
-import { FindingSeverityBadge } from '../components/common/FindingSeverityBadge';
+import { SeverityBadge } from '../components/common/SeverityBadge';
 import { Button } from '../components/common/Button';
+import { Card } from '../components/common/Card';
+import { PageHeader } from '../components/common/PageHeader';
 import { EmptyState } from '../components/common/EmptyState';
 import { ErrorState } from '../components/common/ErrorState';
 import { CardSkeleton } from '../components/common/LoadingSkeleton';
 import {
   PlusCircle,
   ArrowRight,
-  ShieldCheck,
   Globe,
-  ExternalLink,
   Layers,
   AlertTriangle,
   FileText,
@@ -25,15 +25,15 @@ import {
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isMockMode } = useAuth();
+  const { user } = useAuth();
 
   const { data: scans, isLoading: scansLoading, error: scansError, refetch: refetchScans } = useScansList();
-  const { data: sites, isLoading: sitesLoading, error: sitesError } = useSavedSites();
+  const { data: sites, isLoading: sitesLoading, error: sitesError, refetch: refetchSites } = useSavedSites();
 
   if (scansLoading || sitesLoading) {
     return (
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="h-10 w-48 bg-slate-200 rounded-lg animate-pulse" />
+        <div className="h-10 w-48 bg-slate-200 rounded-xl animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <CardSkeleton />
           <CardSkeleton />
@@ -44,12 +44,15 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  if (scansError) {
+  if (scansError || sitesError) {
     return (
       <ErrorState
         title="Failed to Load Dashboard Data"
-        message={scansError.message}
-        onRetry={() => refetchScans()}
+        message={scansError?.message || sitesError?.message || 'Unable to communicate with the audit backend.'}
+        onRetry={() => {
+          refetchScans();
+          refetchSites();
+        }}
       />
     );
   }
@@ -76,98 +79,83 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in">
-      {/* Welcome Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-text">
-              Welcome, {user?.name || 'Developer'}
-            </h1>
-            {isMockMode && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold border border-amber-200">
-                Mock Demo Data
-              </span>
-            )}
-          </div>
-          <p className="text-xs sm:text-sm text-brand-text-secondary mt-1">
-            Pre-launch verification telemetry across your AI-built web applications.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
+      {/* Consistent Page Header */}
+      <PageHeader
+        title={`Welcome, ${user?.name || 'Developer'}`}
+        description="Launch-readiness telemetry, observable security headers, and domain verification across your web applications."
+        action={
           <Button
             variant="primary"
             size="md"
             onClick={() => navigate('/app/scans/new')}
             leftIcon={<PlusCircle className="w-4 h-4" />}
-            className="shadow-subtle hover:shadow-glow-green"
           >
             Start New Scan
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* 4 Metric Tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl bg-white border border-brand-border p-5 shadow-subtle flex items-center justify-between">
-          <div>
+        <Card variant="white" elevation="subtle" className="p-5 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[11px] font-mono uppercase font-bold text-brand-text-secondary">
               Total Audits Run
             </p>
-            <p className="text-2xl font-extrabold text-brand-text mt-1 font-mono">{totalScans}</p>
-            <span className="text-[10px] text-slate-400 mt-1 block">Full reports retained</span>
+            <p className="text-2xl font-extrabold text-brand-text font-mono">{totalScans}</p>
+            <span className="text-[10px] text-slate-400 block">Reports recorded</span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-brand-mint text-brand-emerald-dark flex items-center justify-center border border-brand-border">
+          <div className="w-12 h-12 rounded-xl bg-brand-mint text-brand-emerald-deep flex items-center justify-center border border-brand-border shrink-0">
             <Layers className="w-6 h-6" />
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl bg-white border border-brand-border p-5 shadow-subtle flex items-center justify-between">
-          <div>
+        <Card variant="white" elevation="subtle" className="p-5 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[11px] font-mono uppercase font-bold text-brand-text-secondary">
               Avg Readiness Score
             </p>
-            <p className="text-2xl font-extrabold text-brand-text mt-1 font-mono">{avgScore}/100</p>
-            <span className="text-[10px] text-slate-400 mt-1 block">Launch benchmark</span>
+            <p className="text-2xl font-extrabold text-brand-text font-mono">{avgScore}/100</p>
+            <span className="text-[10px] text-slate-400 block">Launch benchmark</span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-200">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center border border-blue-200 shrink-0">
             <Activity className="w-6 h-6" />
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl bg-white border border-brand-border p-5 shadow-subtle flex items-center justify-between">
-          <div>
+        <Card variant="white" elevation="subtle" className="p-5 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[11px] font-mono uppercase font-bold text-brand-text-secondary">
               Verified Domains
             </p>
-            <p className="text-2xl font-extrabold text-brand-text mt-1 font-mono">
+            <p className="text-2xl font-extrabold text-brand-text font-mono">
               {verifiedCount} / {savedWebsites.length}
             </p>
-            <span className="text-[10px] text-slate-400 mt-1 block">Authorized deep scope</span>
+            <span className="text-[10px] text-slate-400 block">Authorized deep scope</span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center border border-purple-200">
+          <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center border border-purple-200 shrink-0">
             <Globe className="w-6 h-6" />
           </div>
-        </div>
+        </Card>
 
-        <div className="rounded-2xl bg-white border border-brand-border p-5 shadow-subtle flex items-center justify-between">
-          <div>
+        <Card variant="white" elevation="subtle" className="p-5 flex items-center justify-between">
+          <div className="space-y-1">
             <p className="text-[11px] font-mono uppercase font-bold text-brand-text-secondary">
               Open High / Critical
             </p>
-            <p className="text-2xl font-extrabold text-red-600 mt-1 font-mono">{totalCriticalHigh}</p>
-            <span className="text-[10px] text-slate-400 mt-1 block">Requires remediation</span>
+            <p className="text-2xl font-extrabold text-red-600 font-mono">{totalCriticalHigh}</p>
+            <span className="text-[10px] text-slate-400 block">Requires remediation</span>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-200">
+          <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-200 shrink-0">
             <AlertTriangle className="w-6 h-6" />
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Main Content Grid: Recent Scans + Saved Sites */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Column: Recent Scans Table */}
+        {/* Left Column: Recent Scans */}
         <div className="lg:col-span-8 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
@@ -176,7 +164,7 @@ export const DashboardPage: React.FC = () => {
             </h2>
             <Link
               to="/app/history"
-              className="text-xs font-semibold text-brand-emerald hover:underline flex items-center gap-1"
+              className="text-xs font-semibold text-brand-emerald-deep hover:underline flex items-center gap-1 transition-colors"
             >
               <span>View all scans</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -186,12 +174,12 @@ export const DashboardPage: React.FC = () => {
           {scansList.length === 0 ? (
             <EmptyState
               title="No Audits Performed Yet"
-              description="Submit your first website URL to inspect SEO, performance, accessibility, and security headers."
+              description="Submit your first website URL to inspect SEO, Core Web Vitals, accessibility, and HTTPS security headers."
               actionLabel="Start First Audit"
               onAction={() => navigate('/app/scans/new')}
             />
           ) : (
-            <div className="bg-white rounded-2xl border border-brand-border shadow-subtle overflow-hidden">
+            <Card variant="white" elevation="subtle" className="overflow-hidden">
               <div className="divide-y divide-brand-border">
                 {scansList.slice(0, 5).map((scan) => {
                   let scoreBadge = 'text-emerald-700 bg-emerald-50 border-emerald-200';
@@ -203,19 +191,14 @@ export const DashboardPage: React.FC = () => {
                     <div
                       key={scan.scanId}
                       onClick={() => navigate(`/app/scans/${scan.scanId}`)}
-                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/80 transition-colors cursor-pointer"
+                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-brand-muted/60 transition-colors cursor-pointer"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2.5">
-                          <span className="font-bold text-sm text-brand-text font-mono">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-bold text-sm text-brand-text font-mono truncate">
                             {scan.normalizedHostname}
                           </span>
                           <StatusBadge status={scan.status} size="sm" />
-                          {scan.isSampleData && (
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">
-                              Demo
-                            </span>
-                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-brand-text-secondary font-mono">
                           <span>{new Date(scan.createdAt).toLocaleDateString()}</span>
@@ -226,7 +209,7 @@ export const DashboardPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto">
                         <div className={`px-2.5 py-1 rounded-lg border font-mono font-bold text-xs ${scoreBadge}`}>
                           {scan.summary?.readinessScore ?? 0}/100
                         </div>
@@ -243,47 +226,47 @@ export const DashboardPage: React.FC = () => {
                   );
                 })}
               </div>
-            </div>
+            </Card>
           )}
 
           {/* Open Findings Feed */}
           {recentFindings.length > 0 && (
             <div className="pt-4 space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text-secondary">
-                Latest Open Findings Grouped by Severity
+                Latest Open Findings
               </h3>
-              <div className="bg-white rounded-2xl border border-brand-border p-4 shadow-subtle divide-y divide-brand-border">
+              <Card variant="white" elevation="subtle" className="p-4 divide-y divide-brand-border">
                 {recentFindings.map((finding) => (
                   <div
                     key={finding.id}
                     onClick={() => navigate(`/app/scans/${finding.scanId}`)}
-                    className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors"
+                    className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3 cursor-pointer hover:bg-brand-muted/40 p-2 rounded-xl transition-colors"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <FindingSeverityBadge severity={finding.severity} size="sm" />
-                        <span className="font-mono text-xs font-semibold text-brand-text">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <SeverityBadge severity={finding.severity} size="sm" />
+                        <span className="font-mono text-xs font-semibold text-brand-text truncate">
                           {finding.title}
                         </span>
                       </div>
                       <p className="text-xs text-brand-text-secondary line-clamp-1">
                         {finding.description}
                       </p>
-                      <span className="text-[10px] font-mono text-slate-400">
+                      <span className="text-[10px] font-mono text-slate-400 block truncate">
                         {finding.host} · Rule: {finding.ruleId}
                       </span>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0 mt-1" />
+                    <ArrowRight className="w-4 h-4 text-slate-400 shrink-0 mt-1" />
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           )}
         </div>
 
-        {/* Right Column: Saved Websites & Quick Verification */}
+        {/* Right Column: Saved Websites & Domain Verification */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="rounded-2xl bg-white border border-brand-border p-5 shadow-subtle space-y-4">
+          <Card variant="white" elevation="subtle" className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-brand-text flex items-center gap-2">
                 <Globe className="w-4 h-4 text-brand-emerald" />
@@ -291,21 +274,21 @@ export const DashboardPage: React.FC = () => {
               </h2>
               <Link
                 to="/app/sites"
-                className="text-xs font-semibold text-brand-emerald hover:underline"
+                className="text-xs font-semibold text-brand-emerald-deep hover:underline transition-colors"
               >
                 Manage
               </Link>
             </div>
 
             <p className="text-xs text-brand-text-secondary leading-relaxed">
-              Verify domain control to unlock deeper OWASP ZAP and Nuclei testing pipelines.
+              Verify domain ownership via DNS TXT or HTML meta challenge to unlock deeper security testing.
             </p>
 
             <div className="space-y-2.5">
               {savedWebsites.slice(0, 4).map((site) => (
                 <div
                   key={site.id}
-                  className="p-3 rounded-xl border border-brand-border bg-slate-50/60 flex items-center justify-between text-xs"
+                  className="p-3 rounded-xl border border-brand-border bg-brand-muted/50 flex items-center justify-between text-xs"
                 >
                   <div className="truncate pr-2">
                     <p className="font-mono font-bold text-brand-text truncate">{site.hostname}</p>
@@ -314,14 +297,14 @@ export const DashboardPage: React.FC = () => {
                     </span>
                   </div>
                   {site.isVerified ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full font-semibold">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full font-semibold shrink-0">
                       <CheckCircle2 className="w-3 h-3" />
                       Verified
                     </span>
                   ) : (
                     <Link
                       to="/app/sites"
-                      className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full hover:bg-amber-200 transition-colors"
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full hover:bg-amber-200 transition-colors shrink-0"
                     >
                       <Lock className="w-3 h-3" />
                       Verify
@@ -339,7 +322,7 @@ export const DashboardPage: React.FC = () => {
             >
               Add New Website Domain
             </Button>
-          </div>
+          </Card>
         </div>
       </div>
     </div>

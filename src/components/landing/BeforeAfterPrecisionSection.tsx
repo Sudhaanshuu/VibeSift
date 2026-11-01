@@ -251,13 +251,15 @@ export const BeforeAfterPrecisionSection: React.FC = () => {
 
                   {/* Hotspots */}
                   <div className="absolute top-[25%] left-[8%] z-10">
-                    <div className="px-2.5 py-1 rounded-lg bg-red-950/90 border border-red-500 text-red-200 text-xs font-bold shadow-lg">
-                      🔴 Vulnerable: Public .js.map files exposed
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/90 border border-red-500 text-red-200 text-xs font-bold shadow-lg">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span>Vulnerable: Public .js.map files exposed</span>
                     </div>
                   </div>
                   <div className="absolute bottom-[30%] left-[12%] z-10">
-                    <div className="px-2.5 py-1 rounded-lg bg-red-950/90 border border-red-500 text-red-200 text-xs font-bold shadow-lg">
-                      🔴 Insecure: Session cookies lack HttpOnly flag
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/90 border border-red-500 text-red-200 text-xs font-bold shadow-lg">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                      <span>Insecure: Session cookies lack HttpOnly flag</span>
                     </div>
                   </div>
                 </div>
@@ -277,13 +279,15 @@ export const BeforeAfterPrecisionSection: React.FC = () => {
 
                   {/* Hotspots */}
                   <div className="absolute top-[25%] right-[8%] z-10">
-                    <div className="px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-brand-emerald text-emerald-200 text-xs font-bold shadow-lg">
-                      🟢 Hardened: CSP nonce + HSTS preloaded
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-brand-emerald text-emerald-200 text-xs font-bold shadow-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
+                      <span>Hardened: CSP nonce + HSTS preloaded</span>
                     </div>
                   </div>
                   <div className="absolute bottom-[30%] right-[12%] z-10">
-                    <div className="px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-brand-emerald text-emerald-200 text-xs font-bold shadow-lg">
-                      🟢 Optimized: Core Web Vitals all green
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/90 border border-brand-emerald text-emerald-200 text-xs font-bold shadow-lg">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-brand-emerald shrink-0" />
+                      <span>Optimized: Core Web Vitals all green</span>
                     </div>
                   </div>
                 </div>

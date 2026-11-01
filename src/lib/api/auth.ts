@@ -1,5 +1,5 @@
 import { AuthUser } from '../../types/audit';
-import { apiClient, setAuthToken, USE_MOCK_API, ApiError } from './client';
+import { apiClient, setAuthToken, ApiError } from './client';
 
 export interface LoginCredentials {
   email: string;
@@ -36,7 +36,7 @@ export interface AuthSession {
 const STORAGE_KEY_USER = 'vibesift_user_session';
 
 /**
- * Amazon Cognito / Backend API auth adapter.
+ * Authentication service communicating with Amazon Cognito / Backend API.
  */
 class ProductionAuthService {
   async login(creds: LoginCredentials): Promise<AuthSession> {
@@ -97,73 +97,5 @@ class ProductionAuthService {
   }
 }
 
-/**
- * Mock Auth Service for local development or demo testing.
- */
-class MockAuthService {
-  async login(creds: LoginCredentials): Promise<AuthSession> {
-    await new Promise((r) => setTimeout(r, 200));
-    const user: AuthUser = {
-      id: `usr_${Date.now().toString(36)}`,
-      email: creds.email,
-      name: creds.email.split('@')[0],
-      isDemoUser: false,
-      plan: 'verified_developer',
-    };
-    const token = `mock-jwt-token-${user.id}`;
-    setAuthToken(token);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    return { user, token };
-  }
-
-  async signup(creds: SignupCredentials): Promise<SignupResult> {
-    await new Promise((r) => setTimeout(r, 200));
-    const user: AuthUser = {
-      id: `usr_${Date.now().toString(36)}`,
-      email: creds.email,
-      name: creds.name || creds.email.split('@')[0],
-      isDemoUser: false,
-      plan: 'free',
-    };
-    const token = `mock-jwt-token-${user.id}`;
-    setAuthToken(token);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-    return {
-      userConfirmed: true,
-      email: creds.email,
-      message: 'Account registered successfully.',
-      user,
-      token,
-    };
-  }
-
-  async confirmSignup(creds: ConfirmSignupCredentials): Promise<{ success: boolean; message: string }> {
-    await new Promise((r) => setTimeout(r, 100));
-    return { success: true, message: 'Account confirmed successfully.' };
-  }
-
-  async resendCode(email: string): Promise<{ success: boolean; message: string }> {
-    await new Promise((r) => setTimeout(r, 100));
-    return { success: true, message: 'Verification code resent.' };
-  }
-
-  async getCurrentSession(): Promise<AuthUser | null> {
-    const raw = localStorage.getItem(STORAGE_KEY_USER);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  async logout(): Promise<void> {
-    setAuthToken(null);
-    localStorage.removeItem(STORAGE_KEY_USER);
-  }
-}
-
-export const authService = USE_MOCK_API ? new MockAuthService() : new ProductionAuthService();
-export const mockAuthService = new MockAuthService();
-export const isMockAuthMode = USE_MOCK_API;
+export const authService = new ProductionAuthService();
 export { ApiError };

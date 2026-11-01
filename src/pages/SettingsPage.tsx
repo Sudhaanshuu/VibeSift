@@ -1,44 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { PageHeader } from '../components/common/PageHeader';
 import { Button } from '../components/common/Button';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import {
   User,
   Trash2,
   Bell,
-  ShieldCheck,
-  AlertTriangle,
-  Server,
   Cloud,
   Check,
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
-  const { user, isMockMode, logout } = useAuth();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState(false);
-  const [emailAlerts, setEmailAlerts] = useState(true);
+  const [isPurging, setIsPurging] = useState(false);
 
-  const handlePurgeHistory = () => {
-    localStorage.removeItem('vibesift_mock_scans');
-    setPurgeSuccess(true);
-    setIsPurgeDialogOpen(false);
-    setTimeout(() => setPurgeSuccess(false), 4000);
+  const [emailAlerts, setEmailAlerts] = useState(() => {
+    try {
+      const stored = localStorage.getItem('vibesift_email_alerts');
+      return stored !== null ? JSON.parse(stored) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleAlerts = (checked: boolean) => {
+    setEmailAlerts(checked);
+    try {
+      localStorage.setItem('vibesift_email_alerts', JSON.stringify(checked));
+    } catch {
+      // storage unavailable
+    }
+  };
+
+  const handlePurgeHistory = async () => {
+    setIsPurging(true);
+    try {
+      // Clear TanStack Query cache for all scans and reports
+      queryClient.removeQueries({ queryKey: ['scans'] });
+      queryClient.removeQueries({ queryKey: ['scan'] });
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
+
+      // Clear any legacy client cache keys
+      localStorage.removeItem('vibesift_active_scan');
+      localStorage.removeItem('vibesift_cached_reports');
+
+      setPurgeSuccess(true);
+      setIsPurgeDialogOpen(false);
+      setTimeout(() => setPurgeSuccess(false), 4000);
+    } finally {
+      setIsPurging(false);
+    }
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-text">
-          Settings & Account
-        </h1>
-        <p className="text-xs sm:text-sm text-brand-text-secondary mt-1">
-          Manage your identity credentials, API tokens, notification rules, and audit privacy.
-        </p>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in min-w-0">
+      <PageHeader
+        title="Settings & Account"
+        description="Manage your identity credentials, API tokens, notification rules, and audit privacy."
+      />
 
       {/* Account Identity Card */}
-      <div className="rounded-2xl bg-white border border-brand-border p-6 shadow-subtle space-y-4">
+      <div className="rounded-2xl bg-white border border-brand-border p-5 sm:p-6 shadow-subtle space-y-4">
         <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
           <User className="w-4 h-4 text-brand-emerald" />
           <span>Account Profile</span>
@@ -49,7 +76,7 @@ export const SettingsPage: React.FC = () => {
             <label className="text-brand-text-secondary font-semibold uppercase text-[10px] block mb-1">
               Developer Name
             </label>
-            <div className="p-2.5 bg-brand-muted rounded-xl border border-brand-border font-medium text-brand-text">
+            <div className="min-h-[44px] px-3.5 py-2.5 bg-brand-muted rounded-xl border border-brand-border font-medium text-brand-text flex items-center">
               {user?.name || 'Developer'}
             </div>
           </div>
@@ -58,13 +85,13 @@ export const SettingsPage: React.FC = () => {
             <label className="text-brand-text-secondary font-semibold uppercase text-[10px] block mb-1">
               Email Address
             </label>
-            <div className="p-2.5 bg-brand-muted rounded-xl border border-brand-border font-mono text-brand-text">
+            <div className="min-h-[44px] px-3.5 py-2.5 bg-brand-muted rounded-xl border border-brand-border font-mono text-brand-text flex items-center break-all">
               {user?.email || 'developer@example.com'}
             </div>
           </div>
         </div>
 
-        <div className="pt-2 flex items-center justify-between text-xs text-brand-text-secondary border-t border-brand-border">
+        <div className="pt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-brand-text-secondary border-t border-brand-border">
           <span className="flex items-center gap-1.5 font-mono text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             Plan: <strong className="text-brand-text capitalize">{user?.plan || 'Verified Developer'}</strong>
@@ -73,8 +100,8 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Cloud & AWS Architecture Status */}
-      <div className="rounded-2xl bg-white border border-brand-border p-6 shadow-subtle space-y-4">
+      {/* Cloud & Architecture Status */}
+      <div className="rounded-2xl bg-white border border-brand-border p-5 sm:p-6 shadow-subtle space-y-4">
         <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
           <Cloud className="w-4 h-4 text-emerald-600" />
           <span>Production Cloud Architecture</span>
@@ -106,18 +133,18 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Notifications */}
-      <div className="rounded-2xl bg-white border border-brand-border p-6 shadow-subtle space-y-4">
+      <div className="rounded-2xl bg-white border border-brand-border p-5 sm:p-6 shadow-subtle space-y-4">
         <h2 className="text-base font-bold text-brand-text flex items-center gap-2">
           <Bell className="w-4 h-4 text-brand-emerald" />
           <span>Audit Notifications</span>
         </h2>
 
-        <label className="flex items-start gap-3 cursor-pointer">
+        <label className="flex items-start gap-3 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={emailAlerts}
-            onChange={(e) => setEmailAlerts(e.target.checked)}
-            className="mt-0.5 rounded border-brand-border text-brand-emerald focus:ring-brand-emerald w-4 h-4"
+            onChange={(e) => handleToggleAlerts(e.target.checked)}
+            className="mt-0.5 rounded border-brand-border text-brand-emerald focus:ring-brand-emerald w-4 h-4 cursor-pointer"
           />
           <div className="text-xs">
             <p className="font-bold text-brand-text">Critical Vulnerability Alerts</p>
@@ -129,7 +156,7 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {/* Data Privacy & Purge Card */}
-      <div className="rounded-2xl bg-white border border-red-200 p-6 shadow-subtle space-y-4">
+      <div className="rounded-2xl bg-white border border-red-200 p-5 sm:p-6 shadow-subtle space-y-4">
         <h2 className="text-base font-bold text-red-900 flex items-center gap-2">
           <Trash2 className="w-4 h-4 text-red-600" />
           <span>Privacy & Data Purge</span>
@@ -150,7 +177,7 @@ export const SettingsPage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => setIsPurgeDialogOpen(true)}
-            className="text-xs text-red-700 border-red-200 hover:bg-red-50"
+            className="text-xs text-red-700 border-red-200 hover:bg-red-50 min-h-[44px]"
             leftIcon={<Trash2 className="w-4 h-4 text-red-600" />}
           >
             Purge All Scan Records
@@ -165,6 +192,7 @@ export const SettingsPage: React.FC = () => {
         message="Are you sure you want to purge your scan history and cached artifacts? This action is irreversible."
         confirmLabel="Purge Everything"
         isDestructive={true}
+        isLoading={isPurging}
         onConfirm={handlePurgeHistory}
         onCancel={() => setIsPurgeDialogOpen(false)}
       />

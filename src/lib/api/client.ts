@@ -5,7 +5,6 @@
  */
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/api` : 'http://localhost:4000/api');
-export const USE_MOCK_API = import.meta.env.MODE === 'test' ? true : (import.meta.env.VITE_USE_MOCK_API === 'true');
 
 export interface ApiErrorResponse {
   error: string;

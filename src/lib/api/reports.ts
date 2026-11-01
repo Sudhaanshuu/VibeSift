@@ -1,20 +1,10 @@
-import { apiClient, USE_MOCK_API, ApiError } from './client';
-import { mockStore } from './mockData';
+import { apiClient, ApiError } from './client';
 import { AuditReport, VerificationStatus } from '../../types/audit';
 
 /**
  * Retrieves a full detailed audit report by scan ID.
  */
 export async function getReport(scanId: string): Promise<AuditReport> {
-  if (USE_MOCK_API) {
-    await new Promise((r) => setTimeout(r, 200));
-    const report = mockStore.getScan(scanId);
-    if (!report) {
-      throw new ApiError(`Audit report "${scanId}" does not exist.`, 404, 'REPORT_NOT_FOUND');
-    }
-    return report;
-  }
-
   return apiClient<AuditReport>(`/reports/${encodeURIComponent(scanId)}`);
 }
 
@@ -26,15 +16,6 @@ export async function resolveFinding(
   findingId: string,
   status: VerificationStatus
 ): Promise<void> {
-  if (USE_MOCK_API) {
-    await new Promise((r) => setTimeout(r, 250));
-    const ok = mockStore.resolveFinding(scanId, findingId, status);
-    if (!ok) {
-      throw new ApiError(`Finding "${findingId}" could not be updated.`, 404, 'FINDING_NOT_FOUND');
-    }
-    return;
-  }
-
   return apiClient<void>(`/reports/${encodeURIComponent(scanId)}/findings/${encodeURIComponent(findingId)}`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
@@ -136,3 +117,5 @@ export function downloadReportJson(report: AuditReport): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+export { ApiError };
