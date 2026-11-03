@@ -104,8 +104,14 @@ export async function handler(event) {
 }
 
 // Auto-start worker when run directly via Node or PM2
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  console.log('[SQSConsumer] Starting standalone SQS FIFO poller...');
+const isRunningInPm2 = Boolean(process.env.pm_id !== undefined || process.env.PM2_HOME);
+const isDirectExecution = process.argv[1] && (
+  fileURLToPath(import.meta.url) === path.resolve(process.argv[1]) ||
+  process.argv[1].endsWith('sqsConsumer.js')
+);
+
+if (isRunningInPm2 || isDirectExecution) {
+  console.log(`[SQSConsumer] Starting standalone SQS FIFO poller (PID: ${process.pid})...`);
   startSqsPollingWorker().catch((err) => {
     console.error('[SQSConsumer] Fatal worker failure:', err);
     process.exit(1);
