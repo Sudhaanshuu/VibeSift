@@ -2,6 +2,78 @@ import { deduplicateFindings } from './findingsNormalizer.js';
 import { calculateAuditScores } from './scoring.js';
 
 /**
+ * Extracts Core Web Vitals and key audits from live Lighthouse results into unified AuditCheckResult records.
+ * @param {object} rawLighthouse
+ * @param {string} hostname
+ * @returns {Array<object>}
+ */
+export function extractLighthouseChecks(rawLighthouse, hostname = '') {
+  if (!rawLighthouse || !rawLighthouse.audits) return [];
+  const now = new Date().toISOString();
+  const lhAudits = [
+    { id: 'first-contentful-paint', name: 'First Contentful Paint (FCP)', category: 'performance' },
+    { id: 'largest-contentful-paint', name: 'Largest Contentful Paint (LCP)', category: 'performance' },
+    { id: 'total-blocking-time', name: 'Total Blocking Time (TBT)', category: 'performance' },
+    { id: 'cumulative-layout-shift', name: 'Cumulative Layout Shift (CLS)', category: 'performance' },
+    { id: 'speed-index', name: 'Speed Index', category: 'performance' },
+    { id: 'interactive', name: 'Time to Interactive (TTI)', category: 'performance' },
+    { id: 'color-contrast', name: 'Background and Foreground Color Contrast', category: 'accessibility' },
+    { id: 'image-alt', name: 'Image Alternative Text Elements', category: 'accessibility' },
+    { id: 'document-title', name: 'Document Title Element', category: 'seo' },
+    { id: 'viewport', name: 'Mobile Viewport Meta Tag', category: 'seo' },
+    { id: 'meta-description', name: 'Meta Description Tag', category: 'seo' },
+    { id: 'crawlable-anchors', name: 'Crawlable Anchor Links', category: 'seo' },
+    { id: 'http-status-code', name: 'Successful HTTP Status Code', category: 'seo' },
+    { id: 'is-on-https', name: 'HTTPS Encryption and Transport Security', category: 'security' },
+    { id: 'errors-in-console', name: 'Browser Console Error Logging', category: 'completeness' },
+  ];
+
+  const checks = [];
+  for (const item of lhAudits) {
+    const a = rawLighthouse.audits[item.id];
+    if (!a) continue;
+
+    let status = 'pass';
+    let severity = 'info';
+    let findingType = 'informational';
+
+    if (a.score === null || a.scoreDisplayMode === 'notApplicable') {
+      status = 'not_applicable';
+    } else if (a.score === 1) {
+      status = 'pass';
+    } else if (a.score >= 0.5) {
+      status = 'warning';
+      severity = 'medium';
+      findingType = 'potential_risk';
+    } else {
+      status = 'fail';
+      severity = item.category === 'security' ? 'high' : 'medium';
+      findingType = item.category === 'security' ? 'confirmed_vulnerability' : 'potential_risk';
+    }
+
+    checks.push({
+      checkId: `LH_${item.id.toUpperCase().replace(/-/g, '_')}`,
+      name: item.name || a.title,
+      category: item.category,
+      status,
+      severity,
+      findingType,
+      auditMode: 'basic',
+      explanation: a.description ? a.description.split('.')[0] + '.' : `${item.name} evaluated by Lighthouse.`,
+      evidence: {
+        displayValue: a.displayValue || (a.numericValue ? `${Math.round(a.numericValue)}ms` : undefined),
+        numericValue: a.numericValue,
+        score: a.score,
+      },
+      testTimestamp: now,
+      scope: `lighthouse:${hostname}`,
+      isIndependent: true,
+    });
+  }
+  return checks;
+}
+
+/**
  * Builds the comprehensive AuditReport data structure
  * @param {object} params
  * @param {string} params.scanId
@@ -16,6 +88,7 @@ import { calculateAuditScores } from './scoring.js';
  * @param {Array<object>} params.enginesRun
  * @param {Array<string>} [params.checksNotPerformed]
  * @param {Array<object>} [params.checks]
+ * @param {object} [params.rawLighthouse]
  * @param {object} [params.privacyCompliance]
  * @param {object} [params.deepComparison]
  * @returns {object} AuditReport
@@ -33,13 +106,26 @@ export function buildAuditReport({
   enginesRun = [],
   checksNotPerformed = [],
   checks = [],
+  rawLighthouse = null,
   privacyCompliance = null,
   deepComparison = null,
   errorMessage,
   errorCategory,
 }) {
   const deduplicated = deduplicateFindings(allFindings);
-  const scoreResult = calculateAuditScores(deduplicated);
+
+  // Combine Python checks with extracted Lighthouse checks
+  const lhChecks = extractLighthouseChecks(rawLighthouse, normalizedHostname);
+  const combinedChecks = [...(checks || []), ...lhChecks];
+  const seenCheckIds = new Set();
+  const finalChecks = combinedChecks.filter((c) => {
+    if (!c || !c.checkId) return false;
+    if (seenCheckIds.has(c.checkId)) return false;
+    seenCheckIds.add(c.checkId);
+    return true;
+  });
+
+  const scoreResult = calculateAuditScores(deduplicated, rawLighthouse, finalChecks);
 
   const durationSeconds = Math.max(
     1,
@@ -59,19 +145,19 @@ export function buildAuditReport({
   const finalChecksNotPerformed = checksNotPerformed.length > 0 ? checksNotPerformed : defaultChecksNotPerformed;
 
   // Calculate check counts
-  const totalChecks = checks.length;
-  const passedChecks = checks.filter((c) => c.status === 'pass').length;
-  const failedChecks = checks.filter((c) => c.status === 'fail').length;
-  const warningChecks = checks.filter((c) => c.status === 'warning').length;
-  const infoChecks = checks.filter((c) => c.status === 'info').length;
-  const notTestedChecks = checks.filter((c) => c.status === 'not_tested').length;
-  const unknownChecks = checks.filter((c) => c.status === 'unknown').length;
-  const notApplicableChecks = checks.filter((c) => c.status === 'not_applicable').length;
+  const totalChecks = finalChecks.length;
+  const passedChecks = finalChecks.filter((c) => c.status === 'pass').length;
+  const failedChecks = finalChecks.filter((c) => c.status === 'fail').length;
+  const warningChecks = finalChecks.filter((c) => c.status === 'warning').length;
+  const infoChecks = finalChecks.filter((c) => c.status === 'info').length;
+  const notTestedChecks = finalChecks.filter((c) => c.status === 'not_tested').length;
+  const unknownChecks = finalChecks.filter((c) => c.status === 'unknown').length;
+  const notApplicableChecks = finalChecks.filter((c) => c.status === 'not_applicable').length;
 
   const confirmedFromFindings = deduplicated.filter(
     (f) => f.confidence === 'certain' || f.severity === 'critical' || f.severity === 'high'
   ).length;
-  const confirmedFromChecks = checks.filter(
+  const confirmedFromChecks = finalChecks.filter(
     (c) => c.findingType === 'confirmed_vulnerability' || (c.isSecurityVulnerability && c.status === 'fail')
   ).length;
   const confirmedVulnerabilities = Math.max(confirmedFromFindings, confirmedFromChecks);
@@ -79,7 +165,7 @@ export function buildAuditReport({
   const potentialFromFindings = deduplicated.filter(
     (f) => f.severity === 'medium' || f.severity === 'low'
   ).length;
-  const potentialFromChecks = checks.filter(
+  const potentialFromChecks = finalChecks.filter(
     (c) => c.findingType === 'potential_risk' || (!c.isSecurityVulnerability && c.status === 'fail')
   ).length;
   const potentialRisks = Math.max(potentialFromFindings, potentialFromChecks);
@@ -87,11 +173,11 @@ export function buildAuditReport({
   // If deepComparison not provided but authorized_deep, generate comparison metrics
   let finalDeepComparison = deepComparison;
   if (!finalDeepComparison && scanProfile === 'authorized_deep') {
-    const deepChecks = checks.filter((c) => c.auditMode === 'deep');
+    const deepChecks = finalChecks.filter((c) => c.auditMode === 'deep');
     finalDeepComparison = {
       additionalChecksExecuted: deepChecks.length,
       independentTestsCount: deepChecks.filter((c) => c.isIndependent !== false).length,
-      reusedEvidenceCount: checks.filter((c) => c.auditMode === 'basic').length,
+      reusedEvidenceCount: finalChecks.filter((c) => c.auditMode === 'basic').length,
       notTestedCount: deepChecks.filter((c) => c.status === 'not_tested').length,
       confirmedVulnerabilitiesCount: confirmedVulnerabilities,
       potentialRisksCount: potentialRisks,
@@ -141,7 +227,7 @@ export function buildAuditReport({
     enginesRun,
     checksNotPerformed: finalChecksNotPerformed,
     findings: deduplicated,
-    checks,
+    checks: finalChecks,
     privacyCompliance,
     deepComparison: finalDeepComparison,
     errorMessage,

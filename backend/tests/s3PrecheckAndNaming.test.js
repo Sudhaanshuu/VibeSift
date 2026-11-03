@@ -119,3 +119,27 @@ test('Global Audit Retrieval: scan and findings can be retrieved globally even i
   assert.equal(parsed.findings.length, 1);
   assert.equal(parsed.findings[0].title, 'Missing Content-Security-Policy');
 });
+
+test('S3 Pre-Check Fallback: findLatestScanReportByHostname locates audit report directly in S3', async () => {
+  const timestamp = Date.now();
+  const scanId = `scn_s3_fallback_${timestamp}`;
+  const hostname = `direct-s3-precheck-${timestamp}.dev`;
+
+  const reportData = {
+    scanId,
+    targetUrl: `https://${hostname}`,
+    hostname,
+    status: 'COMPLETED',
+    summary: { readinessScore: 94, totalFindings: 2 },
+  };
+
+  // Save report to S3 WITHOUT saving into DB
+  const { jsonKey } = await s3Service.saveReport(scanId, reportData, null, hostname);
+
+  // Direct S3 discovery
+  const found = await s3Service.findLatestScanReportByHostname(hostname);
+  assert.ok(found, 'Expected to find report via S3 prefix lookup');
+  assert.equal(found.scanId, scanId);
+  assert.equal(found.readinessScore, 94);
+  assert.equal(found.s3Key, jsonKey);
+});

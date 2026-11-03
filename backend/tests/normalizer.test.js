@@ -113,3 +113,76 @@ test('ReportBuilder: constructs a full AuditReport adhering to schema', () => {
   assert.ok(report.summary.readinessScore > 0);
   assert.ok(report.checksNotPerformed.length > 0);
 });
+
+test('Scoring: incorporates real Lighthouse category scores and Core Web Vitals', () => {
+  const rawLighthouse = {
+    categories: {
+      performance: { score: 0.98 },
+      accessibility: { score: 1.0 },
+      'best-practices': { score: 0.96 },
+      seo: { score: 0.85 },
+    },
+    audits: {
+      'first-contentful-paint': { id: 'first-contentful-paint', title: 'First Contentful Paint', score: 1.0, numericValue: 800, displayValue: '0.8 s' },
+      'largest-contentful-paint': { id: 'largest-contentful-paint', title: 'Largest Contentful Paint', score: 0.95, numericValue: 1400, displayValue: '1.4 s' },
+      'cumulative-layout-shift': { id: 'cumulative-layout-shift', title: 'Cumulative Layout Shift', score: 1.0, numericValue: 0.01, displayValue: '0.01' },
+      'total-blocking-time': { id: 'total-blocking-time', title: 'Total Blocking Time', score: 1.0, numericValue: 0, displayValue: '0 ms' },
+    },
+  };
+
+  const findings = [
+    { category: 'seo', severity: 'low' },
+  ];
+
+  const scores = calculateAuditScores(findings, rawLighthouse);
+
+  assert.equal(scores.categoryScores.performance, 98);
+  assert.equal(scores.categoryScores.accessibility, 100);
+  assert.equal(scores.categoryScores['best-practices'], 96);
+  assert.equal(scores.categoryScores.seo, 85);
+  assert.ok(scores.readinessScore >= 90);
+});
+
+test('ReportBuilder: incorporates Lighthouse Core Web Vitals checks into check registry', () => {
+  const rawLighthouse = {
+    categories: {
+      performance: { score: 0.95 },
+      accessibility: { score: 1.0 },
+    },
+    audits: {
+      'first-contentful-paint': { id: 'first-contentful-paint', title: 'First Contentful Paint', score: 1.0, numericValue: 850, displayValue: '0.85 s' },
+      'largest-contentful-paint': { id: 'largest-contentful-paint', title: 'Largest Contentful Paint', score: 0.9, numericValue: 1800, displayValue: '1.8 s' },
+    },
+  };
+
+  const pythonChecks = [
+    {
+      checkId: 'B01_FOOTER_EXISTS',
+      name: 'Footer Presence',
+      category: 'completeness',
+      status: 'pass',
+      severity: 'info',
+    },
+  ];
+
+  const report = buildAuditReport({
+    scanId: 'scan-test-lh',
+    ownerUserId: 'user-789',
+    targetUrl: 'https://example.com',
+    normalizedHostname: 'example.com',
+    scanProfile: 'baseline_public',
+    status: 'COMPLETED',
+    createdAt: new Date().toISOString(),
+    allFindings: [],
+    enginesRun: [],
+    checks: pythonChecks,
+    rawLighthouse,
+  });
+
+  assert.ok(report.checks.some((c) => c.checkId === 'LH_FIRST_CONTENTFUL_PAINT'));
+  assert.ok(report.checks.some((c) => c.checkId === 'LH_LARGEST_CONTENTFUL_PAINT'));
+  assert.ok(report.checks.some((c) => c.checkId === 'B01_FOOTER_EXISTS'));
+  assert.equal(report.summary.categoryScores.performance, 95);
+  assert.equal(report.summary.categoryScores.accessibility, 100);
+  assert.ok(report.summary.readinessScore >= 95);
+});
