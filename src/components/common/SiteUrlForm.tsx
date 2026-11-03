@@ -137,7 +137,8 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   };
 
   return (
-    <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-5" noValidate>
+    <>
+      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-5" noValidate>
       {/* Target URL Input */}
       <div>
         <label htmlFor="target-url-input" className="block text-xs font-bold uppercase tracking-wider text-brand-text-secondary mb-2">
@@ -258,16 +259,17 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
           ? 'Unlock Deep Audit (₹39)'
           : 'Start Website Audit'}
       </Button>
-
-      {/* Deep Audit Paywall Modal */}
-      {isPaywallOpen && (
-        <DeepAuditPaywallModal
-          isOpen={isPaywallOpen}
-          onClose={() => setIsPaywallOpen(false)}
-          targetUrl={pendingValues?.url || watchedUrl || ''}
-          onPaymentSuccess={handlePaymentSuccess}
-        />
-      )}
     </form>
+
+    {/* Deep Audit Paywall Modal — Rendered outside form to avoid nested form submission */}
+    {isPaywallOpen && (
+      <DeepAuditPaywallModal
+        isOpen={isPaywallOpen}
+        onClose={() => setIsPaywallOpen(false)}
+        targetUrl={pendingValues?.url || watchedUrl || ''}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+    )}
+    </>
   );
 };
