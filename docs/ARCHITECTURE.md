@@ -10,6 +10,7 @@ VibeSift is built on an enterprise-grade, cloud-native AWS hybrid architecture d
 flowchart TD
     User["🌐 User (Browser / Developer)"]
     CF["🛡️ Cloudflare (Edge DNS, TLS 1.3, WAF & Turnstile Bot Gate)"]
+    RZP["💳 Razorpay Payment Gateway (Live Direct Checkout)"]
     EC2_API["💻 EC2: Express API (Port 4000 / PM2: vibesift-backend)"]
     SSRF["🛡️ SSRF & Egress Gatekeeper (DNS + IP Range Filter)"]
     SQLITE[("⚡ Local SQLite (node:sqlite Fast Index Cache)")]
@@ -19,14 +20,18 @@ flowchart TD
     LAMBDA["⚡ AWS Lambda (vibesift-python-inspector-dev)"]
     CHROME["🧭 Local Headless Chromium (Lighthouse CWV Engine)"]
     S3[("🪣 AWS S3 (vibesift-audit-reports-dev-501380833083)")]
+    COUPONS[("🎟️ S3 Coupon Store (config/coupons.json)")]
     CW["📊 Amazon CloudWatch (EMF Metrics, Logs & Alarms)"]
     SSM["🔐 AWS Systems Manager (SSM Parameter Store)"]
-    COG["🔑 Amazon Cognito (User Pools & JWT Multi-Tenant Auth)"]
+    COG["🔑 Amazon Cognito (User Pools & 14-Day JWT Session Refresh)"]
 
     User -->|1. HTTPS Request| CF
     CF -->|2. Validated Traffic| EC2_API
-    EC2_API <-->|Auth Tokens| COG
-    EC2_API <-->|Fetch Config / Secrets| SSM
+    EC2_API <-->|Auth & Refresh Tokens| COG
+    EC2_API <-->|Fetch Config / SSM Secrets| SSM
+    User <-->|Pay ₹39 / ₹1 on Deep Audit| RZP
+    EC2_API <-->|Validate & Verify Payment| RZP
+    EC2_API <-->|Read / Validate Coupons| COUPONS
     EC2_API -->|3. Check Precheck Cache| SQLITE
     EC2_API -->|4. Check Direct S3 Cache| S3
     EC2_API -->|5. SSRF Pre-flight Validation| SSRF
@@ -98,3 +103,88 @@ When User B submits the same URL:
 3. The frontend presents the **Existing Audit Modal**, allowing User B to inspect the cached report instantly.
 4. If User B proceeds with `useCached: true`, the API serves the cached report across tenants with \$0 incremental compute.
 5. If User B chooses **Re-Audit Now** (`forceRescan: true`), a fresh SQS FIFO scan is triggered.
+
+---
+
+## 5. Deep Audit Paywall & Razorpay Integration Architecture
+
+VibeSift operates a dual-tier monetization model:
+- **Quick Search (`baseline_public`)**: Free (₹0), ~20 seconds execution.
+- **Deep Search (`authorized_deep`)**: ₹39 per audit, ~2 minutes execution, requiring verified payment.
+
+### Architecture Flow:
+1. **Public Key Distribution**: Frontend retrieves the live Razorpay Key ID via `GET /api/payments/config` (or SSM parameter `/vibesift/prod/razorpay/key-id`).
+2. **Direct Client Checkout**: The frontend initiates Razorpay Standard Checkout directly via `checkout.js` with amount in paise (3900 paise = ₹39.00 INR or 100 paise = ₹1.00 INR with valid coupon).
+3. **Payment Verification**: Upon successful checkout, the browser submits `paymentId`, `amount`, and optional `couponCode` to `POST /api/payments/verify`.
+4. **Transaction Recording**: Backend records the verified transaction in SQLite (`payment_transactions` table) with status `SUCCESS`.
+5. **Enforced Scan Submission Gate**:
+   - `POST /api/scans` checks whether `scanScope === 'authorized_deep'`.
+   - If `authorized_deep` is requested without a valid `paymentId` that exists in `payment_transactions` under status `SUCCESS`, the API strictly rejects with `402 Payment Required`.
+   - Once consumed by a scan, the transaction is marked as consumed, preventing replay attacks.
+
+---
+
+## 6. S3-Backed Promotional Coupon Directory Architecture
+
+Promotional discounts are managed via an AWS S3 JSON document, decoupling coupon lifecycle management from database migrations or redeployments:
+
+```
+s3://vibesift-audit-reports-dev-501380833083/config/coupons.json
+```
+
+### Key Architectural Characteristics:
+- **In-Memory TTL Caching**: The API server loads `config/coupons.json` into memory with a 30-second TTL. This provides sub-millisecond coupon lookups without repeated S3 `GetObject` latency or costs.
+- **CLI Management**: Operators manipulate coupons locally using `backend/scripts/manage-coupons.js` (`npm run coupon -- list|add|enable|disable|remove`), which downloads, updates, and atomically puts the JSON back to S3.
+- **Fail-Safe Minimum Transaction Bound**: Razorpay India enforces a minimum transaction amount of ₹1 (100 paise). The coupon calculation engine automatically clamps discounts so payable amounts never drop below ₹1.
+- **Strict Privacy**: Coupons are never exposed in bulk or advertised in public APIs. `POST /api/payments/validate-coupon` performs case-insensitive, whitespace-trimmed single-code validation.
+
+---
+
+## 7. Amazon Cognito 14-Day Persistent Session Architecture
+
+Developer sessions are built for frictionless developer workflows while upholding zero-trust cloud security standards:
+
+```mermaid
+sequenceDiagram
+    participant Browser as Browser Client (apiClient)
+    participant API as Express API (/api)
+    participant Cognito as Amazon Cognito User Pool
+
+    Note over Browser: User logs in (Day 1)
+    Browser->>API: POST /api/auth/login
+    API->>Cognito: AdminInitiateAuth (USER_PASSWORD_AUTH)
+    Cognito-->>API: AccessToken (1h) + RefreshToken (14d)
+    API-->>Browser: Session Tokens Stored in localStorage
+
+    Note over Browser: User returns on Day 5 (AccessToken Expired)
+    Browser->>API: POST /api/scans (with expired AccessToken)
+    API-->>Browser: 401 Unauthorized ("exp claim timestamp check failed")
+    
+    Note over Browser: Automatic Retry Interceptor Triggered
+    Browser->>API: POST /api/auth/refresh (RefreshToken)
+    API->>Cognito: InitiateAuth (REFRESH_TOKEN_AUTH)
+    Cognito-->>API: New AccessToken + IdToken
+    API-->>Browser: Fresh Session Tokens (14-day persistent horizon)
+    Browser->>API: Re-attempt POST /api/scans (Success!)
+```
+
+### Architectural Guardrails:
+- **Automatic 401 Interceptor**: `src/lib/api/client.ts` intercepts 401 responses, calls `POST /api/auth/refresh`, updates credentials, and transparently replays the initial HTTP request without failing the user interaction.
+- **Clock Drift Tolerance**: `backend/src/api/middleware/auth.js` enforces `clockTolerance: '120s'` during JWT verification to eliminate intermittent clock skew rejections across container environments.
+- **14-Day Session Expiry**: Sessions persist up to 14 days or until explicit logout, matching AWS Cognito Refresh Token expiration limits.
+
+---
+
+## 8. Crawler Directives & Machine Standards Architecture
+
+VibeSift surfaces discoverable endpoints adhering to modern web and security standards:
+
+1. **RFC 9116 `security.txt`**:
+   - Exposed at both `/.well-known/security.txt` and `/security.txt`.
+   - Outlines security contacts (`mailto:support@pixir.in`), canonical policy links, encryption standards, and disclosure SLAs (24–48 hours).
+2. **Search Directives (`robots.txt`)**:
+   - Instructs crawlers to index public marketing, pricing, and compliance routes.
+   - Restricts crawlers from scanning authenticated routes (`/app/`) or backend API endpoints (`/api/`).
+3. **Canonical XML Sitemap (`sitemap.xml`)**:
+   - Serves an XML sitemap of all 10 canonical marketing and legal URLs (`/`, `/pricing`, `/refund-policy`, `/terms`, `/contact`, `/privacy`, `/security`, `/methodology`, `/sample-reports`, `/remediation`).
+   - Dynamically served by Express (`backend/src/api/app.js`) and mirrored in Vite static assets (`public/sitemap.xml`).

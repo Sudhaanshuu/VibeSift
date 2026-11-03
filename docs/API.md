@@ -178,6 +178,32 @@ Fetches user profile details for the currently authenticated Cognito session.
 
 ---
 
+### `POST /api/auth/refresh`
+Refreshes an expired Amazon Cognito access token using the stored refresh token. Used by the frontend client's automatic 401 retry interceptor and persistent 14-day session manager.
+
+#### Request Body
+```json
+{
+  "refreshToken": "eyJjdHki..."
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "token": "eyJraWQiOi...",
+  "accessToken": "eyJraWQiOi...",
+  "idToken": "eyJraWQiOi...",
+  "expiresIn": 3600
+}
+```
+
+#### Error Responses
+- `400 Bad Request` (`MISSING_REFRESH_TOKEN`): Missing `refreshToken` parameter in JSON body.
+- `401 Unauthorized` (`SESSION_EXPIRED`): The refresh token has expired or is invalid. The client clears local session storage and prompts the user to re-authenticate.
+
+---
+
 ## 2. System Health
 
 ### `GET /api/health`
@@ -198,7 +224,7 @@ Exposes a minimal service health indicator without leaking infrastructure detail
 ## 3. Audit Scans
 
 ### `POST /api/scans`
-Submits a target website URL for audit inspection. Protected by Cloudflare Turnstile bot verification when enabled.
+Submits a target website URL for audit inspection. Protected by Cloudflare Turnstile bot verification when enabled. When `profile: "authorized_deep"` is selected, verified upfront Razorpay payment is strictly enforced.
 
 #### Request Headers
 - `Authorization: Bearer <cognito_token>` *(required)*
@@ -208,16 +234,22 @@ Submits a target website URL for audit inspection. Protected by Cloudflare Turns
 ```json
 {
   "url": "https://example.com",
-  "profile": "baseline_public",
+  "profile": "authorized_deep",
   "acknowledgedTerms": true,
   "idempotencyKey": "unique-client-req-key-001",
-  "turnstileToken": "0.1234567890abcdef..."
+  "turnstileToken": "0.1234567890abcdef...",
+  "paymentId": "pay_live_abc123456",
+  "orderId": null,
+  "couponCode": "FLAT418"
 }
 ```
 
 - `url` *(string, required)*: HTTP or HTTPS URL to audit. Subject to strict SSRF validation.
-- `profile` *(string, default: `baseline_public`)*: `baseline_public` or `authorized_deep`. If `authorized_deep` is selected, the requesting user must have verified domain control of the target hostname.
+- `profile` *(string, default: `baseline_public`)*: `baseline_public` (free single-page passive audit) or `authorized_deep` (paid ₹39 multi-page active audit).
 - `acknowledgedTerms` *(boolean, required)*: Must be `true`.
+- `paymentId` *(string, conditional)*: Razorpay payment ID (`pay_...`). **Mandatory** when `profile` is `authorized_deep`.
+- `orderId` *(string, optional)*: Razorpay order ID if generated.
+- `couponCode` *(string, optional)*: Applied coupon code (e.g., `FLAT418`).
 - `idempotencyKey` *(string, optional)*: Unique token to prevent duplicate scans on network retry.
 - `turnstileToken` *(string, optional)*: Cloudflare Turnstile token from the verification widget.
 
@@ -233,6 +265,7 @@ Submits a target website URL for audit inspection. Protected by Cloudflare Turns
 
 #### Error Responses
 - `400 Bad Request` (`SSRF_BLOCKED`): Destination URL resolves to a private, loopback, or cloud metadata IP address.
+- `402 Payment Required` (`PAYMENT_REQUIRED`): Attempted `authorized_deep` scan without valid upfront payment. Single deep audit is ₹39.
 - `403 Forbidden` (`BOT_CHALLENGE_REQUIRED`): Cloudflare Turnstile token missing.
 - `403 Forbidden` (`BOT_VERIFICATION_FAILED`): Cloudflare Turnstile token validation failed.
 - `403 Forbidden` (`DOMAIN_NOT_VERIFIED`): Attempted `authorized_deep` scan on an unverified domain.
@@ -516,3 +549,135 @@ Initiates server-side verification by checking DNS TXT records, `<meta>` tags, o
   "instructions": "Check TXT record for '_vibesift-challenge.example.com' or HTML meta tag."
 }
 ```
+
+---
+
+## 7. Payments & Razorpay Paywall
+
+Deep Search scans require upfront payment (₹39 per scan) to protect cloud compute, Chromium resources, and active security testing engines.
+
+### `GET /api/payments/config`
+Public endpoint returning active payment gateway configuration and base pricing.
+
+#### Response `200 OK`
+```json
+{
+  "keyId": "rzp_live_Td6jjT5Yl85c4L",
+  "deepAuditPriceInRupees": 39,
+  "currency": "INR"
+}
+```
+
+---
+
+### `POST /api/payments/validate-coupon`
+Validates a user-supplied coupon code against the S3 coupon directory (`config/coupons.json`). Strips all whitespace and normalizes casing (e.g., `flat 418` -> `FLAT418`). Cached in-memory for 30 seconds.
+
+#### Request Body
+```json
+{
+  "couponCode": "flat 418"
+}
+```
+*(Accepts either `couponCode` or `code` keys).*
+
+#### Response `200 OK` (Valid Coupon)
+```json
+{
+  "valid": true,
+  "code": "FLAT418",
+  "originalAmount": 39,
+  "discountAmount": 38,
+  "finalAmount": 1,
+  "description": "Flat ₹38 discount — deep audit for ₹1"
+}
+```
+
+#### Response `200 OK` (Invalid / Expired Coupon)
+```json
+{
+  "valid": false,
+  "originalAmount": 39,
+  "discountAmount": 0,
+  "finalAmount": 39,
+  "error": "Coupon code not found."
+}
+```
+
+---
+
+### `POST /api/payments/create-order`
+Prepares a payment transaction for Razorpay checkout. Requires authentication.
+
+#### Request Headers
+- `Authorization: Bearer <cognito_token>` *(required)*
+
+#### Request Body
+```json
+{
+  "targetUrl": "https://example.com",
+  "couponCode": "FLAT418",
+  "scanProfile": "authorized_deep"
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "orderId": null,
+  "amount": 1,
+  "amountInPaise": 100,
+  "currency": "INR",
+  "keyId": "rzp_live_Td6jjT5Yl85c4L",
+  "appliedCoupon": "FLAT418",
+  "targetUrl": "https://example.com"
+}
+```
+*(When `RAZORPAY_KEY_SECRET` is omitted, `orderId` is `null`, activating Razorpay standard direct client checkout without requiring Orders API).*
+
+---
+
+### `POST /api/payments/verify`
+Verifies a completed transaction received from the Razorpay Checkout SDK. Stores the payment record in-memory to prevent replay and authorize the subsequent scan submission.
+
+#### Request Headers
+- `Authorization: Bearer <cognito_token>` *(required)*
+
+#### Request Body
+```json
+{
+  "razorpay_payment_id": "pay_live_abc123456",
+  "razorpay_order_id": null,
+  "razorpay_signature": null,
+  "targetUrl": "https://example.com",
+  "couponCode": "FLAT418",
+  "amount": 1
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "success": true,
+  "paymentId": "pay_live_abc123456",
+  "message": "Payment verified successfully."
+}
+```
+
+---
+
+## 8. Machine & Crawler Standards
+
+Endpoints serving RFC-compliant security disclosures, web crawler instructions, and XML sitemaps.
+
+### `GET /.well-known/security.txt` & `GET /security.txt`
+Returns RFC 9116 security disclosure policies and vulnerability reporting instructions. Also mirrored under `/api/.well-known/security.txt`.
+- **Content-Type**: `text/plain`
+
+### `GET /robots.txt`
+Returns robot exclusion rules, indexing directives, disallowed API paths, and the canonical XML sitemap location. Also mirrored under `/api/robots.txt`.
+- **Content-Type**: `text/plain`
+
+### `GET /sitemap.xml`
+Returns the production XML sitemap containing all 10 canonical web application URLs. Also mirrored under `/api/sitemap.xml`.
+- **Content-Type**: `application/xml`
