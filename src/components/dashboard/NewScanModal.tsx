@@ -56,6 +56,16 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     }
   }, [prefilledScanUrl]);
 
+  // Lock background document scrolling while modal is open
+  useEffect(() => {
+    if (!isNewScanModalOpen) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, [isNewScanModalOpen]);
+
   if (!isNewScanModalOpen) return null;
 
   // Extract hostname for domain verification check
@@ -143,17 +153,22 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white w-full max-w-xl rounded-2xl border border-brand-border shadow-elevated overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+      <div 
+        className="bg-white w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-brand-border shadow-elevated overflow-hidden my-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
         
-        {/* Modal Header */}
-        <div className="p-5 bg-brand-card-green/40 border-b border-brand-border flex items-center justify-between">
+        {/* Modal Header (Pinned at Top) */}
+        <div className="shrink-0 p-4 sm:p-5 bg-brand-card-green/40 border-b border-brand-border flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center border border-brand-border">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-brand-text">Configure Pre-Launch Audit</h3>
+              <h3 id="modal-title" className="text-base font-bold text-brand-text">Configure Pre-Launch Audit</h3>
               <p className="text-xs text-brand-text-secondary">Safe, containerized multi-engine inspection</p>
             </div>
           </div>
@@ -172,7 +187,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
 
         {/* Modal Body / Scanning Progress or Form */}
         {!isAuthenticated ? (
-          <div className="p-8 text-center space-y-5">
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 text-center space-y-5">
             <div className="w-14 h-14 rounded-full bg-brand-mint text-brand-emerald-dark flex items-center justify-center mx-auto border border-brand-border">
               <Lock className="w-7 h-7" />
             </div>
@@ -198,7 +213,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
             </div>
           </div>
         ) : isScanning && scanProgress ? (
-          <div className="p-8 text-center space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 sm:p-8 text-center space-y-6">
             <div className="w-16 h-16 rounded-full bg-brand-mint text-brand-emerald flex items-center justify-center mx-auto border-2 border-brand-border animate-pulse">
               <ShieldCheck className="w-8 h-8 animate-bounce" />
             </div>
@@ -231,9 +246,11 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             
-            {/* Target URL field */}
+            {/* Scrollable Form Body */}
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+              {/* Target URL field */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
                 Target Website URL
@@ -352,8 +369,10 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
               </div>
             )}
 
-            {/* Actions */}
-            <div className="pt-3 border-t border-brand-border flex items-center justify-end gap-3">
+            </div>
+
+            {/* Pinned Action Footer */}
+            <div className="shrink-0 p-4 bg-slate-50 border-t border-brand-border flex items-center justify-end gap-3 rounded-b-2xl">
               <Button
                 type="button"
                 variant="outline"

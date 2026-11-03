@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from './Button';
 import { PrecheckResult } from '../../lib/api/scans';
 import { 
@@ -29,6 +29,15 @@ export const ExistingAuditModal: React.FC<ExistingAuditModalProps> = ({
   onReaudit,
   isReauditing = false,
 }) => {
+  useEffect(() => {
+    if (!isOpen || !cachedAudit) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, [isOpen, cachedAudit]);
+
   if (!isOpen || !cachedAudit) return null;
 
   const formattedDate = cachedAudit.createdAt
@@ -49,15 +58,15 @@ export const ExistingAuditModal: React.FC<ExistingAuditModalProps> = ({
   const score = cachedAudit.readinessScore ?? cachedAudit.summary?.readinessScore ?? null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div 
-        className="bg-white w-full max-w-lg rounded-2xl border border-brand-border shadow-2xl overflow-hidden transform transition-all animate-scale-up"
+        className="bg-white w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-brand-border shadow-2xl overflow-hidden my-auto transform transition-all animate-scale-up"
         role="dialog"
         aria-modal="true"
         aria-labelledby="existing-audit-title"
       >
         {/* Top Banner */}
-        <div className="p-5 bg-brand-mint/40 border-b border-brand-border flex items-center justify-between">
+        <div className="shrink-0 p-5 bg-brand-mint/40 border-b border-brand-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white text-brand-emerald-dark flex items-center justify-center border border-brand-border shadow-sm">
               <History className="w-5 h-5 text-brand-emerald" />
@@ -82,7 +91,7 @@ export const ExistingAuditModal: React.FC<ExistingAuditModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           <div className="rounded-xl border border-brand-border bg-slate-50/70 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wider text-brand-text-secondary">

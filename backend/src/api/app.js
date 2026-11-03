@@ -57,14 +57,32 @@ app.use('/api/health', healthRouter);
 // RFC 9116 Security.txt & robots.txt (public, unauthenticated)
 const securityTxtContent = `Contact: mailto:security@pixir.in\nContact: https://vibesift.pixir.in/security\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: en\nCanonical: https://vibesift.pixir.in/.well-known/security.txt\nPolicy: https://vibesift.pixir.in/security\nAcknowledgments: https://vibesift.pixir.in/security#hall-of-fame\nHiring: https://pixir.in/careers\n`;
 
-const robotsTxtContent = `User-agent: *\nAllow: /\nAllow: /methodology\nAllow: /sample-reports\nAllow: /remediation\nAllow: /privacy\nAllow: /security\nAllow: /sitemap.xml\nAllow: /.well-known/security.txt\nDisallow: /app/\nDisallow: /dashboard/\nDisallow: /settings/\nDisallow: /scans/\nDisallow: /api/\nDisallow: /auth/\nHost: vibesift.pixir.in\nSitemap: https://vibesift.pixir.in/sitemap.xml\n`;
+const robotsTxtContent = `User-agent: *\nAllow: /\nAllow: /pricing\nAllow: /methodology\nAllow: /sample-reports\nAllow: /remediation\nAllow: /privacy\nAllow: /security\nAllow: /terms\nAllow: /refund-policy\nAllow: /contact\nAllow: /sitemap.xml\nAllow: /.well-known/security.txt\nDisallow: /app/\nDisallow: /dashboard/\nDisallow: /settings/\nDisallow: /scans/\nDisallow: /api/\nDisallow: /auth/\nHost: vibesift.pixir.in\nSitemap: https://vibesift.pixir.in/sitemap.xml\n`;
 
-app.get(['/.well-known/security.txt', '/security.txt'], (req, res) => {
+const sitemapXmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://vibesift.pixir.in/</loc><priority>1.0</priority></url>
+  <url><loc>https://vibesift.pixir.in/pricing</loc><priority>0.9</priority></url>
+  <url><loc>https://vibesift.pixir.in/methodology</loc><priority>0.8</priority></url>
+  <url><loc>https://vibesift.pixir.in/sample-reports</loc><priority>0.8</priority></url>
+  <url><loc>https://vibesift.pixir.in/remediation</loc><priority>0.8</priority></url>
+  <url><loc>https://vibesift.pixir.in/terms</loc><priority>0.7</priority></url>
+  <url><loc>https://vibesift.pixir.in/refund-policy</loc><priority>0.7</priority></url>
+  <url><loc>https://vibesift.pixir.in/privacy</loc><priority>0.7</priority></url>
+  <url><loc>https://vibesift.pixir.in/security</loc><priority>0.7</priority></url>
+  <url><loc>https://vibesift.pixir.in/contact</loc><priority>0.7</priority></url>
+</urlset>`;
+
+app.get(['/.well-known/security.txt', '/security.txt', '/api/.well-known/security.txt', '/api/security.txt'], (req, res) => {
   res.type('text/plain').send(securityTxtContent);
 });
 
-app.get('/robots.txt', (req, res) => {
+app.get(['/robots.txt', '/api/robots.txt'], (req, res) => {
   res.type('text/plain').send(robotsTxtContent);
+});
+
+app.get(['/sitemap.xml', '/api/sitemap.xml'], (req, res) => {
+  res.type('application/xml').send(sitemapXmlContent);
 });
 
 // Authentication routes (public)

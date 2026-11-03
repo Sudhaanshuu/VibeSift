@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   cognitoLogin,
+  cognitoRefreshToken,
   cognitoSignUp,
   cognitoConfirmSignUp,
   cognitoResendCode,
@@ -48,6 +49,32 @@ authRouter.post('/login', verifyTurnstileToken, async (req, res, next) => {
       code: mapped.code,
       statusCode: mapped.statusCode,
       email: err.name === 'UserNotConfirmedException' ? req.body?.email?.trim().toLowerCase() : undefined,
+    });
+  }
+});
+
+/**
+ * POST /auth/refresh — Refresh Expired Cognito Access Token
+ */
+authRouter.post('/refresh', async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken || typeof refreshToken !== 'string' || !refreshToken.trim()) {
+      return res.status(400).json({
+        error: 'Refresh token is required.',
+        code: 'MISSING_REFRESH_TOKEN',
+        statusCode: 400,
+      });
+    }
+
+    const refreshed = await cognitoRefreshToken(refreshToken.trim());
+    return res.json(refreshed);
+  } catch (err) {
+    const mapped = mapCognitoError(err);
+    return res.status(401).json({
+      error: mapped.message || 'Session expired. Please sign in again.',
+      code: 'SESSION_EXPIRED',
+      statusCode: 401,
     });
   }
 });

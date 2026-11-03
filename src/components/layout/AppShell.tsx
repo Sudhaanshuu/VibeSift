@@ -234,6 +234,33 @@ export const AppShell: React.FC = () => {
             <NavLink to="/contact" className="hover:text-brand-emerald-deep transition-colors">
               Support
             </NavLink>
+            <span>·</span>
+            <a
+              href="/robots.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand-emerald-deep transition-colors font-mono"
+            >
+              robots.txt
+            </a>
+            <span>·</span>
+            <a
+              href="/.well-known/security.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand-emerald-deep transition-colors font-mono"
+            >
+              security.txt
+            </a>
+            <span>·</span>
+            <a
+              href="/sitemap.xml"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand-emerald-deep transition-colors font-mono"
+            >
+              sitemap.xml
+            </a>
           </div>
         </footer>
       </div>

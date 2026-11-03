@@ -261,6 +261,42 @@ export async function cognitoLogin({ email, password }) {
 }
 
 /**
+ * Refresh expired Cognito session using refresh token
+ */
+export async function cognitoRefreshToken(refreshToken) {
+  if (!config.cognito.clientId) {
+    throw new Error('COGNITO_CLIENT_ID is not configured');
+  }
+
+  if (!refreshToken || typeof refreshToken !== 'string' || !refreshToken.trim()) {
+    throw new Error('Valid refresh token is required');
+  }
+
+  const client = getCognitoClient();
+  const command = new InitiateAuthCommand({
+    AuthFlow: 'REFRESH_TOKEN_AUTH',
+    ClientId: config.cognito.clientId,
+    AuthParameters: {
+      REFRESH_TOKEN: String(refreshToken).trim(),
+    },
+  });
+
+  const response = await client.send(command);
+  const authResult = response.AuthenticationResult;
+
+  if (!authResult || !authResult.AccessToken) {
+    throw new Error('No valid authentication result returned from Cognito during token refresh');
+  }
+
+  return {
+    token: authResult.AccessToken,
+    accessToken: authResult.AccessToken,
+    idToken: authResult.IdToken,
+    expiresIn: authResult.ExpiresIn || 3600,
+  };
+}
+
+/**
  * Fetch verified user attributes from Cognito using access token
  */
 export async function cognitoGetUser(accessToken) {

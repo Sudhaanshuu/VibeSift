@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from './Button';
 import { BrandLogo } from '../brand/BrandLogo';
@@ -20,6 +20,15 @@ export const LoginModal: React.FC = () => {
   const [resending, setResending] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
+
+  useEffect(() => {
+    if (!isLoginModalOpen) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, [isLoginModalOpen]);
 
   if (!isLoginModalOpen) return null;
 
@@ -149,11 +158,15 @@ export const LoginModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white w-full max-w-md rounded-2xl border border-brand-border shadow-elevated overflow-hidden p-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+      <div 
+        className="bg-white w-full max-w-md max-h-[90vh] flex flex-col rounded-2xl border border-brand-border shadow-elevated overflow-hidden my-auto"
+        role="dialog"
+        aria-modal="true"
+      >
         
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-brand-border">
+        {/* Header (Pinned) */}
+        <div className="shrink-0 p-5 flex items-center justify-between border-b border-brand-border">
           <BrandLogo size="sm" />
           <button
             onClick={closeLoginModal}
@@ -162,6 +175,9 @@ export const LoginModal: React.FC = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Scrollable Modal Body */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
 
         {/* Tab switchers (only in signin or signup mode) */}
         {mode !== 'verify' ? (
@@ -412,6 +428,7 @@ export const LoginModal: React.FC = () => {
           </form>
         )}
 
+        </div>
       </div>
     </div>
   );
