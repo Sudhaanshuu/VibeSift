@@ -225,18 +225,40 @@ export const Footer: React.FC<FooterProps> = ({
                   <span>Cookie Preferences</span>
                 </button>
               </li>
-              <li className="pt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-mono text-brand-text-secondary">
-                <a href="/robots.txt" target="_blank" rel="noopener noreferrer" className="hover:text-brand-emerald-deep underline">
-                  robots.txt
-                </a>
-                <span>·</span>
-                <a href="/.well-known/security.txt" target="_blank" rel="noopener noreferrer" className="hover:text-brand-emerald-deep underline">
-                  security.txt
-                </a>
-                <span>·</span>
-                <a href="/sitemap.xml" target="_blank" rel="noopener noreferrer" className="hover:text-brand-emerald-deep underline">
-                  sitemap.xml
-                </a>
+              <li className="pt-2 border-t border-brand-border/60">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Machine & Crawler Standards</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <a
+                    href="/robots.txt"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-brand-mint text-[11px] font-mono text-brand-text hover:text-brand-emerald-deep border border-slate-200 transition-colors"
+                    title="View robots.txt crawler directives"
+                  >
+                    <span>robots.txt</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                  </a>
+                  <a
+                    href="/.well-known/security.txt"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-brand-mint text-[11px] font-mono text-brand-text hover:text-brand-emerald-deep border border-slate-200 transition-colors"
+                    title="View RFC 9116 security.txt contact file"
+                  >
+                    <span>security.txt</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                  </a>
+                  <a
+                    href="/sitemap.xml"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 hover:bg-brand-mint text-[11px] font-mono text-brand-text hover:text-brand-emerald-deep border border-slate-200 transition-colors"
+                    title="View XML sitemap"
+                  >
+                    <span>sitemap.xml</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                  </a>
+                </div>
               </li>
               <li><a href="#scope" className="hover:text-brand-emerald-deep font-medium transition-colors">Testing Scope Boundaries</a></li>
               <li><a href="#faq" className="hover:text-brand-emerald-deep font-medium transition-colors">Audit Engine FAQ</a></li>
@@ -345,6 +367,33 @@ export const Footer: React.FC<FooterProps> = ({
             >
               Cookie Settings
             </button>
+            <span>·</span>
+            <a
+              href="/robots.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand-emerald-deep hover:underline transition-colors font-mono"
+            >
+              robots.txt
+            </a>
+            <span>·</span>
+            <a
+              href="/.well-known/security.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand-emerald-deep hover:underline transition-colors font-mono"
+            >
+              security.txt
+            </a>
+            <span>·</span>
+            <a
+              href="/sitemap.xml"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-brand-emerald-deep hover:underline transition-colors font-mono"
+            >
+              sitemap.xml
+            </a>
             <span>·</span>
             <span className="flex items-center gap-1 text-brand-emerald-deep">
               <span className="w-1.5 h-1.5 rounded-full bg-brand-emerald"></span>

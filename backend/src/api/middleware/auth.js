@@ -95,6 +95,7 @@ export async function authenticateToken(req, res, next) {
   try {
     const { payload } = await jose.jwtVerify(token, jwks, {
       issuer: config.cognito.issuer,
+      clockTolerance: '120s',
     });
 
     // Validate token_use

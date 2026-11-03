@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   cognitoLogin,
+  cognitoRefreshToken,
   cognitoSignUp,
   cognitoConfirmSignUp,
   cognitoResendCode,
@@ -228,4 +229,33 @@ test('Cognito Auth: mapCognitoError maps rate limits and server errors safely', 
   const mappedGeneric = mapCognitoError(genericErr);
   assert.equal(mappedGeneric.statusCode, 500);
   assert.equal(mappedGeneric.code, 'AUTH_ERROR');
+});
+
+test('Cognito Auth: cognitoRefreshToken refreshes token using REFRESH_TOKEN_AUTH', async () => {
+  const newAccessToken = 'refreshed.access.token';
+  const newIdToken = 'refreshed.id.token';
+
+  const mockClient = {
+    send: async (command) => {
+      assert.equal(command.input.AuthFlow, 'REFRESH_TOKEN_AUTH');
+      assert.equal(command.input.ClientId, 'test-client-id-12345');
+      assert.equal(command.input.AuthParameters.REFRESH_TOKEN, 'valid.refresh.token');
+
+      return {
+        AuthenticationResult: {
+          AccessToken: newAccessToken,
+          IdToken: newIdToken,
+          ExpiresIn: 3600,
+        },
+      };
+    },
+  };
+
+  setCognitoClient(mockClient);
+
+  const result = await cognitoRefreshToken('valid.refresh.token');
+  assert.equal(result.token, newAccessToken);
+  assert.equal(result.accessToken, newAccessToken);
+  assert.equal(result.idToken, newIdToken);
+  assert.equal(result.expiresIn, 3600);
 });

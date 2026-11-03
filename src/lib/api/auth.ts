@@ -1,5 +1,5 @@
 import { AuthUser } from '../../types/audit';
-import { apiClient, setAuthToken, ApiError } from './client';
+import { apiClient, setAuthToken, setAuthSession, clearAuthSession, ApiError } from './client';
 
 export interface LoginCredentials {
   email: string;
@@ -20,6 +20,8 @@ export interface SignupResult {
   email: string;
   message: string;
   token?: string;
+  refreshToken?: string;
+  expiresIn?: number;
   user?: AuthUser;
 }
 
@@ -33,6 +35,8 @@ export interface AuthSession {
   token: string;
   accessToken?: string;
   idToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
 }
 
 const STORAGE_KEY_USER = 'vibesift_user_session';
@@ -52,7 +56,7 @@ class ProductionAuthService {
       headers,
       body: JSON.stringify(creds),
     });
-    setAuthToken(data.token);
+    setAuthSession(data.token, data.refreshToken, data.expiresIn);
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
     return data;
   }
@@ -69,7 +73,7 @@ class ProductionAuthService {
       body: JSON.stringify(creds),
     });
     if (data.token && data.user) {
-      setAuthToken(data.token);
+      setAuthSession(data.token, data.refreshToken, data.expiresIn);
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
     }
     return data;
@@ -95,8 +99,7 @@ class ProductionAuthService {
       localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
       return user;
     } catch {
-      setAuthToken(null);
-      localStorage.removeItem(STORAGE_KEY_USER);
+      clearAuthSession();
       return null;
     }
   }
@@ -105,8 +108,7 @@ class ProductionAuthService {
     try {
       await apiClient<void>('/auth/logout', { method: 'POST' });
     } finally {
-      setAuthToken(null);
-      localStorage.removeItem(STORAGE_KEY_USER);
+      clearAuthSession();
     }
   }
 }
