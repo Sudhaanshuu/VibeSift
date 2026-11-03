@@ -4,6 +4,7 @@ import {
   PutCommand,
   GetCommand,
   QueryCommand,
+  ScanCommand,
   UpdateCommand,
   DeleteCommand,
   BatchWriteCommand,
@@ -177,14 +178,39 @@ export class DynamoStorageService {
 
   async getLatestScanForSite(hostname, ownerUserId = null) {
     if (this.useLocal) return sqliteStorage.getLatestScanForSite(hostname, ownerUserId);
-    const scans = await this.listScansByUser(ownerUserId, { hostname });
-    return scans[0] || null;
+    if (ownerUserId) {
+      const scans = await this.listScansByUser(ownerUserId, { hostname });
+      return scans[0] || null;
+    }
+    return this.getLatestCompletedScanForSite(hostname);
   }
 
   async getLatestCompletedScanForSite(hostname) {
     if (this.useLocal) return sqliteStorage.getLatestCompletedScanForSite(hostname);
-    const scans = await this.listScansByUser(null, { hostname });
-    return scans.find((s) => s.status === 'COMPLETED') || null;
+
+    try {
+      const res = await docClient.send(
+        new ScanCommand({
+          TableName: config.tables.scans,
+          FilterExpression: 'normalizedHostname = :h AND #st = :comp',
+          ExpressionAttributeNames: { '#st': 'status' },
+          ExpressionAttributeValues: {
+            ':h': hostname.toLowerCase(),
+            ':comp': 'COMPLETED',
+          },
+          Limit: 25,
+        })
+      );
+      const items = res.Items || [];
+      if (items.length > 0) {
+        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        return items[0];
+      }
+    } catch (err) {
+      console.warn('[DynamoStorage] Scan for completed scans failed, falling back to SQLite:', err.message);
+    }
+
+    return sqliteStorage.getLatestCompletedScanForSite(hostname);
   }
 
   async getScanByIdempotencyKey(ownerUserId, idempotencyKey) {

@@ -25,8 +25,32 @@ scansRouter.post('/precheck', async (req, res, next) => {
     const validated = validateAndNormalizeUrl(rawUrl);
     await resolveAndValidateHost(validated.hostname);
 
-    // Look up latest completed scan for this target hostname globally in SQLite
-    const latestScan = await dbService.getLatestCompletedScanForSite(validated.hostname);
+    // 1. Look up latest completed scan for this target hostname globally in DB
+    let latestScan = await dbService.getLatestCompletedScanForSite(validated.hostname);
+
+    // 2. Fall back to S3 direct discovery if DB record is not yet synced
+    if (!latestScan) {
+      const s3Found = await s3Service.findLatestScanReportByHostname(validated.hostname);
+      if (s3Found) {
+        latestScan = {
+          scanId: s3Found.scanId,
+          ownerUserId: s3Found.report?.ownerUserId || 'public',
+          targetUrl: s3Found.targetUrl,
+          normalizedHostname: validated.hostname,
+          scanProfile: s3Found.report?.scanProfile || 'baseline_public',
+          status: s3Found.status,
+          createdAt: s3Found.createdAt,
+          summary: s3Found.summary,
+          enginesRun: s3Found.report?.enginesRun || [],
+          checksNotPerformed: s3Found.report?.checksNotPerformed || [],
+          s3ReportKey: s3Found.s3Key,
+        };
+        try {
+          await dbService.saveScan(latestScan);
+        } catch {}
+      }
+    }
+
     if (!latestScan) {
       return res.status(200).json({ exists: false, hostname: validated.hostname });
     }
@@ -37,9 +61,16 @@ scansRouter.post('/precheck', async (req, res, next) => {
     const legacyKey = `scans/${latestScan.scanId}/report.json`;
 
     // Verify actual file existence in S3
-    const existsInS3 = (await s3Service.objectExists(s3Key)) ||
-                       (await s3Service.objectExists(fallbackDirectKey)) ||
-                       (await s3Service.objectExists(legacyKey));
+    let existsInS3 = (await s3Service.objectExists(s3Key)) ||
+                     (await s3Service.objectExists(fallbackDirectKey)) ||
+                     (await s3Service.objectExists(legacyKey));
+
+    if (!existsInS3) {
+      const s3Check = await s3Service.findLatestScanReportByHostname(validated.hostname);
+      if (s3Check) {
+        existsInS3 = true;
+      }
+    }
 
     if (!existsInS3) {
       return res.status(200).json({ exists: false, hostname: validated.hostname });
@@ -95,7 +126,19 @@ scansRouter.post('/', enforceScanRateLimit, async (req, res, next) => {
 
     // Check if user requested existing cached scan for the same site
     if (req.body.useCached === true || req.query.useCached === 'true') {
-      const latestExisting = await dbService.getLatestScanForSite(validated.hostname, userId);
+      let latestExisting = await dbService.getLatestCompletedScanForSite(validated.hostname);
+      if (!latestExisting) {
+        const s3Found = await s3Service.findLatestScanReportByHostname(validated.hostname);
+        if (s3Found) {
+          latestExisting = {
+            scanId: s3Found.scanId,
+            status: s3Found.status,
+            targetUrl: s3Found.targetUrl,
+            createdAt: s3Found.createdAt,
+            summary: s3Found.summary,
+          };
+        }
+      }
       if (latestExisting && latestExisting.status === 'COMPLETED') {
         return res.status(200).json({
           scanId: latestExisting.scanId,

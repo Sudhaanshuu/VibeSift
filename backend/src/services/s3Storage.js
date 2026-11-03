@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -104,6 +104,81 @@ class LocalFileStorage {
   async getPresignedUrl(key, expiresInSeconds = 900) {
     // For local dev, return a mock or direct local URL
     return `http://localhost:${config.port}/api/artifacts/download?key=${encodeURIComponent(key)}&expiresIn=${expiresInSeconds}`;
+  }
+
+  async findLatestScanReportByHostname(hostname) {
+    if (!hostname) return null;
+    const sanitized = sanitizeTargetHost(hostname);
+    const candidateDirs = [
+      path.join(this.baseDir, 'scans'),
+      path.resolve(process.cwd(), 'backend', '.local_storage', 's3', 'scans'),
+      path.resolve(process.cwd(), '..', '.local_storage', 's3', 'scans'),
+      path.resolve(process.cwd(), '.local_storage', 's3', 'scans'),
+    ];
+
+    let foundFolders = [];
+    for (const dir of candidateDirs) {
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory() && entry.name.toLowerCase().startsWith(`${sanitized}__`)) {
+            const reportPath = path.join(dir, entry.name, 'report.json');
+            try {
+              const stat = await fs.stat(reportPath);
+              foundFolders.push({ reportPath, mtime: stat.mtimeMs, folderName: entry.name });
+            } catch {}
+          }
+        }
+        if (foundFolders.length > 0) break;
+      } catch {}
+    }
+
+    if (foundFolders.length === 0) {
+      const auditDirs = [
+        path.join(this.baseDir, 'audits'),
+        path.resolve(process.cwd(), 'backend', '.local_storage', 's3', 'audits'),
+        path.resolve(process.cwd(), '..', '.local_storage', 's3', 'audits'),
+        path.resolve(process.cwd(), '.local_storage', 's3', 'audits'),
+      ];
+      for (const dir of auditDirs) {
+        try {
+          const files = await fs.readdir(dir);
+          for (const file of files) {
+            if (file.toLowerCase().startsWith(`${sanitized}__`) && file.endsWith('.json')) {
+              const filePath = path.join(dir, file);
+              const stat = await fs.stat(filePath);
+              foundFolders.push({ reportPath: filePath, mtime: stat.mtimeMs, folderName: file.replace('.json', '') });
+            }
+          }
+          if (foundFolders.length > 0) break;
+        } catch {}
+      }
+    }
+
+    if (foundFolders.length === 0) return null;
+
+    foundFolders.sort((a, b) => b.mtime - a.mtime);
+    const latest = foundFolders[0];
+    try {
+      const content = await fs.readFile(latest.reportPath, 'utf-8');
+      const parsed = JSON.parse(content);
+      const parsedKey = parseScanFromS3Key(latest.folderName) || {};
+      const scanId = parsed.scanId || parsedKey.scanId || latest.folderName.split('__')[1] || 'unknown';
+      const s3Key = `scans/${latest.folderName}/report.json`;
+      return {
+        scanId,
+        targetUrl: parsed.targetUrl || parsed.url || `https://${hostname}`,
+        normalizedHostname: parsed.normalizedHostname || hostname,
+        createdAt: parsed.createdAt || new Date(latest.mtime).toISOString(),
+        status: parsed.status || 'COMPLETED',
+        summary: parsed.summary || {},
+        readinessScore: parsed.summary?.readinessScore ?? null,
+        s3Key,
+        report: parsed,
+      };
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -287,6 +362,73 @@ export class S3StorageService {
       );
       return await res.Body.transformToString();
     } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Discovers the latest completed scan report for a target hostname from S3.
+   * Enables cross-tenant global caching across different users.
+   */
+  async findLatestScanReportByHostname(hostname) {
+    if (!hostname) return null;
+    if (this.useLocal) {
+      return localStorage.findLatestScanReportByHostname(hostname);
+    }
+
+    const sanitized = sanitizeTargetHost(hostname);
+    const prefixes = [`scans/${sanitized}__`, `audits/${sanitized}__`];
+
+    let candidateKeys = [];
+    for (const prefix of prefixes) {
+      try {
+        const res = await s3Client.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket,
+            Prefix: prefix,
+            MaxKeys: 30,
+          })
+        );
+        for (const item of res.Contents || []) {
+          if (item.Key && (item.Key.endsWith('/report.json') || item.Key.endsWith('.json'))) {
+            candidateKeys.push({
+              key: item.Key,
+              lastModified: item.LastModified ? new Date(item.LastModified).getTime() : 0,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(`[S3Storage] ListObjects failed for prefix ${prefix}:`, err.message);
+      }
+    }
+
+    if (candidateKeys.length === 0) {
+      return localStorage.findLatestScanReportByHostname(hostname);
+    }
+
+    candidateKeys.sort((a, b) => b.lastModified - a.lastModified);
+    const newest = candidateKeys[0];
+
+    try {
+      const content = await this.getObjectContent(newest.key);
+      if (!content) return null;
+      const parsed = JSON.parse(content);
+      const parsedKey = parseScanFromS3Key(newest.key) || {};
+      const scanId = parsed.scanId || parsedKey.scanId || 'unknown';
+
+      return {
+        scanId,
+        targetUrl: parsed.targetUrl || parsed.url || `https://${hostname}`,
+        normalizedHostname: parsed.normalizedHostname || hostname,
+        createdAt: parsed.createdAt || (newest.lastModified ? new Date(newest.lastModified).toISOString() : new Date().toISOString()),
+        status: parsed.status || 'COMPLETED',
+        summary: parsed.summary || {},
+        readinessScore: parsed.summary?.readinessScore ?? null,
+        s3Key: newest.key,
+        report: parsed,
+      };
+    } catch (err) {
+      console.warn(`[S3Storage] Failed to parse S3 report ${newest.key}:`, err.message);
       return null;
     }
   }
