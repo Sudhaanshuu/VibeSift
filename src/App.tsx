@@ -23,6 +23,10 @@ import { SampleReportsPage } from './components/pages/SampleReportsPage';
 import { RemediationSpecsPage } from './components/pages/RemediationSpecsPage';
 import { PrivacyPolicyPage } from './components/pages/PrivacyPolicyPage';
 import { SecurityPolicyPage } from './components/pages/SecurityPolicyPage';
+import { PricingPage } from './components/pages/PricingPage';
+import { RefundPolicyPage } from './components/pages/RefundPolicyPage';
+import { TermsPage } from './components/pages/TermsPage';
+import { ContactPage } from './components/pages/ContactPage';
 
 // Real App Routes & Pages
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -91,6 +95,14 @@ export const AppContent: React.FC = () => {
       document.title = 'Privacy Policy & Data Collection Disclosures — VibeSift by Pixir';
     } else if (path === '/security') {
       document.title = 'Security & Responsible Disclosure (RFC 9116) — VibeSift by Pixir';
+    } else if (path === '/pricing') {
+      document.title = 'Audit Plans & Pricing (Free vs Deep) — VibeSift by Pixir';
+    } else if (path === '/refund-policy' || path === '/refund') {
+      document.title = 'Cancellation & Refund Policy — VibeSift by Pixir';
+    } else if (path === '/terms') {
+      document.title = 'Terms of Service & Audit Authorization — VibeSift by Pixir';
+    } else if (path === '/contact') {
+      document.title = 'Contact Support & Operational Information — VibeSift by Pixir';
     } else if (path === '/login') {
       document.title = 'Sign In — VibeSift';
     } else if (path === '/signup') {
@@ -139,6 +151,26 @@ export const AppContent: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const navigateToPricing = () => {
+    navigate('/pricing');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToRefund = () => {
+    navigate('/refund-policy');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToTerms = () => {
+    navigate('/terms');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToContact = () => {
+    navigate('/contact');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const commonNavProps = {
     onBackToHome,
     onNavigateToApp: navigateToDashboard,
@@ -147,6 +179,10 @@ export const AppContent: React.FC = () => {
     onNavigateToRemediation: navigateToRemediation,
     onNavigateToPrivacy: navigateToPrivacy,
     onNavigateToSecurity: navigateToSecurity,
+    onNavigateToPricing: navigateToPricing,
+    onNavigateToRefund: navigateToRefund,
+    onNavigateToTerms: navigateToTerms,
+    onNavigateToContact: navigateToContact,
     onOpenPrivacyNotice: () => setPolicyModal({ isOpen: true, type: 'privacy' }),
     onOpenSecurityPolicy: () => setPolicyModal({ isOpen: true, type: 'security' }),
   };
@@ -206,6 +242,34 @@ export const AppContent: React.FC = () => {
         <Route
           path="/security"
           element={<SecurityPolicyPage {...commonNavProps} />}
+        />
+
+        {/* View 7: Dedicated Pricing & Audit Plans Page */}
+        <Route
+          path="/pricing"
+          element={<PricingPage {...commonNavProps} />}
+        />
+
+        {/* View 8: Dedicated Cancellation & Refund Policy Page */}
+        <Route
+          path="/refund-policy"
+          element={<RefundPolicyPage {...commonNavProps} />}
+        />
+        <Route
+          path="/refund"
+          element={<RefundPolicyPage {...commonNavProps} />}
+        />
+
+        {/* View 9: Dedicated Terms of Service & Audit Authorization Page */}
+        <Route
+          path="/terms"
+          element={<TermsPage {...commonNavProps} />}
+        />
+
+        {/* View 10: Dedicated Contact & Operational Details Page */}
+        <Route
+          path="/contact"
+          element={<ContactPage {...commonNavProps} />}
         />
 
         {/* Auth Routes */}

@@ -27,6 +27,10 @@ app.listen(PORT, () => {
    • DELETE /api/sites/:siteId
    • POST /api/sites/verification-challenges
    • POST /api/sites/:siteId/verify
+   • GET  /api/payments/config
+   • POST /api/payments/validate-coupon
+   • POST /api/payments/create-order
+   • POST /api/payments/verify
 
 🛡️ Security & Modes:
    • SSRF Protection: ACTIVE (blocks loopback, link-local, AWS IMDS, RFC 1918)

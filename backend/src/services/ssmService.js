@@ -124,6 +124,8 @@ export async function bootstrapEnvironmentFromSSM(pathPrefix = process.env.SSM_P
       'turnstile/site-key': 'TURNSTILE_SITE_KEY',
       'turnstile/secret-key': 'TURNSTILE_SECRET_KEY',
       'turnstile/enabled': 'TURNSTILE_ENABLED',
+      'razorpay/key-id': 'RAZORPAY_KEY_ID',
+      'razorpay/key-secret': 'RAZORPAY_KEY_SECRET',
     };
 
     for (const [paramPath, value] of Object.entries(params)) {

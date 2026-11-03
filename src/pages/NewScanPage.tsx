@@ -26,6 +26,9 @@ export const NewScanPage: React.FC = () => {
     profile: ScanProfile;
     acknowledgedTerms: boolean;
     turnstileToken?: string;
+    paymentId?: string;
+    orderId?: string;
+    couponCode?: string;
   } | null>(null);
 
   const savedSitesList = (sites || []).map((s) => ({
@@ -39,6 +42,9 @@ export const NewScanPage: React.FC = () => {
     acknowledgedTerms: boolean;
     turnstileToken?: string;
     forceRescan?: boolean;
+    paymentId?: string;
+    orderId?: string;
+    couponCode?: string;
   }) => {
     setSubmissionError(null);
 
@@ -65,6 +71,9 @@ export const NewScanPage: React.FC = () => {
         acknowledgedTerms: data.acknowledgedTerms,
         forceRescan: data.forceRescan,
         turnstileToken: data.turnstileToken,
+        paymentId: data.paymentId,
+        orderId: data.orderId,
+        couponCode: data.couponCode,
       });
 
       // Navigate to detailed scan report page (which loads UI from JSON)

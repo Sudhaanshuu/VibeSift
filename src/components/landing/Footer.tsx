@@ -21,6 +21,10 @@ interface FooterProps {
   onNavigateToRemediation?: () => void;
   onNavigateToPrivacy?: () => void;
   onNavigateToSecurity?: () => void;
+  onNavigateToPricing?: () => void;
+  onNavigateToRefund?: () => void;
+  onNavigateToTerms?: () => void;
+  onNavigateToContact?: () => void;
   onOpenPrivacyNotice?: () => void;
   onOpenSecurityPolicy?: () => void;
   onOpenCookiePreferences?: () => void;
@@ -33,6 +37,10 @@ export const Footer: React.FC<FooterProps> = ({
   onNavigateToRemediation,
   onNavigateToPrivacy,
   onNavigateToSecurity,
+  onNavigateToPricing,
+  onNavigateToRefund,
+  onNavigateToTerms,
+  onNavigateToContact,
   onOpenPrivacyNotice,
   onOpenSecurityPolicy,
   onOpenCookiePreferences
@@ -75,10 +83,16 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-brand-emerald" />
-                <span>Contact: </span>
-                <a href={`mailto:${brandConfig.contactEmail}`} className="text-brand-emerald-deep font-bold hover:underline">
-                  {brandConfig.contactEmail}
+                <span>Support: </span>
+                <a href="mailto:support@pixir.in" className="text-brand-emerald-deep font-bold hover:underline">
+                  support@pixir.in
                 </a>
+              </div>
+              <div className="text-[11px] text-slate-500 font-sans pt-1 space-y-0.5">
+                <p><strong>Operating Hours:</strong> Mon – Fri, 9:30 AM – 6:30 PM IST</p>
+                <p><strong>Turnaround SLA:</strong> 24 to 48 business hours</p>
+                <p><strong>Registered Address:</strong> Pixir Operations, Chennai, TN, India — 603103</p>
+                <p><strong>Founder & Operator:</strong> Sudhanshu Kumar (sudhanshu@pixir.in)</p>
               </div>
             </div>
 
@@ -142,7 +156,44 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <ul className="space-y-2 text-xs text-brand-text-secondary">
               <li>
+                <button
+                  type="button"
+                  onClick={onNavigateToPricing}
+                  className="hover:text-brand-emerald-deep font-medium transition-colors text-left"
+                >
+                  Plans & Pricing (Free vs ₹39)
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={onNavigateToTerms}
+                  className="hover:text-brand-emerald-deep font-medium transition-colors text-left"
+                >
+                  Terms of Service & Consent
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={onNavigateToRefund}
+                  className="hover:text-brand-emerald-deep font-medium transition-colors text-left"
+                >
+                  Cancellation & Refund Policy
+                </button>
+              </li>
+              <li>
                 <button 
+                  type="button"
+                  onClick={onNavigateToPrivacy || onOpenPrivacyNotice} 
+                  className="hover:text-brand-emerald-deep font-medium transition-colors text-left"
+                >
+                  Privacy Policy & DPDP
+                </button>
+              </li>
+              <li>
+                <button 
+                  type="button"
                   onClick={onNavigateToSecurity || onOpenSecurityPolicy} 
                   className="hover:text-brand-emerald-deep font-medium transition-colors text-left"
                 >
@@ -150,15 +201,17 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
               </li>
               <li>
-                <button 
-                  onClick={onNavigateToPrivacy || onOpenPrivacyNotice} 
+                <button
+                  type="button"
+                  onClick={onNavigateToContact}
                   className="hover:text-brand-emerald-deep font-medium transition-colors text-left"
                 >
-                  Privacy & Data Collection
+                  Contact & Support
                 </button>
               </li>
               <li>
                 <button 
+                  type="button"
                   onClick={() => {
                     if (onOpenCookiePreferences) {
                       onOpenCookiePreferences();
@@ -242,6 +295,27 @@ export const Footer: React.FC<FooterProps> = ({
 
           <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium">
             <button
+              onClick={onNavigateToPricing}
+              className="hover:text-brand-emerald-deep hover:underline transition-colors"
+            >
+              Pricing
+            </button>
+            <span>·</span>
+            <button
+              onClick={onNavigateToTerms}
+              className="hover:text-brand-emerald-deep hover:underline transition-colors"
+            >
+              Terms of Service
+            </button>
+            <span>·</span>
+            <button
+              onClick={onNavigateToRefund}
+              className="hover:text-brand-emerald-deep hover:underline transition-colors"
+            >
+              Cancellation & Refund Policy
+            </button>
+            <span>·</span>
+            <button
               onClick={onNavigateToPrivacy || onOpenPrivacyNotice}
               className="hover:text-brand-emerald-deep hover:underline transition-colors"
             >
@@ -253,6 +327,13 @@ export const Footer: React.FC<FooterProps> = ({
               className="hover:text-brand-emerald-deep hover:underline transition-colors"
             >
               Security Policy
+            </button>
+            <span>·</span>
+            <button
+              onClick={onNavigateToContact}
+              className="hover:text-brand-emerald-deep hover:underline transition-colors"
+            >
+              Contact Us
             </button>
             <span>·</span>
             <button

@@ -307,32 +307,62 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
             </ul>
           </section>
 
-          {/* Section 8 */}
+          {/* Section 8: Payment Data & Razorpay Disclosures */}
           <section className="space-y-3">
             <h2 className="text-lg font-bold text-brand-text flex items-center gap-2 border-b border-brand-border pb-2">
               <span className="text-brand-emerald font-mono">08.</span>
-              <span>Contact & Data Protection Officer</span>
+              <span>Payment Processing & Financial Data (Razorpay)</span>
             </h2>
             <p>
-              For privacy inquiries, data subject requests, or regulatory queries, please contact our Data Protection desk:
+              When purchasing Deep Search audits (₹39 per scan), transactions are processed through <strong>Razorpay Software Private Limited</strong>, an RBI-regulated and PCI-DSS Level 1 compliant payment aggregator.
             </p>
-            <div className="p-4 rounded-xl border border-brand-border bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="font-bold text-brand-text flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-brand-emerald" />
-                  <span>Pixir Data Protection Desk</span>
-                </div>
-                <p className="text-xs text-brand-text-secondary">
-                  Direct Inquiries: <a href="mailto:privacy@pixir.in" className="text-brand-emerald-deep font-semibold hover:underline">privacy@pixir.in</a> or <a href="mailto:audit@pixir.in" className="text-brand-emerald-deep font-semibold hover:underline">audit@pixir.in</a>
-                </p>
-              </div>
+            <ul className="list-disc pl-5 space-y-1.5">
+              <li>
+                <strong>No Storage of Sensitive Cardholder Data:</strong> VibeSift and Pixir do NOT collect, view, or store full credit/debit card numbers, CVVs, or Netbanking passwords. All payment details are encrypted and entered directly into Razorpay's secure checkout iframe.
+              </li>
+              <li>
+                <strong>Transaction References:</strong> We only store transaction references (e.g. <code>razorpay_payment_id</code>, order timestamps, and purchase amounts) necessary to fulfill audit access, issue invoices, and process refunds.
+              </li>
+            </ul>
+          </section>
 
-              <a
-                href="mailto:privacy@pixir.in?subject=Privacy%20Data%20Request"
-                className="px-4 py-2 rounded-lg bg-brand-emerald text-white text-xs font-bold hover:bg-brand-emerald-dark transition-colors shrink-0"
-              >
-                Submit Privacy Request
-              </a>
+          {/* Section 9 */}
+          <section className="space-y-3">
+            <h2 className="text-lg font-bold text-brand-text flex items-center gap-2 border-b border-brand-border pb-2">
+              <span className="text-brand-emerald font-mono">09.</span>
+              <span>Operational Information & Merchant Contact</span>
+            </h2>
+            <p>
+              For privacy inquiries, data subject access/erasure requests under the Indian DPDP Act 2023, or regulatory queries, please contact our Data Protection Officer:
+            </p>
+            <div className="bg-slate-50 border border-brand-border rounded-2xl p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-slate-500 font-bold block mb-1">Customer Support Email</span>
+                  <a href="mailto:support@pixir.in" className="text-brand-emerald-deep font-bold hover:underline font-mono">
+                    support@pixir.in
+                  </a>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold block mb-1">Operating Hours & SLA</span>
+                  <span className="font-semibold block">Monday – Friday, 9:30 AM – 6:30 PM IST</span>
+                  <span className="text-slate-500 text-[11px]">Turnaround: 24 to 48 business hours</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold block mb-1">Registered Physical Address</span>
+                  <span className="text-slate-700 block font-medium">
+                    Pixir Operations<br />
+                    Chennai, Tamil Nadu, India — 603103
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold block mb-1">Operator & Founder</span>
+                  <span className="font-bold text-brand-text block">Sudhanshu Kumar</span>
+                  <a href="mailto:sudhanshu@pixir.in" className="text-brand-emerald-deep font-mono hover:underline">
+                    sudhanshu@pixir.in
+                  </a>
+                </div>
+              </div>
             </div>
           </section>
 
