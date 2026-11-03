@@ -7,8 +7,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isMockMode: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<SignupResult>;
+  login: (email: string, password: string, turnstileToken?: string) => Promise<void>;
+  signup: (email: string, password: string, name: string, turnstileToken?: string) => Promise<SignupResult>;
   confirmSignup: (email: string, code: string) => Promise<{ success: boolean; message: string }>;
   resendCode: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
@@ -38,10 +38,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadInitialSession();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, turnstileToken?: string) => {
     setIsLoading(true);
     try {
-      const session = await authService.login({ email, password });
+      const session = await authService.login({ email, password, turnstileToken });
       setUser(session.user);
       setIsLoginModalOpen(false);
     } finally {
@@ -49,10 +49,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (email: string, password: string, name: string): Promise<SignupResult> => {
+  const signup = async (email: string, password: string, name: string, turnstileToken?: string): Promise<SignupResult> => {
     setIsLoading(true);
     try {
-      const result = await authService.signup({ email, password, name });
+      const result = await authService.signup({ email, password, name, turnstileToken });
       if (result.user) {
         setUser(result.user);
         setIsLoginModalOpen(false);

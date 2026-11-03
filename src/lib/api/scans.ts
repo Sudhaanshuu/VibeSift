@@ -6,6 +6,7 @@ export interface ScanSubmissionPayload {
   profile: ScanProfile;
   acknowledgedTerms: boolean;
   forceRescan?: boolean;
+  turnstileToken?: string;
 }
 
 export interface ScanSubmissionResponse {
@@ -45,8 +46,15 @@ export async function precheckScanTarget(url: string): Promise<PrecheckResult> {
  * Initiates a new audit scan against the backend.
  */
 export async function submitScan(payload: ScanSubmissionPayload): Promise<ScanSubmissionResponse> {
+  const headers: Record<string, string> = {};
+  if (payload.turnstileToken) {
+    headers['cf-turnstile-response'] = payload.turnstileToken;
+    headers['x-turnstile-token'] = payload.turnstileToken;
+  }
+
   return apiClient<ScanSubmissionResponse>('/scans', {
     method: 'POST',
+    headers,
     body: JSON.stringify(payload),
   });
 }

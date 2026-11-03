@@ -24,7 +24,7 @@ interface AuditContextType {
     percent: number;
     currentEngine?: string;
   } | null;
-  startNewScan: (url: string, profile: ScanProfile) => Promise<string>;
+  startNewScan: (url: string, profile: ScanProfile, turnstileToken?: string) => Promise<string>;
   rescanWebsite: (scanId: string) => Promise<void>;
   markFindingResolved: (findingId: string) => void;
   verifyDomain: (siteId: string) => Promise<boolean>;
@@ -131,7 +131,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setScansList(prev => prev.map(s => s.scanId === updatedReport.scanId ? updatedReport : s));
   };
 
-  const startNewScan = async (url: string, profile: ScanProfile): Promise<string> => {
+  const startNewScan = async (url: string, profile: ScanProfile, turnstileToken?: string): Promise<string> => {
     setIsScanning(true);
     let normalized = url.trim();
     if (!/^https?:\/\//i.test(normalized)) {
@@ -151,6 +151,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         url: normalized,
         profile,
         acknowledgedTerms: true,
+        turnstileToken,
       });
 
       let attempts = 0;

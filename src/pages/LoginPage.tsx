@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { Button } from '../components/common/Button';
+import { TurnstileWidget } from '../components/common/TurnstileWidget';
 import { Mail, Lock, ArrowRight, AlertTriangle, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
@@ -13,6 +14,8 @@ export const LoginPage: React.FC = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
 
   const { login, confirmSignup, resendCode } = useAuth();
   const navigate = useNavigate();
@@ -30,13 +33,19 @@ export const LoginPage: React.FC = () => {
       setError('Please enter your account password.');
       return;
     }
+    if (!turnstileToken) {
+      setError('Please complete the bot protection security challenge before signing in.');
+      return;
+    }
     setError(null);
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email, password, turnstileToken);
       navigate(destination, { replace: true });
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       if (err.code === 'USER_NOT_CONFIRMED') {
         setNeedsConfirmation(true);
         setInfoMessage('Account is not confirmed. Please enter the verification code sent to your email.');
@@ -137,6 +146,18 @@ export const LoginPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Cloudflare Turnstile Bot Protection */}
+              <TurnstileWidget
+                onVerify={(token) => {
+                  setTurnstileToken(token);
+                  setError(null);
+                }}
+                onExpire={() => setTurnstileToken('')}
+                resetKey={turnstileResetKey}
+                action="login"
+                label="Sign In Security Check"
+              />
 
               {error && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">

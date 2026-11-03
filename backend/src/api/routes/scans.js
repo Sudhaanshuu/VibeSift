@@ -7,6 +7,7 @@ import { matchesVerifiedDomain } from '../../services/domainVerification.js';
 import { assertTransition } from '../../services/scanStateService.js';
 import { ScanSubmissionPayloadSchema } from '../../types/index.js';
 import { enforceScanRateLimit, getScanQuota } from '../middleware/rateLimiter.js';
+import { verifyTurnstileToken } from '../middleware/turnstile.js';
 import { startScanWorkflow } from '../../orchestration/workflowHandler.js';
 
 export const scansRouter = Router();
@@ -100,7 +101,7 @@ scansRouter.get('/precheck', async (req, res, next) => {
 /**
  * POST /scans (or /api/scans) — Submit a new website audit scan
  */
-scansRouter.post('/', enforceScanRateLimit, async (req, res, next) => {
+scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, res, next) => {
   try {
     const payload = ScanSubmissionPayloadSchema.parse(req.body);
     const userId = req.user.id;

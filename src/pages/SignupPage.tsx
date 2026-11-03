@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BrandLogo } from '../components/brand/BrandLogo';
 import { Button } from '../components/common/Button';
+import { TurnstileWidget } from '../components/common/TurnstileWidget';
 import { Mail, Lock, User, ArrowRight, AlertTriangle, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export const SignupPage: React.FC = () => {
@@ -14,6 +15,8 @@ export const SignupPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
 
   const { signup, confirmSignup, login, resendCode } = useAuth();
   const navigate = useNavigate();
@@ -28,11 +31,15 @@ export const SignupPage: React.FC = () => {
       setError('Password must be at least 8 characters long.');
       return;
     }
+    if (!turnstileToken) {
+      setError('Please complete the bot protection security challenge before creating an account.');
+      return;
+    }
     setError(null);
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      const result = await signup(email, password, name);
+      const result = await signup(email, password, name, turnstileToken);
       if (result.userConfirmed) {
         navigate('/app', { replace: true });
       } else {
@@ -40,6 +47,8 @@ export const SignupPage: React.FC = () => {
         setInfoMessage('Verification code sent to your email. Please enter it below to activate your account.');
       }
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       setError(err.message || 'Account registration failed.');
     } finally {
       setSubmitting(false);
@@ -153,6 +162,18 @@ export const SignupPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Cloudflare Turnstile Bot Protection */}
+              <TurnstileWidget
+                onVerify={(token) => {
+                  setTurnstileToken(token);
+                  setError(null);
+                }}
+                onExpire={() => setTurnstileToken('')}
+                resetKey={turnstileResetKey}
+                action="signup"
+                label="Developer Registration Security Check"
+              />
 
               {error && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">

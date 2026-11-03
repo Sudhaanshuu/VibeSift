@@ -13,12 +13,13 @@ export async function verifyTurnstileToken(req, res, next) {
 
   const token =
     req.headers['cf-turnstile-response'] ||
+    req.headers['x-turnstile-token'] ||
     req.body?.turnstileToken ||
     req.query?.turnstileToken;
 
   if (!token) {
-    // If not in production and demo auth is permitted, pass with bypass
-    if (!config.isProduction && config.allowDemoAuth) {
+    // If not in production, demo auth is permitted, AND turnstile is not enabled, pass with bypass
+    if (!config.isProduction && config.allowDemoAuth && !config.turnstile.enabled) {
       req.botVerified = true;
       return next();
     }

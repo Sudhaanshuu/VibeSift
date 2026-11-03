@@ -6,6 +6,7 @@ import { targetUrlSchema, normalizeTargetUrl } from '../../lib/validation/urlSch
 import { ScanScopeSelector } from './ScanScopeSelector';
 import { ScanProfile } from '../../types/audit';
 import { Button } from './Button';
+import { TurnstileWidget } from './TurnstileWidget';
 import { Globe, ArrowRight, AlertTriangle, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
 
 const formSchema = z.object({
@@ -21,7 +22,7 @@ type FormValues = z.infer<typeof formSchema>;
 export interface SiteUrlFormProps {
   initialUrl?: string;
   initialProfile?: ScanProfile;
-  onSubmitScan: (data: { url: string; profile: ScanProfile; acknowledgedTerms: boolean }) => Promise<void>;
+  onSubmitScan: (data: { url: string; profile: ScanProfile; acknowledgedTerms: boolean; turnstileToken?: string }) => Promise<void>;
   isSubmitting?: boolean;
   backendError?: string | null;
   savedSites?: { hostname: string; isVerified: boolean }[];
@@ -40,6 +41,8 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   onVerifyDomainClick,
 }) => {
   const [internalError, setInternalError] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
 
   const {
     register,
@@ -68,14 +71,22 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   const onFormSubmit = async (values: FormValues) => {
     setInternalError(null);
 
+    if (!turnstileToken) {
+      setInternalError('Please complete the bot protection security challenge before starting the audit.');
+      return;
+    }
+
     // If deep scan is chosen, user authorizes via acknowledgedTerms
     try {
       await onSubmitScan({
         url: values.url,
         profile: values.profile,
         acknowledgedTerms: values.acknowledgedTerms,
+        turnstileToken,
       });
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       setInternalError(err.message || 'Failed to initiate scan. Please check your network connection.');
     }
   };
@@ -172,6 +183,18 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
           </p>
         )}
       </div>
+
+      {/* Cloudflare Turnstile Bot Protection */}
+      <TurnstileWidget
+        onVerify={(token) => {
+          setTurnstileToken(token);
+          setInternalError(null);
+        }}
+        onExpire={() => setTurnstileToken('')}
+        resetKey={turnstileResetKey}
+        action="scan_url_submit"
+        label="Pre-Audit Bot Verification"
+      />
 
       {/* Backend / Submission Errors */}
       {(backendError || internalError) && (

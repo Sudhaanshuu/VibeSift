@@ -4,12 +4,14 @@ import { apiClient, setAuthToken, ApiError } from './client';
 export interface LoginCredentials {
   email: string;
   password: string;
+  turnstileToken?: string;
 }
 
 export interface SignupCredentials {
   email: string;
   password: string;
   name: string;
+  turnstileToken?: string;
 }
 
 export interface SignupResult {
@@ -40,8 +42,14 @@ const STORAGE_KEY_USER = 'vibesift_user_session';
  */
 class ProductionAuthService {
   async login(creds: LoginCredentials): Promise<AuthSession> {
+    const headers: Record<string, string> = {};
+    if (creds.turnstileToken) {
+      headers['cf-turnstile-response'] = creds.turnstileToken;
+      headers['x-turnstile-token'] = creds.turnstileToken;
+    }
     const data = await apiClient<AuthSession>('/auth/login', {
       method: 'POST',
+      headers,
       body: JSON.stringify(creds),
     });
     setAuthToken(data.token);
@@ -50,8 +58,14 @@ class ProductionAuthService {
   }
 
   async signup(creds: SignupCredentials): Promise<SignupResult> {
+    const headers: Record<string, string> = {};
+    if (creds.turnstileToken) {
+      headers['cf-turnstile-response'] = creds.turnstileToken;
+      headers['x-turnstile-token'] = creds.turnstileToken;
+    }
     const data = await apiClient<SignupResult>('/auth/signup', {
       method: 'POST',
+      headers,
       body: JSON.stringify(creds),
     });
     if (data.token && data.user) {
