@@ -2,12 +2,34 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const DB_DIR = path.resolve('.local_storage');
-if (!fs.existsSync(DB_DIR)) {
-  fs.mkdirSync(DB_DIR, { recursive: true });
+function resolveDbPath() {
+  const envPath = process.env.SQLITE_DB_PATH;
+  if (envPath) {
+    if (path.isAbsolute(envPath)) return envPath;
+    const direct = path.resolve(process.cwd(), envPath);
+    if (fs.existsSync(direct)) return direct;
+    const backendRel = path.resolve(process.cwd(), 'backend', envPath);
+    if (fs.existsSync(backendRel)) return backendRel;
+    const parentRel = path.resolve(process.cwd(), '..', envPath);
+    if (fs.existsSync(parentRel)) return parentRel;
+    return direct;
+  }
+  const candidates = [
+    path.resolve(process.cwd(), '.local_storage', 'vibesift.sqlite'),
+    path.resolve(process.cwd(), 'backend', '.local_storage', 'vibesift.sqlite'),
+    path.resolve(process.cwd(), '..', '.local_storage', 'vibesift.sqlite'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  const defaultDir = path.resolve('.local_storage');
+  if (!fs.existsSync(defaultDir)) {
+    fs.mkdirSync(defaultDir, { recursive: true });
+  }
+  return path.join(defaultDir, 'vibesift.sqlite');
 }
 
-const DB_PATH = process.env.SQLITE_DB_PATH || path.join(DB_DIR, 'vibesift.sqlite');
+const DB_PATH = resolveDbPath();
 
 class SqliteStorage {
   constructor(dbPath = DB_PATH) {

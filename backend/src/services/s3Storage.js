@@ -52,6 +52,22 @@ class LocalFileStorage {
     this.baseDir = path.resolve(process.cwd(), '.local_storage', 's3');
   }
 
+  async _resolvePath(key) {
+    const candidates = [
+      path.join(this.baseDir, key),
+      path.resolve(process.cwd(), 'backend', '.local_storage', 's3', key),
+      path.resolve(process.cwd(), '..', '.local_storage', 's3', key),
+      path.resolve(process.cwd(), '.local_storage', 's3', key),
+    ];
+    for (const p of candidates) {
+      try {
+        await fs.access(p);
+        return p;
+      } catch {}
+    }
+    return path.join(this.baseDir, key);
+  }
+
   async ensureDir(filePath) {
     const dir = path.dirname(filePath);
     await fs.mkdir(dir, { recursive: true });
@@ -66,7 +82,7 @@ class LocalFileStorage {
   }
 
   async getObject(key) {
-    const fullPath = path.join(this.baseDir, key);
+    const fullPath = await this._resolvePath(key);
     try {
       const data = await fs.readFile(fullPath, 'utf-8');
       return data;
@@ -76,7 +92,7 @@ class LocalFileStorage {
   }
 
   async exists(key) {
-    const fullPath = path.join(this.baseDir, key);
+    const fullPath = await this._resolvePath(key);
     try {
       await fs.access(fullPath);
       return true;

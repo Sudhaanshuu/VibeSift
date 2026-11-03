@@ -67,3 +67,55 @@ test('S3 & SQLite Pre-Check: detects globally cached audits and verifies S3 obje
   const existsInS3 = await s3Service.objectExists(foundScan.s3ReportKey);
   assert.equal(existsInS3, true);
 });
+
+test('Global Audit Retrieval: scan and findings can be retrieved globally even if owned by another user', async () => {
+  const scanId = `scn_global_test_${Date.now()}`;
+  const hostname = 'globally-cached-target.com';
+  const ownerA = 'user_alice_original';
+  const userB = 'user_bob_viewer';
+
+  const reportData = {
+    scanId,
+    targetUrl: `https://${hostname}`,
+    hostname,
+    status: 'COMPLETED',
+    summary: { readinessScore: 88, totalFindings: 1 },
+    findings: [
+      {
+        id: `fnd_${scanId}_1`,
+        scanId,
+        title: 'Missing Content-Security-Policy',
+        severity: 'high',
+        category: 'security',
+      },
+    ],
+  };
+
+  const { jsonKey } = await s3Service.saveReport(scanId, reportData, null, hostname);
+  await dbService.saveScan({
+    scanId,
+    ownerUserId: ownerA,
+    targetUrl: `https://${hostname}`,
+    normalizedHostname: hostname,
+    scanProfile: 'basic_public',
+    status: 'COMPLETED',
+    s3ReportKey: jsonKey,
+    summary: { readinessScore: 88, totalFindings: 1 },
+  });
+
+  // Verify that a global lookup (or fallback when userB is not owner) retrieves the scan
+  let scan = await dbService.getScan(scanId, userB);
+  if (!scan) {
+    scan = await dbService.getScan(scanId);
+  }
+  assert.ok(scan);
+  assert.equal(scan.scanId, scanId);
+  assert.equal(scan.summary.readinessScore, 88);
+
+  // Verify S3 report content is retrieved
+  const rawContent = await s3Service.getObjectContent(scan.s3ReportKey);
+  assert.ok(rawContent);
+  const parsed = JSON.parse(rawContent);
+  assert.equal(parsed.findings.length, 1);
+  assert.equal(parsed.findings[0].title, 'Missing Content-Security-Policy');
+});

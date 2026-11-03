@@ -238,187 +238,240 @@ export const ScanDetailPage: React.FC = () => {
       </div>
 
       {/* Live Polling Status / Progress Banner if running */}
-      {isRunning && (
-        <ScanProgress
-          status={report.status}
-          enginesRun={report.enginesRun}
-          durationSeconds={report.durationSeconds}
-        />
-      )}
+      {isRunning ? (
+        <div className="space-y-6">
+          <ScanProgress
+            status={report.status}
+            enginesRun={report.enginesRun}
+            durationSeconds={report.durationSeconds}
+          />
 
-      {/* Executive Summary */}
-      <ReportSummary
-        report={report}
-        onCategoryClick={(cat) => setFilters((prev) => ({ ...prev, category: cat }))}
-      />
+          <div className="rounded-2xl border border-brand-border bg-white p-8 sm:p-12 text-center space-y-5 shadow-subtle">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-mint text-brand-emerald mx-auto shadow-sm">
+              <RefreshCw className="w-8 h-8 animate-spin text-brand-emerald" />
+            </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-brand-border gap-2 overflow-x-auto pb-px scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-        <button
-          onClick={() => setActiveTab('findings')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
-            activeTab === 'findings'
-              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
-          }`}
-        >
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-          <span>Actionable Findings</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
-            {rawFindings.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('registry')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
-            activeTab === 'registry'
-              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
-          }`}
-        >
-          <CheckSquare className="w-3.5 h-3.5 shrink-0" />
-          <span>Full Check Registry</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-100 text-emerald-800">
-            {effectiveChecks.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('dpdp')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
-            activeTab === 'dpdp'
-              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
-          }`}
-        >
-          <Lock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-          <span>Privacy & DPDP Act (2023)</span>
-          {report.privacyCompliance && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-100 text-indigo-800 uppercase">
-              {(
-                report.privacyCompliance.overallRating ||
-                report.privacyCompliance.complianceRating ||
-                'review'
-              ).replace('_', ' ')}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('comparison')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
-            activeTab === 'comparison'
-              ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
-              : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
-          }`}
-        >
-          <GitCompare className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-          <span>Deep vs Basic Differential</span>
-          {report.scanProfile === 'authorized_deep' && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-100 text-purple-800">
-              Deep Active
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Tab 1: Actionable Findings */}
-      {activeTab === 'findings' && (
-        <div className="space-y-6 min-w-0">
-          {/* Filter Toolbar */}
-          <div className="rounded-2xl border border-brand-border bg-white p-4 sm:p-5 shadow-subtle min-w-0">
-            <FindingFilters
-              filters={filters}
-              onChange={setFilters}
-              severityCounts={severityCounts}
-              totalCount={rawFindings.length}
-            />
-          </div>
-
-          {/* Findings List */}
-          <div className="space-y-4 min-w-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-1">
-              <h3 className="text-sm font-bold text-brand-text">
-                Audit Findings ({filteredFindings.length} of {rawFindings.length})
+            <div className="space-y-2 max-w-lg mx-auto">
+              <h3 className="text-lg font-bold text-brand-text">
+                Live Audit in Progress for {report.normalizedHostname}
               </h3>
-              <span className="text-xs text-brand-text-secondary font-mono">
-                Click finding card to inspect server headers, reproduction curl & fix diffs
-              </span>
-            </div>
-
-            {filteredFindings.length === 0 ? (
-              <EmptyState
-                title="No Findings Match Filter"
-                description="All clear for this filter combination, or try resetting search filters."
-                actionLabel="Reset All Filters"
-                onAction={() =>
-                  setFilters({
-                    search: '',
-                    severity: 'all',
-                    category: 'all',
-                    verificationStatus: 'all',
-                  })
-                }
-              />
-            ) : (
-              <div className="space-y-3 min-w-0">
-                {filteredFindings.map((finding) => (
-                  <FindingCard
-                    key={finding.id}
-                    finding={finding}
-                    onResolve={() => handleMarkResolved(finding.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Full Check Registry */}
-      {activeTab === 'registry' && <CheckRegistryView checks={effectiveChecks} />}
-
-      {/* Tab 3: Privacy & DPDP Compliance */}
-      {activeTab === 'dpdp' && <PrivacyComplianceSection summary={report.privacyCompliance} />}
-
-      {/* Tab 4: Deep vs Basic Comparison */}
-      {activeTab === 'comparison' && (
-        <DeepComparisonSection
-          comparison={report.deepComparison}
-          scanProfile={report.scanProfile}
-        />
-      )}
-
-      {/* Explicit What Was Not Tested Section */}
-      {report.checksNotPerformed && report.checksNotPerformed.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:p-6 space-y-3 min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Checks Not Performed in this Scope
-              </h4>
-              <p className="text-[11px] text-slate-500">
-                Safe audits observe external properties only. "Not detected" is distinct from "not tested".
+              <p className="text-xs text-brand-text-secondary leading-relaxed">
+                Evaluating launch readiness across SEO crawlability, Core Web Vitals, accessibility indicators, and HTTPS security response headers. This page will update automatically in real time as each engine completes.
               </p>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
-            {report.checksNotPerformed.map((item, idx) => (
-              <div
-                key={idx}
-                className="p-2.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-700 flex items-start gap-2 min-w-0"
-              >
-                <span className="text-slate-400 font-bold shrink-0">•</span>
-                <span className="break-all">{item}</span>
-              </div>
-            ))}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                Live Engine Execution
+              </span>
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-mono text-slate-600 bg-slate-50 border border-slate-200">
+                Pipeline State: <strong className="text-slate-900">{report.status}</strong>
+              </span>
+            </div>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Failure Alert Banner if FAILED */}
+          {report.status === 'FAILED' && (
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-6 space-y-3">
+              <div className="flex items-center gap-2 text-red-800 font-bold">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <span>Audit Execution Failed</span>
+              </div>
+              <p className="text-xs text-red-700 leading-relaxed font-mono">
+                {report.errorMessage || 'Inspection engine encountered an unexpected error. Please check the website URL and retry.'}
+              </p>
+              <div className="pt-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleRescan}
+                  isLoading={rescanMutation.isPending}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                >
+                  Retry Audit
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Executive Summary */}
+          <ReportSummary
+            report={report}
+            onCategoryClick={(cat) => setFilters((prev) => ({ ...prev, category: cat }))}
+          />
+
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-brand-border gap-2 overflow-x-auto pb-px scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+            <button
+              onClick={() => setActiveTab('findings')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
+                activeTab === 'findings'
+                  ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+              }`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>Actionable Findings</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
+                {rawFindings.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('registry')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
+                activeTab === 'registry'
+                  ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5 shrink-0" />
+              <span>Full Check Registry</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-100 text-emerald-800">
+                {effectiveChecks.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('dpdp')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
+                activeTab === 'dpdp'
+                  ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <span>Privacy & DPDP Act (2023)</span>
+              {report.privacyCompliance && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-100 text-indigo-800 uppercase">
+                  {(
+                    report.privacyCompliance.overallRating ||
+                    report.privacyCompliance.complianceRating ||
+                    'review'
+                  ).replace('_', ' ')}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab('comparison')}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-b-2 whitespace-nowrap min-h-[44px] ${
+                activeTab === 'comparison'
+                  ? 'border-brand-emerald text-brand-emerald bg-white shadow-xs'
+                  : 'border-transparent text-brand-text-secondary hover:text-brand-text hover:bg-slate-50'
+              }`}
+            >
+              <GitCompare className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+              <span>Deep vs Basic Differential</span>
+              {report.scanProfile === 'authorized_deep' && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-100 text-purple-800">
+                  Deep Active
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Tab 1: Actionable Findings */}
+          {activeTab === 'findings' && (
+            <div className="space-y-6 min-w-0">
+              {/* Filter Toolbar */}
+              <div className="rounded-2xl border border-brand-border bg-white p-4 sm:p-5 shadow-subtle min-w-0">
+                <FindingFilters
+                  filters={filters}
+                  onChange={setFilters}
+                  severityCounts={severityCounts}
+                  totalCount={rawFindings.length}
+                />
+              </div>
+
+              {/* Findings List */}
+              <div className="space-y-4 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 px-1">
+                  <h3 className="text-sm font-bold text-brand-text">
+                    Audit Findings ({filteredFindings.length} of {rawFindings.length})
+                  </h3>
+                  <span className="text-xs text-brand-text-secondary font-mono">
+                    Click finding card to inspect server headers, reproduction curl & fix diffs
+                  </span>
+                </div>
+
+                {filteredFindings.length === 0 ? (
+                  <EmptyState
+                    title="No Findings Match Filter"
+                    description="All clear for this filter combination, or try resetting search filters."
+                    actionLabel="Reset All Filters"
+                    onAction={() =>
+                      setFilters({
+                        search: '',
+                        severity: 'all',
+                        category: 'all',
+                        verificationStatus: 'all',
+                      })
+                    }
+                  />
+                ) : (
+                  <div className="space-y-3 min-w-0">
+                    {filteredFindings.map((finding) => (
+                      <FindingCard
+                        key={finding.id}
+                        finding={finding}
+                        onResolve={() => handleMarkResolved(finding.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab 2: Full Check Registry */}
+          {activeTab === 'registry' && <CheckRegistryView checks={effectiveChecks} />}
+
+          {/* Tab 3: Privacy & DPDP Compliance */}
+          {activeTab === 'dpdp' && <PrivacyComplianceSection summary={report.privacyCompliance} />}
+
+          {/* Tab 4: Deep vs Basic Comparison */}
+          {activeTab === 'comparison' && (
+            <DeepComparisonSection
+              comparison={report.deepComparison}
+              scanProfile={report.scanProfile}
+            />
+          )}
+
+          {/* Explicit What Was Not Tested Section */}
+          {report.checksNotPerformed && report.checksNotPerformed.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:p-6 space-y-3 min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Checks Not Performed in this Scope
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Safe audits observe external properties only. "Not detected" is distinct from "not tested".
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
+                {report.checksNotPerformed.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-700 flex items-start gap-2 min-w-0"
+                  >
+                    <span className="text-slate-400 font-bold shrink-0">•</span>
+                    <span className="break-all">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

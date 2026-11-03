@@ -1,19 +1,19 @@
 import React from 'react';
 
 interface ReadinessScoreGaugeProps {
-  score: number;
+  score?: number;
   size?: number;
   strokeWidth?: number;
 }
 
 export const ReadinessScoreGauge: React.FC<ReadinessScoreGaugeProps> = ({
-  score,
+  score = 0,
   size = 140,
   strokeWidth = 10,
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const safeScore = Math.min(100, Math.max(0, score));
+  const safeScore = Math.min(100, Math.max(0, Number(score) || 0));
   const strokeDashoffset = circumference - (safeScore / 100) * circumference;
 
   let strokeColor = '#22C55E'; // Emerald

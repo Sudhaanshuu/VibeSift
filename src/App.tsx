@@ -42,6 +42,7 @@ import { NewScanModal } from './components/dashboard/NewScanModal';
 import { LoginModal } from './components/common/LoginModal';
 import { PolicyModal } from './components/common/PolicyModals';
 import { CookieConsentBanner } from './components/common/CookieConsentBanner';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -216,7 +217,14 @@ export const AppContent: React.FC = () => {
           <Route element={<AppShell />}>
             <Route index element={<DashboardPage />} />
             <Route path="scans/new" element={<NewScanPage />} />
-            <Route path="scans/:scanId" element={<ScanDetailPage />} />
+            <Route
+              path="scans/:scanId"
+              element={
+                <ErrorBoundary>
+                  <ScanDetailPage />
+                </ErrorBoundary>
+              }
+            />
             <Route path="history" element={<HistoryPage />} />
             <Route path="sites" element={<SitesPage />} />
             <Route path="settings" element={<SettingsPage />} />
