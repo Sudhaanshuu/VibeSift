@@ -1,7 +1,11 @@
 import { app } from '../api/app.js';
 import { config } from '../config/env.js';
+import { bootstrapEnvironmentFromSSM } from '../services/ssmService.js';
 
-const PORT = config.port || 4000;
+// Automatically hydrate configuration from AWS SSM if running on EC2
+await bootstrapEnvironmentFromSSM();
+
+const PORT = process.env.PORT || config.port || 4000;
 
 app.listen(PORT, () => {
   console.log(`

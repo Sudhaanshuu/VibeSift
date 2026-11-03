@@ -37,10 +37,9 @@ export const config = {
     presignedUrlTtlSeconds: parseInt(process.env.PRESIGNED_URL_TTL || '900', 10), // 15 mins
   },
 
-  // SQS & Step Functions
+  // SQS FIFO Orchestration
   orchestration: {
-    scanQueueUrl: process.env.SCAN_QUEUE_URL || 'https://sqs.us-east-1.amazonaws.com/501380833083/vibesift-scan-jobs-dev',
-    scanStateMachineArn: process.env.SCAN_SFN_ARN || '',
+    scanQueueUrl: process.env.SCAN_QUEUE_URL || 'https://sqs.us-east-1.amazonaws.com/501380833083/vibesift-scan-jobs.fifo',
     useLambdaInspector: process.env.USE_LAMBDA_INSPECTOR === 'true',
     lambdaInspectorFunctionName: process.env.LAMBDA_INSPECTOR_FUNCTION_NAME || 'vibesift-python-inspector-dev',
   },
@@ -59,15 +58,6 @@ export const config = {
       (process.env.COGNITO_USER_POOL_ID
         ? `https://cognito-idp.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID}/.well-known/jwks.json`
         : ''),
-  },
-
-  // Amazon Bedrock
-  bedrock: {
-    enabled: process.env.BEDROCK_ENABLED === 'true',
-    region: process.env.BEDROCK_REGION || 'us-east-1',
-    modelId: process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0',
-    maxTokens: parseInt(process.env.BEDROCK_MAX_TOKENS || '1024', 10),
-    timeoutMs: parseInt(process.env.BEDROCK_TIMEOUT_MS || '8000', 10),
   },
 
   // Scan limits & policy

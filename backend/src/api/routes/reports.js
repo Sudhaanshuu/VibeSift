@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { dbService } from '../../services/dynamoStorage.js';
-import { s3Service } from '../../services/s3Storage.js';
+import { s3Service, sanitizeTargetHost } from '../../services/s3Storage.js';
 import { VerificationStatusEnum } from '../../types/index.js';
 
 export const reportsRouter = Router();
@@ -11,9 +11,13 @@ export const reportsRouter = Router();
 reportsRouter.get('/:scanId', async (req, res, next) => {
   try {
     const { scanId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id;
 
-    const scan = await dbService.getScan(scanId, userId);
+    let scan = userId ? await dbService.getScan(scanId, userId) : null;
+    if (!scan) {
+      scan = await dbService.getScan(scanId); // Global lookup for cached/public audits
+    }
+
     if (!scan) {
       return res.status(404).json({
         error: `Audit report "${scanId}" does not exist.`,
@@ -27,7 +31,15 @@ reportsRouter.get('/:scanId', async (req, res, next) => {
     // Attempt to load finalized report from S3 artifacts
     let s3Report = null;
     try {
-      const rawReport = await s3Service.getObjectContent(`scans/${scanId}/report.json`);
+      const s3Key = scan.s3ReportKey || `scans/${sanitizeTargetHost(scan.normalizedHostname)}__${scanId}/report.json`;
+      const directKey = `audits/${sanitizeTargetHost(scan.normalizedHostname)}__${scanId}.json`;
+      const legacyKey = `scans/${scanId}/report.json`;
+
+      const rawReport =
+        (await s3Service.getObjectContent(s3Key)) ||
+        (await s3Service.getObjectContent(directKey)) ||
+        (await s3Service.getObjectContent(legacyKey));
+
       if (rawReport) {
         s3Report = JSON.parse(rawReport);
       }

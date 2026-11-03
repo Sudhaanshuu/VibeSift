@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAudit } from '../../context/AuditContext';
 import { useAuth } from '../../context/AuthContext';
 import { normalizeTargetUrl } from '../../lib/validation/urlSchema';
+import { precheckScanTarget, PrecheckResult } from '../../lib/api/scans';
+import { ExistingAuditModal } from '../common/ExistingAuditModal';
 import { 
   ArrowRight, 
   ShieldCheck, 
@@ -20,12 +23,15 @@ interface HeroSectionProps {
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) => {
+  const navigate = useNavigate();
   const [inputUrl, setInputUrl] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [cachedAudit, setCachedAudit] = useState<PrecheckResult | null>(null);
+  const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
   const { openNewScanModal, isScanning } = useAudit();
   const { isAuthenticated, openLoginModal } = useAuth();
 
-  const handleQuickSubmit = (e: React.FormEvent) => {
+  const handleQuickSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputUrl.trim()) {
       setErrorMsg('Please enter a website URL');
@@ -34,13 +40,40 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
     setErrorMsg('');
     const normalized = normalizeTargetUrl(inputUrl);
 
+    // Check S3 and SQLite for existing audit
+    try {
+      const check = await precheckScanTarget(normalized);
+      if (check.exists && check.scanId) {
+        setCachedAudit(check);
+        setIsExistingModalOpen(true);
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('[HeroSection] Precheck error:', checkErr);
+    }
+
     if (!isAuthenticated) {
-      // Store requested URL and require user to sign in or create account first
       openNewScanModal(normalized);
       openLoginModal();
       return;
     }
 
+    openNewScanModal(normalized);
+  };
+
+  const handleViewExisting = (scanId: string) => {
+    setIsExistingModalOpen(false);
+    navigate(`/app/scans/${scanId}`);
+  };
+
+  const handleReaudit = () => {
+    setIsExistingModalOpen(false);
+    const normalized = normalizeTargetUrl(inputUrl);
+    if (!isAuthenticated) {
+      openNewScanModal(normalized);
+      openLoginModal();
+      return;
+    }
     openNewScanModal(normalized);
   };
 
@@ -219,6 +252,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
 
         </div>
       </div>
+
+      {/* Existing Audit Found in S3 Modal */}
+      <ExistingAuditModal
+        isOpen={isExistingModalOpen}
+        onClose={() => setIsExistingModalOpen(false)}
+        cachedAudit={cachedAudit}
+        onViewExisting={handleViewExisting}
+        onReaudit={handleReaudit}
+      />
     </section>
   );
 };

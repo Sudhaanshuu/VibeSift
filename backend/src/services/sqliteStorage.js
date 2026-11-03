@@ -101,6 +101,7 @@ class SqliteStorage {
     try { this.db.exec('ALTER TABLE scans ADD COLUMN privacyCompliance TEXT'); } catch {}
     try { this.db.exec('ALTER TABLE scans ADD COLUMN deepComparison TEXT'); } catch {}
     try { this.db.exec('ALTER TABLE scans ADD COLUMN errorMessage TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN s3ReportKey TEXT'); } catch {}
   }
 
   // ==================== SITES ====================
@@ -282,8 +283,8 @@ class SqliteStorage {
         scanId, ownerUserId, targetUrl, normalizedHostname, scanProfile,
         status, summary, enginesRun, durationSeconds, checksNotPerformed,
         checks, privacyCompliance, deepComparison, errorMessage,
-        createdAt, updatedAt, idempotencyKey
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        createdAt, updatedAt, idempotencyKey, s3ReportKey
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(scanId) DO UPDATE SET
         status = excluded.status,
         summary = excluded.summary,
@@ -294,6 +295,7 @@ class SqliteStorage {
         privacyCompliance = COALESCE(excluded.privacyCompliance, scans.privacyCompliance),
         deepComparison = COALESCE(excluded.deepComparison, scans.deepComparison),
         errorMessage = COALESCE(excluded.errorMessage, scans.errorMessage),
+        s3ReportKey = COALESCE(excluded.s3ReportKey, scans.s3ReportKey),
         updatedAt = excluded.updatedAt
     `);
 
@@ -315,7 +317,8 @@ class SqliteStorage {
       scan.errorMessage || null,
       scan.createdAt || now,
       scan.updatedAt || now,
-      scan.idempotencyKey || null
+      scan.idempotencyKey || null,
+      scan.s3ReportKey || null
     );
 
     // If scan has completed, update or auto-link site statistics
@@ -405,6 +408,12 @@ class SqliteStorage {
     }
     query += ' ORDER BY createdAt DESC LIMIT 1';
     const row = this.db.prepare(query).get(...params);
+    return row ? this._mapScanRow(row) : null;
+  }
+
+  async getLatestCompletedScanForSite(hostname) {
+    const query = "SELECT * FROM scans WHERE normalizedHostname = ? AND status = 'COMPLETED' ORDER BY createdAt DESC LIMIT 1";
+    const row = this.db.prepare(query).get(hostname.toLowerCase());
     return row ? this._mapScanRow(row) : null;
   }
 
@@ -581,6 +590,7 @@ class SqliteStorage {
       privacyCompliance: r.privacyCompliance ? JSON.parse(r.privacyCompliance) : undefined,
       deepComparison: r.deepComparison ? JSON.parse(r.deepComparison) : undefined,
       errorMessage: r.errorMessage || undefined,
+      s3ReportKey: r.s3ReportKey || null,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       idempotencyKey: r.idempotencyKey,

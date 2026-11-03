@@ -7,6 +7,7 @@
     "dev": "concurrently -k -p \"[{name}]\" -n \"backend,frontend\" -c \"magenta.bold,cyan.bold\" \"npm --prefix backend start\" \"vite\"",
     "dev:frontend": "vite",
     "dev:backend": "npm --prefix backend start",
+    "worker": "npm --prefix backend run worker",
     "setup": "npm install && npm --prefix backend install",
     "build": "tsc && vite build",
     "preview": "vite preview",

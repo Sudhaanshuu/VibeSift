@@ -101,6 +101,43 @@ export async function getSSMParametersByPath(pathPrefix, withDecryption = true) 
 }
 
 /**
+ * Automatically hydrates process.env from AWS Systems Manager Parameter Store.
+ * Used in production on EC2 when environment variables are managed in SSM instead of .env files.
+ * @param {string} [pathPrefix]
+ * @returns {Promise<Record<string, string>>}
+ */
+export async function bootstrapEnvironmentFromSSM(pathPrefix = process.env.SSM_PARAM_PREFIX || '/vibesift/prod') {
+  try {
+    const params = await getSSMParametersByPath(pathPrefix);
+    const keyMapping = {
+      'sqs/scan-queue-url': 'SCAN_QUEUE_URL',
+      's3/reports-bucket': 'S3_REPORTS_BUCKET',
+      'cognito/user-pool-id': 'COGNITO_USER_POOL_ID',
+      'cognito/client-id': 'COGNITO_CLIENT_ID',
+      'server/port': 'PORT',
+      'security/jwt-secret': 'JWT_SECRET',
+      'storage/use-local': 'USE_LOCAL_STORAGE',
+      'orchestration/use-mock': 'USE_MOCK_ORCHESTRATION',
+      'lambda/inspector-function': 'LAMBDA_INSPECTOR_FUNCTION_NAME',
+      'lambda/use-inspector': 'USE_LAMBDA_INSPECTOR',
+    };
+
+    for (const [paramPath, value] of Object.entries(params)) {
+      const envKey = keyMapping[paramPath] || paramPath.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+      process.env[envKey] = value;
+    }
+
+    if (Object.keys(params).length > 0) {
+      console.log(`[SSMService] Hydrated ${Object.keys(params).length} parameters from SSM (${pathPrefix}).`);
+    }
+    return params;
+  } catch (err) {
+    console.warn('[SSMService] Bootstrap from SSM note:', err.message);
+    return {};
+  }
+}
+
+/**
  * Stores or updates a parameter in AWS Systems Manager Parameter Store.
  * @param {string} name
  * @param {string} value

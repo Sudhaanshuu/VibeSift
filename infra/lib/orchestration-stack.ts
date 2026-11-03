@@ -34,9 +34,10 @@ export class OrchestrationStack extends cdk.Stack {
 
     const isProd = props.stage === 'prod';
 
-    // 1. Dead Letter Queue for failed scan events
+    // 1. Dead Letter Queue (FIFO) for failed scan events
     const deadLetterQueue = new sqs.Queue(this, 'ScanJobsDLQ', {
-      queueName: `vibesift-scan-jobs-dlq-${props.stage}`,
+      queueName: `vibesift-scan-jobs-dlq-${props.stage}.fifo`,
+      fifo: true,
       encryption: sqs.QueueEncryption.KMS,
       encryptionMasterKey: props.kmsKey,
       retentionPeriod: cdk.Duration.days(14),
@@ -47,12 +48,14 @@ export class OrchestrationStack extends cdk.Stack {
       maxReceiveCount: 3,
     };
 
-    // 2. Primary Scan Queue
+    // 2. Primary Scan FIFO Queue
     this.scanQueue = new sqs.Queue(this, 'ScanJobsQueue', {
-      queueName: `vibesift-scan-jobs-${props.stage}`,
+      queueName: `vibesift-scan-jobs-${props.stage}.fifo`,
+      fifo: true,
+      contentBasedDeduplication: true,
       encryption: sqs.QueueEncryption.KMS,
       encryptionMasterKey: props.kmsKey,
-      visibilityTimeout: cdk.Duration.minutes(10), // Step function can take up to 10 mins
+      visibilityTimeout: cdk.Duration.minutes(5),
       deadLetterQueue: this.dlq,
     });
 

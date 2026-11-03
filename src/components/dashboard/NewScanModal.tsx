@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAudit } from '../../context/AuditContext';
 import { useAuth } from '../../context/AuthContext';
 import { ScanProfile } from '../../types/audit';
+import { precheckScanTarget, PrecheckResult } from '../../lib/api/scans';
 import { Button } from '../common/Button';
 import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
+import { ExistingAuditModal } from '../common/ExistingAuditModal';
 import { 
   X, 
   Globe, 
@@ -21,6 +24,7 @@ interface NewScanModalProps {
 }
 
 export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) => {
+  const navigate = useNavigate();
   const { 
     isNewScanModalOpen, 
     closeNewScanModal, 
@@ -37,6 +41,10 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   const [acknowledgedTerms, setAcknowledgedTerms] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Cached Audit state
+  const [cachedAudit, setCachedAudit] = useState<PrecheckResult | null>(null);
+  const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
+
   useEffect(() => {
     if (prefilledScanUrl) {
       setUrl(prefilledScanUrl);
@@ -50,7 +58,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   const matchedSavedSite = savedWebsites.find(s => s.hostname.toLowerCase() === cleanHostname);
   const isVerifiedDomain = matchedSavedSite ? matchedSavedSite.isVerified : false;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, forceRescan = false) => {
     e.preventDefault();
     if (!url.trim()) {
       setErrorMsg('Please specify a target website URL');
@@ -63,6 +71,37 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     }
 
     setErrorMsg('');
+
+    // Pre-check S3 and SQLite for existing audit
+    if (!forceRescan) {
+      try {
+        const check = await precheckScanTarget(url);
+        if (check.exists && check.scanId) {
+          setCachedAudit(check);
+          setIsExistingModalOpen(true);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('[NewScanModal] Precheck error:', checkErr);
+      }
+    }
+
+    try {
+      const scanId = await startNewScan(url, profile);
+      onScanComplete?.(scanId);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Scan dispatch failed');
+    }
+  };
+
+  const handleViewExisting = (scanId: string) => {
+    setIsExistingModalOpen(false);
+    closeNewScanModal();
+    navigate(`/app/scans/${scanId}`);
+  };
+
+  const handleReaudit = async () => {
+    setIsExistingModalOpen(false);
     try {
       const scanId = await startNewScan(url, profile);
       onScanComplete?.(scanId);
@@ -293,6 +332,15 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
         )}
 
       </div>
+
+      {/* Existing Audit Found in S3 Modal */}
+      <ExistingAuditModal
+        isOpen={isExistingModalOpen}
+        onClose={() => setIsExistingModalOpen(false)}
+        cachedAudit={cachedAudit}
+        onViewExisting={handleViewExisting}
+        onReaudit={handleReaudit}
+      />
     </div>
   );
 };

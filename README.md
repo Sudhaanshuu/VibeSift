@@ -150,22 +150,21 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
   - Deduplicates repeated observations while preserving evidence references.
   - Calculates Launch Readiness Score (0-100) and category scores.
   - Builds executive Markdown audit reports and stores raw/final artifacts in S3.
-- **Amazon Bedrock Explanation Service (`backend/src/services/bedrockExplanation.js`)**:
-  - Optional Claude 3 Haiku / Titan text integration for developer explanations and executive summaries.
-  - Sanitizes prompt inputs and provides deterministic fallbacks when Bedrock is disabled or unavailable.
-- **AWS CDK Infrastructure (`infra/`)**:
-  - Data Stack: DynamoDB tables (`SavedWebsites`, `Scans`, `Findings`) + KMS-encrypted S3 bucket.
-  - Compute Stack: VPC, isolated ECS Fargate cluster, restricted security groups, ECR repositories.
-  - Orchestration Stack: SQS Queue with DLQ + AWS Step Functions multi-engine state machine.
-  - API Stack: Amazon Cognito User Pool + API Gateway HTTP API v2 + AWS WAF WebACL.
-  - Monitoring Stack: CloudWatch dashboards, alarms, and AWS Budget alerts ($25/mo cap).
+- **Rules-Based Explanation & Executive Summary Service (`backend/src/services/explanationService.js`)**:
+  - Pure deterministic, high-speed rules-based developer guidance and executive summaries (zero external AI latency or costs).
+- **AWS Infrastructure & Orchestration**:
+  - Storage: High-throughput local SQLite 3 (WAL mode) / Amazon DynamoDB + KMS-encrypted Amazon S3 bucket.
+  - Compute: Dedicated Node.js 20/22 on AWS EC2 with PM2 process manager + AWS Lambda (Python Inspector).
+  - Orchestration: Amazon SQS FIFO Queue (`vibesift-scan-jobs.fifo`) with dedicated FIFO Dead-Letter Queue (DLQ).
+  - Global S3 Cache Check: Instant pre-check against S3 & SQLite before queuing new audits, presenting full UI reports for cached audits.
+  - Complete Setup Guide: **[`SQS_SETUP_AND_INTEGRATION.md`](SQS_SETUP_AND_INTEGRATION.md)**
 
 ### Running Backend Locally
 ```bash
 # Start local API server on http://localhost:4000
 npm run dev:backend
 
-# Run all 26 backend test suites
+# Run backend test suites
 npm run test:backend
 ```
 
@@ -175,14 +174,11 @@ npm run build:infra
 npm run synth:infra
 ```
 
-### Complete Documentation & Step-by-Step AWS Setup Series
-- **[AWS Setup & Foundation Models Guide Series (Master Index)](file:///c:/vibesift/docs/aws-setup/README.md)**
-  - [01. AWS Account & IAM Configuration](file:///c:/vibesift/docs/aws-setup/01-AWS-ACCOUNT-AND-IAM.md)
-  - [02. Bedrock Foundation Models Access & Setup (Claude 3 Haiku / Titan)](file:///c:/vibesift/docs/aws-setup/02-BEDROCK-MODEL-ACCESS-AND-SETUP.md)
-  - [03. DynamoDB & S3 Storage Architecture](file:///c:/vibesift/docs/aws-setup/03-DYNAMODB-AND-S3-STORAGE.md)
-  - [04. Step Functions & SQS Orchestration Workflow](file:///c:/vibesift/docs/aws-setup/04-STEP-FUNCTIONS-AND-SQS.md)
-  - [05. ECS Fargate & Docker Inspection Workers](file:///c:/vibesift/docs/aws-setup/05-ECS-FARGATE-AND-DOCKER-WORKERS.md)
-  - [06. Cognito Auth & API Gateway HTTP API v2](file:///c:/vibesift/docs/aws-setup/06-COGNITO-AUTH-AND-API-GATEWAY.md)
+### Complete Documentation & Guides
+- **[Amazon SQS FIFO Setup & Integration Guide](SQS_SETUP_AND_INTEGRATION.md)**
+- **[Complete AWS Setup & Deployment Guide](docs/AWS_SETUP_AND_DEPLOYMENT_GUIDE.md)**
+- [API Contract Specification](docs/API.md)
+- [Audit Report Schema & Scoring](docs/REPORT_SCHEMA.md)
   - [07. End-to-End Production Deployment Runbook](file:///c:/vibesift/docs/aws-setup/07-END-TO-END-DEPLOYMENT-RUNBOOK.md)
 - [API Contract Specification](file:///c:/vibesift/docs/API.md)
 - [Audit Report Schema & Scoring](file:///c:/vibesift/docs/REPORT_SCHEMA.md)
