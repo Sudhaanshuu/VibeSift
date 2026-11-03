@@ -104,13 +104,30 @@ Cloudflare is an Edge Network and Content Delivery Network (CDN) that sits betwe
 #### Why are we using it?
 * **Origin Shielding**: Hides the real IP address of our EC2 instance (`ip-172-31-31-105`) from attackers.
 * **SSL/TLS Termination**: Provides modern TLS 1.3 certificates and terminates HTTPS at the edge.
-* **Bot Defense (Turnstile)**: Protects the `POST /api/scans` submission endpoint from automated bots and scraper loops without forcing users to solve Captcha puzzles.
+* **Turnstile Bot Defense**: Seamless, privacy-preserving bot detection protecting three critical application workflows without forcing users to solve visual Captcha puzzles:
+  1. **User Authentication (`POST /api/auth/login`)**: Prevents credential stuffing, brute-force dictionary attacks, and automated login attempts.
+  2. **User Registration (`POST /api/auth/signup`)**: Blocks automated Sybil attacks, fake account farms, and Cognito spam.
+  3. **Target URL Audit Submissions (`POST /api/scans`)**: Protects backend compute, headless Chromium, SQS FIFO queues, and Lambda functions from automated crawling loops and denial-of-wallet spam.
 
 #### Where are we using it?
 * **DNS Records**: Proxied A/CNAME records pointing `vibesift.pixir.in` to our EC2 Elastic IP.
-* **Turnstile Integration**:
-  - Frontend: `src/components/common/SiteUrlForm.tsx` renders Turnstile verification.
-  - Backend: `backend/src/api/middleware/turnstile.js` validates `cf-turnstile-response` token with Cloudflare's `https://challenges.cloudflare.com/turnstile/v0/siteverify`.
+* **Turnstile Integration Architecture**:
+  - **Frontend Client Architecture**:
+    - Script: Injected into `index.html` via `https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit`.
+    - Component: `src/components/common/TurnstileWidget.tsx` explicitly renders the Turnstile iframe.
+    - **Re-Mount Loop Prevention**: Uses `useRef` for callback stabilization (`onVerifyRef`, `onErrorRef`, `onExpireRef`) so parent component state changes (`setTurnstileToken`) never trigger cleanup or unmount cycles.
+    - **DOM Isolation**: Isolates the Turnstile container `div` with zero React children to prevent React 19 DOM reconciliation conflicts with Cloudflare's injected `<iframe>`.
+    - **Native In-Place Resets**: Calls `window.turnstile.reset(widgetId)` on form resets instead of tearing down the DOM.
+    - **Challenge Loop Guard**: Sets `retry: 'never'` to prevent Turnstile from looping internally on transient failures.
+    - **Protected Views**:
+      - Login: `src/pages/LoginPage.tsx` and `src/components/common/LoginModal.tsx`
+      - Signup: `src/pages/SignupPage.tsx` and `src/components/common/LoginModal.tsx`
+      - URL Submission: `src/components/common/SiteUrlForm.tsx` and `src/components/dashboard/NewScanModal.tsx`
+  - **Backend Server Verification**:
+    - Middleware: `backend/src/api/middleware/turnstile.js` extracts tokens from `cf-turnstile-response`, `x-turnstile-token`, or `turnstileToken` in request body.
+    - Cloudflare Siteverify: Server-to-server POST to `https://challenges.cloudflare.com/turnstile/v0/siteverify` passing the `secret` key and visitor token.
+    - Protected Routes: Mounted on `authRouter.post('/login')`, `authRouter.post('/signup')`, and `scansRouter.post('/')`.
+    - Configuration Source: Fetched dynamically from AWS Systems Manager (SSM) Parameter Store.
 
 #### Real-World Analogy
 Cloudflare is like a security guard station at the front gate of a high-security office park. Visitors are checked for weapons (DDoS/WAF) and badges (Turnstile) before ever reaching the office building (EC2).
@@ -444,12 +461,24 @@ AWS Systems Manager Parameter Store provides secure, hierarchical storage for co
 * **Centralized Configuration**: Changing an environment parameter in SSM updates the application without requiring code rebuilds.
 
 #### Where are we using it?
-* Path Hierarchy: `/vibesift/dev/*`
-  - `/vibesift/dev/sqs/scan-queue-url`
-  - `/vibesift/dev/s3/reports-bucket`
-  - `/vibesift/dev/cognito/user-pool-id`
-  - `/vibesift/dev/lambda/inspector-function-name`
-* Service: `backend/src/services/ssmService.js` loads SSM parameters dynamically on startup.
+* Path Hierarchy: `/vibesift/prod/*` (and development mirror `/vibesift/dev/*`)
+  - **SQS & Storage**:
+    - `/vibesift/prod/sqs/scan-queue-url`: FIFO scan task submission queue URL.
+    - `/vibesift/prod/s3/reports-bucket`: S3 bucket name for immutable audit reports.
+  - **Cognito Identity**:
+    - `/vibesift/prod/cognito/user-pool-id`: Production User Pool ID (`us-east-1_nW70Gohxd`).
+    - `/vibesift/prod/cognito/client-id`: Production App Client ID (`2jg3m4brvt5adfa59vhl2ds0qs`).
+  - **Cloudflare Turnstile Bot Defense**:
+    - `/vibesift/prod/turnstile/site-key`: Public site key (`0x4AAAAAAFx4L_X5foiyZTNW`, `String`).
+    - `/vibesift/prod/turnstile/secret-key`: Cloudflare verification secret (`0x4AAAAAAFx4LyDw-n53U4-1sDlZ6iIdb_8`, `SecureString` KMS).
+    - `/vibesift/prod/turnstile/enabled`: Global toggle (`true`, `String`).
+  - **Server & Secrets**:
+    - `/vibesift/prod/server/port`: Express port (`4000`, `String`).
+    - `/vibesift/prod/security/jwt-secret`: Internal token signing secret (`SecureString` KMS).
+
+
+
+* Service: `backend/src/services/ssmService.js` automatically hydrates `process.env` on boot (`bootstrapEnvironmentFromSSM()`) and synchronizes in-memory settings via `syncConfigWithEnv()`.
 
 #### Real-World Analogy
 SSM Parameter Store is like a hotel room safe. Instead of writing your master keys on sticky notes taped to your computer monitor (`.env` file in git), you lock them in the safe and only your authenticated IAM badge can open it.
@@ -580,7 +609,7 @@ SSRF occurs when an attacker inputs a URL like `http://169.254.169.254/latest/me
    ```bash
    pm2 restart vibesift-sqs-worker --update-env
    ```
-3. Check if SQS queue has messages in flight:
+   3. Check if SQS queue has messages in flight:
    ```bash
    aws sqs get-queue-attributes \
      --queue-url https://sqs.us-east-1.amazonaws.com/501380833083/vibesift-scan-jobs.fifo \
@@ -612,16 +641,53 @@ cd /var/www/vibesift
 # 1. Pull latest code from GitHub
 git pull origin main
 
-# 2. Build Vite frontend bundle
+# 2. Install any new dependencies & build Vite frontend bundle
+npm install
 npm run build
 
 # 3. Restart PM2 processes with updated environment
-pm2 restart vibesift-backend --update-env
-pm2 restart vibesift-sqs-worker --update-env
+# Note: --update-env is required to reload .env and hydrate fresh SSM parameters
+pm2 restart all --update-env
 
-# 4. Verify both are online
+# 4. Save the active PM2 process list so it persists across server reboots
+pm2 save
+
+# 5. Verify process status and inspect live logs
 pm2 status
+pm2 logs --lines 20
 ```
+
+### Scenario D: Cloudflare Turnstile Bot Protection Debugging & Verification
+
+Turnstile protects Login (`/auth/login`), Registration (`/auth/signup`), and Target URL Audits (`/scans`).
+
+#### 1. Verify Turnstile Parameters in AWS SSM
+```bash
+aws ssm get-parameters --names \
+  "/vibesift/prod/turnstile/site-key" \
+  "/vibesift/prod/turnstile/secret-key" \
+  "/vibesift/prod/turnstile/enabled" \
+  --with-decryption --region us-east-1
+```
+
+#### 2. Test Backend Verification Directly (Using Cloudflare Always-Pass Test Token)
+Cloudflare provides official test tokens (`1x00000000000000000000AA`):
+```bash
+# Test Login with Bot Protection Token (Success)
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -H "cf-turnstile-response: 1x00000000000000000000AA" \
+  -d '{"email":"developer@pixir.in","password":"YourPassword123!"}'
+
+# Verify rejection without token (HTTP 403 BOT_CHALLENGE_REQUIRED)
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"developer@pixir.in","password":"YourPassword123!"}'
+```
+
+#### 3. Resolving "Endless Click Loop" or "Domain not allowed (110600)"
+* **Endless Click Loop**: Caused if React parent re-renders unmount and remount the widget. In `TurnstileWidget.tsx`, `useRef` stabilizes callback props (`onVerifyRef`, `onErrorRef`, `onExpireRef`) so parent re-renders never trigger Turnstile widget teardowns. The Turnstile container `div` is also isolated without React children.
+* **Error 110600 (Domain Not Allowed)**: Cloudflare site keys validate the `Origin` header. If testing on `localhost:5173` or `127.0.0.1`, add `localhost` to the Turnstile widget's Allowed Domains in the Cloudflare Dashboard (`dash.cloudflare.com` -> Turnstile -> Settings). In development, `TurnstileWidget` also provides a "Simulate Pass in Local Dev" button.
 
 ---
 

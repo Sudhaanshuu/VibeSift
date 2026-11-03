@@ -152,6 +152,35 @@ Your EC2 instance needs permission to send and receive messages from the SQS que
         "s3:GetObject"
       ],
       "Resource": "arn:aws:s3:::vibesift-audit-reports-*/*"
+    },
+    {
+      "Sid": "VibeSiftS3BucketListAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::vibesift-audit-reports-*"
+    },
+    {
+      "Sid": "VibeSiftSSMParameterStoreAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:us-east-1:501380833083:parameter/vibesift/*"
+      ]
+    },
+    {
+      "Sid": "VibeSiftKMSAccess",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "*"
     }
   ]
 }
@@ -321,3 +350,19 @@ As configured in `backend/src/services/s3Storage.js`:
   // hostname => "example.com"
   // scanId   => "scn_abc123"
   ```
+
+---
+
+## ⚡ 8. Global Cross-Tenant S3 Precheck & Genuine Lighthouse Scoring
+
+### A. Precheck & Cross-Tenant S3 Discovery
+Before dispatching a new job to SQS, the backend checks `POST /api/scans/precheck`.
+* If User A audited `example.com`, S3 stores the report at `scans/example_com__<scanId>/report.json`.
+* When User B submits `example.com`, `s3Service.findLatestScanReportByHostname('example.com')` discovers the S3 object across tenants.
+* The frontend presents the **Existing Audit Modal**, allowing User B to inspect the cached report instantly with zero SQS queuing or cloud costs.
+
+### B. Genuine Lighthouse Score Normalization
+The background worker executes Google Lighthouse inside Headless Chromium on EC2:
+* Lighthouse category scores (`performance`, `accessibility`, `seo`, and `best-practices`) are extracted directly from the raw Lighthouse Result (`rawLighthouse.categories`).
+* Real Core Web Vitals (FCP, LCP, CLS, TBT, Speed Index) are mapped into `AuditCheckResult` checks, rendering directly in the Check Registry tab.
+* The Launch Readiness Score is computed as a weighted multi-pillar composite (Security 25%, Performance 20%, Accessibility 15%, SEO 15%, Privacy 15%, Completeness/Trust 10%), with a safety cap at 50 only if an unpatched Critical security vulnerability exists.

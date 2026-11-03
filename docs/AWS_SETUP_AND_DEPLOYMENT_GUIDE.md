@@ -115,6 +115,9 @@ All production parameters live under `/vibesift/prod/`:
 | `/vibesift/prod/s3/reports-bucket` | Standard | String | `vibesift-audit-reports-dev-501380833083` |
 | `/vibesift/prod/server/port` | Standard | String | `4000` |
 | `/vibesift/prod/security/jwt-secret` | Standard | **SecureString** | *(Your secure random token)* |
+| `/vibesift/prod/turnstile/site-key` | Standard | String | `0x4AAAAAAFx4L_X5foiyZTNW` |
+| `/vibesift/prod/turnstile/secret-key` | Standard | **SecureString** | `0x4AAAAAAFx4LyDw-n53U4-1sDlZ6iIdb_8` |
+| `/vibesift/prod/turnstile/enabled` | Standard | String | `true` |
 
 ### AWS CLI Creation Commands
 
@@ -154,6 +157,27 @@ aws ssm put-parameter \
   --name "/vibesift/prod/security/jwt-secret" \
   --type "SecureString" \
   --value "$(openssl rand -hex 32)" \
+  --overwrite
+
+# 6. Cloudflare Turnstile Public Site Key
+aws ssm put-parameter \
+  --name "/vibesift/prod/turnstile/site-key" \
+  --type "String" \
+  --value "0x4AAAAAAFx4L_X5foiyZTNW" \
+  --overwrite
+
+# 7. Cloudflare Turnstile Secret Key (SecureString)
+aws ssm put-parameter \
+  --name "/vibesift/prod/turnstile/secret-key" \
+  --type "SecureString" \
+  --value "0x4AAAAAAFx4LyDw-n53U4-1sDlZ6iIdb_8" \
+  --overwrite
+
+# 8. Cloudflare Turnstile Global Toggle
+aws ssm put-parameter \
+  --name "/vibesift/prod/turnstile/enabled" \
+  --type "String" \
+  --value "true" \
   --overwrite
 ```
 
@@ -268,7 +292,18 @@ SCAN_JOB_TIMEOUT_SECONDS=60
 SCAN_RPS=2.0
 USER_HOURLY_SCAN_QUOTA=30
 USER_MINUTE_SCAN_QUOTA=10
+
+# Cloudflare Turnstile Bot Protection
+TURNSTILE_SITE_KEY=0x4AAAAAAFx4L_X5foiyZTNW
+TURNSTILE_SECRET_KEY=0x4AAAAAAFx4LyDw-n53U4-1sDlZ6iIdb_8
+TURNSTILE_ENABLED=true
 ```
+
+> [!NOTE]
+> The frontend production build reads the public site key during `npm run build` from `.env` in the repository root:
+> ```ini
+> VITE_TURNSTILE_SITE_KEY=0x4AAAAAAFx4L_X5foiyZTNW
+> ```
 
 ### Step 6.3: Optimize SQLite for High Concurrency (WAL Mode)
 ```bash
@@ -312,6 +347,32 @@ pm2 start /var/www/vibesift/ecosystem.config.cjs
 pm2 save
 sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u ubuntu --hp /home/ubuntu
 ```
+
+### Step 6.6: Production Update & Hot-Reload Workflow
+Following a code change or new git pull on the production host:
+```bash
+cd /var/www/vibesift
+
+# 1. Pull latest code from GitHub
+git pull origin main
+
+# 2. Install any updated dependencies & recompile frontend Vite bundle
+npm install
+npm run build
+
+# 3. Reload PM2 processes with refreshed environment variables and SSM parameters
+pm2 restart all --update-env
+
+# 4. Save the active process list to persist across server reboots
+pm2 save
+
+# 5. Verify live status
+pm2 status
+pm2 logs --lines 20
+```
+
+> [!IMPORTANT]
+> Always pass `--update-env` when restarting PM2. Without this flag, PM2 caches old process environment variables in memory, preventing newly updated `.env` settings or refreshed SSM parameters from taking effect.
 
 ---
 
