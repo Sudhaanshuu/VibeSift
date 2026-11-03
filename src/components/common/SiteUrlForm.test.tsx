@@ -42,4 +42,14 @@ describe('SiteUrlForm Component', () => {
       expect(onSubmit).toHaveBeenCalled();
     });
   });
+
+  it('updates submit button to Unlock Deep Audit (₹39) when deep profile is selected', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<SiteUrlForm onSubmitScan={onSubmit} />);
+
+    const deepRadio = screen.getByText(/Deep Search/i).closest('[role="radio"]');
+    if (deepRadio) fireEvent.click(deepRadio);
+
+    expect(screen.getByRole('button', { name: /Unlock Deep Audit \(₹39\)/i })).toBeInTheDocument();
+  });
 });

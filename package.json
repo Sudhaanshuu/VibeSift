@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -p \"[{name}]\" -n \"backend,frontend\" -c \"magenta.bold,cyan.bold\" \"npm --prefix backend start\" \"vite\"",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"backend,frontend\" -c \"magenta.bold,cyan.bold\" \"npm --prefix backend run dev\" \"vite\"",
     "dev:frontend": "vite",
     "dev:backend": "npm --prefix backend start",
     "worker": "npm --prefix backend run worker",
@@ -16,6 +16,7 @@
     "test:lambda": "python backend/src/workers/python-inspector/test_lambda.py",
     "demo:lambda": "python backend/src/workers/python-inspector/lambda_function.py --test",
     "demo:inspect": "node backend/src/local-dev/inspect-run.js",
+    "coupon": "node backend/scripts/manage-coupons.js",
     "build:infra": "cd infra && npm run build",
     "synth:infra": "cd infra && npm run synth"
   },

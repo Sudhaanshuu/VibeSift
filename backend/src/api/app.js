@@ -7,6 +7,7 @@ import { sitesRouter } from './routes/sites.js';
 import { reportsRouter } from './routes/reports.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { paymentsRouter } from './routes/payments.js';
 
 import { config } from '../config/env.js';
 
@@ -69,6 +70,10 @@ app.get('/robots.txt', (req, res) => {
 // Authentication routes (public)
 app.use('/auth', authRouter);
 app.use('/api/auth', authRouter);
+
+// Payments & Razorpay
+app.use('/payments', paymentsRouter);
+app.use('/api/payments', paymentsRouter);
 
 // Authenticated Routes
 app.use('/scans', authenticateToken, scansRouter);

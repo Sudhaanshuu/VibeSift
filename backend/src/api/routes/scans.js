@@ -9,6 +9,7 @@ import { ScanSubmissionPayloadSchema } from '../../types/index.js';
 import { enforceScanRateLimit, getScanQuota } from '../middleware/rateLimiter.js';
 import { verifyTurnstileToken } from '../middleware/turnstile.js';
 import { startScanWorkflow } from '../../orchestration/workflowHandler.js';
+import { consumePaymentForScan } from './payments.js';
 
 export const scansRouter = Router();
 
@@ -154,6 +155,18 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
 
     // 3. Authorization check for deep security scan
     if (payload.profile === 'authorized_deep') {
+      // Paywall Enforcement: Deep audit requires ₹39 payment
+      const paymentRecord = consumePaymentForScan(payload.paymentId, userId);
+      if (!paymentRecord) {
+        return res.status(402).json({
+          error: 'Payment required: Deep Search costs ₹39 per scan. Please complete payment before starting the audit.',
+          code: 'PAYMENT_REQUIRED',
+          statusCode: 402,
+          price: 39,
+          currency: 'INR',
+          requiredAction: 'PAYMENT_REQUIRED',
+        });
+      }
       const userSites = await dbService.listSitesByUser(userId);
       const isDomainVerified = userSites.some(
         (site) => site.isVerified && matchesVerifiedDomain(validated.hostname, site.hostname)
@@ -218,6 +231,9 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
       checksNotPerformed: [],
       previousScanId: previousScan?.scanId || null,
       previousScore: previousScan?.summary?.readinessScore ?? null,
+      paymentId: payload.paymentId || null,
+      orderId: payload.orderId || null,
+      couponCode: payload.couponCode || null,
     };
 
     await dbService.saveScan(scanRecord);

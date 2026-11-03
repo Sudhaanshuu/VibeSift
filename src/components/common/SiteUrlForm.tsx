@@ -7,6 +7,7 @@ import { ScanScopeSelector } from './ScanScopeSelector';
 import { ScanProfile } from '../../types/audit';
 import { Button } from './Button';
 import { TurnstileWidget } from './TurnstileWidget';
+import { DeepAuditPaywallModal } from './DeepAuditPaywallModal';
 import { Globe, ArrowRight, AlertTriangle, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
 
 const formSchema = z.object({
@@ -22,7 +23,15 @@ type FormValues = z.infer<typeof formSchema>;
 export interface SiteUrlFormProps {
   initialUrl?: string;
   initialProfile?: ScanProfile;
-  onSubmitScan: (data: { url: string; profile: ScanProfile; acknowledgedTerms: boolean; turnstileToken?: string }) => Promise<void>;
+  onSubmitScan: (data: {
+    url: string;
+    profile: ScanProfile;
+    acknowledgedTerms: boolean;
+    turnstileToken?: string;
+    paymentId?: string;
+    orderId?: string;
+    couponCode?: string;
+  }) => Promise<void>;
   isSubmitting?: boolean;
   backendError?: string | null;
   savedSites?: { hostname: string; isVerified: boolean }[];
@@ -43,6 +52,8 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   const [internalError, setInternalError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
 
   const {
     register,
@@ -76,7 +87,14 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
       return;
     }
 
-    // If deep scan is chosen, user authorizes via acknowledgedTerms
+    // If deep scan is chosen, prompt paywall checkout
+    if (values.profile === 'authorized_deep') {
+      setPendingValues(values);
+      setIsPaywallOpen(true);
+      return;
+    }
+
+    // Baseline public scan is free
     try {
       await onSubmitScan({
         url: values.url,
@@ -88,6 +106,27 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
       setTurnstileResetKey((k) => k + 1);
       setTurnstileToken('');
       setInternalError(err.message || 'Failed to initiate scan. Please check your network connection.');
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentData: { paymentId: string; orderId?: string; couponCode?: string }) => {
+    setIsPaywallOpen(false);
+    if (!pendingValues) return;
+
+    try {
+      await onSubmitScan({
+        url: pendingValues.url,
+        profile: pendingValues.profile,
+        acknowledgedTerms: pendingValues.acknowledgedTerms,
+        turnstileToken,
+        paymentId: paymentData.paymentId,
+        orderId: paymentData.orderId,
+        couponCode: paymentData.couponCode,
+      });
+    } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
+      setInternalError(err.message || 'Audit dispatch failed after payment. Please contact support@pixir.in');
     }
   };
 
@@ -213,8 +252,22 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
         className="w-full justify-center shadow-subtle hover:shadow-glow-green transition-all"
         rightIcon={!isSubmitting ? <ArrowRight className="w-4 h-4" /> : undefined}
       >
-        {isSubmitting ? 'Initiating Safe Audit...' : 'Start Website Audit'}
+        {isSubmitting
+          ? 'Initiating Safe Audit...'
+          : watchedProfile === 'authorized_deep'
+          ? 'Unlock Deep Audit (₹39)'
+          : 'Start Website Audit'}
       </Button>
+
+      {/* Deep Audit Paywall Modal */}
+      {isPaywallOpen && (
+        <DeepAuditPaywallModal
+          isOpen={isPaywallOpen}
+          onClose={() => setIsPaywallOpen(false)}
+          targetUrl={pendingValues?.url || watchedUrl || ''}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
     </form>
   );
 };

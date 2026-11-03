@@ -7,6 +7,9 @@ export interface ScanSubmissionPayload {
   acknowledgedTerms: boolean;
   forceRescan?: boolean;
   turnstileToken?: string;
+  paymentId?: string;
+  orderId?: string;
+  couponCode?: string;
 }
 
 export interface ScanSubmissionResponse {

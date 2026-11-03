@@ -88,6 +88,13 @@ export const config = {
     namespace: process.env.CLOUDWATCH_NAMESPACE || 'VibeSift/Audits',
     emfEnabled: process.env.CLOUDWATCH_EMF_ENABLED !== 'false',
   },
+
+  // Razorpay Payment Gateway
+  razorpay: {
+    keyId: process.env.RAZORPAY_KEY_ID || 'rzp_live_Td6jjT5Yl85c4L',
+    keySecret: process.env.RAZORPAY_KEY_SECRET || '',
+    deepAuditPriceInRupees: 39,
+  },
 };
 
 /**
@@ -101,6 +108,8 @@ export function syncConfigWithEnv() {
   } else if (process.env.TURNSTILE_SECRET_KEY?.startsWith('0x4')) {
     config.turnstile.enabled = true;
   }
+  if (process.env.RAZORPAY_KEY_ID) config.razorpay.keyId = process.env.RAZORPAY_KEY_ID;
+  if (process.env.RAZORPAY_KEY_SECRET) config.razorpay.keySecret = process.env.RAZORPAY_KEY_SECRET;
 }
 
 /**

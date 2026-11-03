@@ -8,6 +8,7 @@ import { Button } from '../common/Button';
 import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
 import { ExistingAuditModal } from '../common/ExistingAuditModal';
 import { TurnstileWidget } from '../common/TurnstileWidget';
+import { DeepAuditPaywallModal } from '../common/DeepAuditPaywallModal';
 import { 
   X, 
   Globe, 
@@ -47,6 +48,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   // Cached Audit state
   const [cachedAudit, setCachedAudit] = useState<PrecheckResult | null>(null);
   const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
+  const [isPaywallOpen, setIsPaywallOpen] = useState(false);
 
   useEffect(() => {
     if (prefilledScanUrl) {
@@ -94,6 +96,12 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
       }
     }
 
+    // If deep scan is chosen, prompt paywall checkout
+    if (profile === 'authorized_deep') {
+      setIsPaywallOpen(true);
+      return;
+    }
+
     try {
       const scanId = await startNewScan(url, profile, turnstileToken);
       onScanComplete?.(scanId);
@@ -101,6 +109,18 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
       setTurnstileResetKey((k) => k + 1);
       setTurnstileToken('');
       setErrorMsg(err.message || 'Scan dispatch failed');
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentData: { paymentId: string; orderId?: string; couponCode?: string }) => {
+    setIsPaywallOpen(false);
+    try {
+      const scanId = await startNewScan(url, profile, turnstileToken, paymentData);
+      onScanComplete?.(scanId);
+    } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
+      setErrorMsg(err.message || 'Scan dispatch failed after payment. Please contact support@pixir.in');
     }
   };
 
@@ -277,8 +297,8 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
                     <span className="text-xs font-bold text-brand-text flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-brand-emerald" /> Deep Search
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
-                      Comprehensive
+                    <span className="text-[10px] font-bold text-brand-emerald-deep bg-brand-mint px-2 py-0.5 rounded border border-brand-emerald/30">
+                      ₹39 / audit
                     </span>
                   </div>
                   <p className="text-[11px] text-brand-text-secondary leading-snug">
@@ -348,7 +368,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
                 size="sm"
                 rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
               >
-                Start Launch Audit
+                {profile === 'authorized_deep' ? 'Unlock Deep Audit (₹39)' : 'Start Free Quick Audit'}
               </Button>
             </div>
 
@@ -356,6 +376,16 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
         )}
 
       </div>
+
+      {/* Deep Audit Paywall Modal */}
+      {isPaywallOpen && (
+        <DeepAuditPaywallModal
+          isOpen={isPaywallOpen}
+          onClose={() => setIsPaywallOpen(false)}
+          targetUrl={url}
+          onPaymentSuccess={handlePaymentSuccess}
+        />
+      )}
 
       {/* Existing Audit Found in S3 Modal */}
       <ExistingAuditModal

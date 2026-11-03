@@ -52,7 +52,12 @@ export const ScanScopeSelector: React.FC<ScanScopeSelectorProps> = ({
                 <Zap className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-brand-text">Quick Search</h4>
+                <h4 className="text-sm font-bold text-brand-text flex items-center gap-1.5">
+                  <span>Quick Search</span>
+                  <span className="text-[10px] uppercase tracking-wider font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                    Free
+                  </span>
+                </h4>
                 <span className="text-[11px] text-brand-text-secondary">Fast public quality inspection (20s)</span>
               </div>
             </div>
@@ -109,7 +114,10 @@ export const ScanScopeSelector: React.FC<ScanScopeSelectorProps> = ({
               </div>
               <div>
                 <h4 className="text-sm font-bold text-brand-text flex items-center gap-1.5">
-                  Deep Search
+                  <span>Deep Search</span>
+                  <span className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-brand-mint text-brand-emerald-deep border border-brand-emerald/30">
+                    ₹39 / audit
+                  </span>
                 </h4>
                 <span className="text-[11px] text-emerald-800 font-medium">
                   Comprehensive privacy & security audit

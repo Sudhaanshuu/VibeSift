@@ -24,7 +24,12 @@ interface AuditContextType {
     percent: number;
     currentEngine?: string;
   } | null;
-  startNewScan: (url: string, profile: ScanProfile, turnstileToken?: string) => Promise<string>;
+  startNewScan: (
+    url: string,
+    profile: ScanProfile,
+    turnstileToken?: string,
+    paymentDetails?: { paymentId?: string; orderId?: string; couponCode?: string }
+  ) => Promise<string>;
   rescanWebsite: (scanId: string) => Promise<void>;
   markFindingResolved: (findingId: string) => void;
   verifyDomain: (siteId: string) => Promise<boolean>;
@@ -131,7 +136,12 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setScansList(prev => prev.map(s => s.scanId === updatedReport.scanId ? updatedReport : s));
   };
 
-  const startNewScan = async (url: string, profile: ScanProfile, turnstileToken?: string): Promise<string> => {
+  const startNewScan = async (
+    url: string,
+    profile: ScanProfile,
+    turnstileToken?: string,
+    paymentDetails?: { paymentId?: string; orderId?: string; couponCode?: string }
+  ): Promise<string> => {
     setIsScanning(true);
     let normalized = url.trim();
     if (!/^https?:\/\//i.test(normalized)) {
@@ -152,6 +162,9 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         profile,
         acknowledgedTerms: true,
         turnstileToken,
+        paymentId: paymentDetails?.paymentId,
+        orderId: paymentDetails?.orderId,
+        couponCode: paymentDetails?.couponCode,
       });
 
       let attempts = 0;

@@ -1,0 +1,11 @@
+{
+  "coupons": [
+    {
+      "code": "FLAT418",
+      "discountRupees": 38,
+      "active": true,
+      "description": "Flat ₹38 discount — deep audit for ₹1",
+      "createdAt": "2026-11-03T18:00:00.000Z"
+    }
+  ]
+}

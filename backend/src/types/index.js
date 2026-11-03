@@ -247,6 +247,9 @@ export const ScanSubmissionPayloadSchema = z.object({
   }),
   idempotencyKey: z.string().optional(),
   turnstileToken: z.string().optional(),
+  paymentId: z.string().optional(),
+  orderId: z.string().optional(),
+  couponCode: z.string().optional(),
 });
 
 export const SavedWebsiteSchema = z.object({

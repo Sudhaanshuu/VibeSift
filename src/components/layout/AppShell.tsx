@@ -205,6 +205,37 @@ export const AppShell: React.FC = () => {
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
+
+        {/* Authenticated Footer */}
+        <footer className="border-t border-brand-border bg-white px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-brand-text-secondary">
+          <div className="flex items-center gap-2">
+            <span>© 2026 Pixir Operations</span>
+            <span>·</span>
+            <span>support@pixir.in</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium">
+            <NavLink to="/pricing" className="hover:text-brand-emerald-deep transition-colors">
+              Pricing (₹39 Deep)
+            </NavLink>
+            <span>·</span>
+            <NavLink to="/terms" className="hover:text-brand-emerald-deep transition-colors">
+              Terms & Consent
+            </NavLink>
+            <span>·</span>
+            <NavLink to="/refund-policy" className="hover:text-brand-emerald-deep transition-colors">
+              Cancellation & Refund
+            </NavLink>
+            <span>·</span>
+            <NavLink to="/privacy" className="hover:text-brand-emerald-deep transition-colors">
+              Privacy & DPDP
+            </NavLink>
+            <span>·</span>
+            <NavLink to="/contact" className="hover:text-brand-emerald-deep transition-colors">
+              Support
+            </NavLink>
+          </div>
+        </footer>
       </div>
     </div>
   );
