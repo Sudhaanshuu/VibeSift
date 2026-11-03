@@ -248,28 +248,68 @@ scansRouter.get('/quota', getScanQuota);
 scansRouter.get('/:scanId', async (req, res, next) => {
   try {
     const { scanId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id;
 
-    const scan = await dbService.getScan(scanId, userId);
+    // 1. Try to fetch scan owned by the current user
+    let scan = userId ? await dbService.getScan(scanId, userId) : null;
+
+    // 2. Fall back to global scan lookup (cached / public audits)
+    if (!scan) {
+      scan = await dbService.getScan(scanId);
+    }
+
+    // 3. Fall back to direct S3 report if database record is missing
+    let s3Report = null;
+    const hostname = scan?.normalizedHostname;
+    const sanitizedHost = hostname ? sanitizeTargetHost(hostname) : null;
+
+    const candidateS3Keys = [
+      scan?.s3ReportKey,
+      sanitizedHost ? `scans/${sanitizedHost}__${scanId}/report.json` : null,
+      sanitizedHost ? `audits/${sanitizedHost}__${scanId}.json` : null,
+      `scans/${scanId}/report.json`,
+      `audits/${scanId}.json`,
+    ].filter(Boolean);
+
+    for (const key of candidateS3Keys) {
+      try {
+        const rawReport = await s3Service.getObjectContent(key);
+        if (rawReport) {
+          s3Report = JSON.parse(rawReport);
+          break;
+        }
+      } catch {}
+    }
+
+    // If scan was not in database but was found in S3, reconstruct scan record
+    if (!scan && s3Report) {
+      scan = {
+        scanId,
+        ownerUserId: s3Report.ownerUserId || 'public',
+        targetUrl: s3Report.targetUrl || s3Report.url,
+        normalizedHostname: s3Report.normalizedHostname || s3Report.hostname,
+        scanProfile: s3Report.scanProfile || 'basic_public',
+        status: s3Report.status || 'COMPLETED',
+        createdAt: s3Report.createdAt || new Date().toISOString(),
+        summary: s3Report.summary || {},
+        enginesRun: s3Report.enginesRun || [],
+        checksNotPerformed: s3Report.checksNotPerformed || [],
+        s3ReportKey: candidateS3Keys[0] || `scans/${scanId}/report.json`,
+      };
+      try {
+        await dbService.saveScan(scan);
+      } catch {}
+    }
+
     if (!scan) {
       return res.status(404).json({
-        error: `Audit scan with ID "${scanId}" was not found or does not belong to you.`,
+        error: `Audit scan with ID "${scanId}" was not found.`,
         code: 'SCAN_NOT_FOUND',
         statusCode: 404,
       });
     }
 
     const findings = await dbService.getFindingsByScan(scanId);
-
-    let s3Report = null;
-    try {
-      const rawReport = await s3Service.getObjectContent(`scans/${scanId}/report.json`);
-      if (rawReport) {
-        s3Report = JSON.parse(rawReport);
-      }
-    } catch {
-      // S3 read failed or file not present, continue with scan data
-    }
 
     const mergedSummary = {
       ...(scan.summary || {}),
@@ -296,10 +336,13 @@ scansRouter.get('/:scanId', async (req, res, next) => {
 scansRouter.get('/:scanId/findings', async (req, res, next) => {
   try {
     const { scanId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id;
     const { category, severity, page = 1, limit = 50 } = req.query;
 
-    const scan = await dbService.getScan(scanId, userId);
+    let scan = userId ? await dbService.getScan(scanId, userId) : null;
+    if (!scan) {
+      scan = await dbService.getScan(scanId);
+    }
     if (!scan) {
       return res.status(404).json({
         error: `Audit scan with ID "${scanId}" was not found.`,
@@ -308,10 +351,40 @@ scansRouter.get('/:scanId/findings', async (req, res, next) => {
       });
     }
 
-    const allFindings = await dbService.getFindingsByScan(scanId, {
+    let allFindings = await dbService.getFindingsByScan(scanId, {
       category: category ? String(category) : undefined,
       severity: severity ? String(severity) : undefined,
     });
+
+    // If findings table was empty, fallback to findings stored inside S3 report
+    if (allFindings.length === 0) {
+      const sanitizedHost = scan.normalizedHostname ? sanitizeTargetHost(scan.normalizedHostname) : null;
+      const candidateS3Keys = [
+        scan.s3ReportKey,
+        sanitizedHost ? `scans/${sanitizedHost}__${scanId}/report.json` : null,
+        sanitizedHost ? `audits/${sanitizedHost}__${scanId}.json` : null,
+        `scans/${scanId}/report.json`,
+      ].filter(Boolean);
+
+      for (const key of candidateS3Keys) {
+        try {
+          const raw = await s3Service.getObjectContent(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.findings) && parsed.findings.length > 0) {
+              allFindings = parsed.findings;
+              if (category) {
+                allFindings = allFindings.filter((f) => f.category === String(category));
+              }
+              if (severity) {
+                allFindings = allFindings.filter((f) => f.severity === String(severity));
+              }
+              break;
+            }
+          }
+        } catch {}
+      }
+    }
 
     const pageNum = parseInt(String(page), 10);
     const limitNum = Math.min(100, parseInt(String(limit), 10));
@@ -336,9 +409,12 @@ scansRouter.get('/:scanId/findings', async (req, res, next) => {
 scansRouter.get('/:scanId/report', async (req, res, next) => {
   try {
     const { scanId } = req.params;
-    const userId = req.user.id;
+    const userId = req.user?.id;
 
-    const scan = await dbService.getScan(scanId, userId);
+    let scan = userId ? await dbService.getScan(scanId, userId) : null;
+    if (!scan) {
+      scan = await dbService.getScan(scanId);
+    }
     if (!scan) {
       return res.status(404).json({
         error: `Audit scan "${scanId}" was not found.`,
@@ -347,11 +423,11 @@ scansRouter.get('/:scanId/report', async (req, res, next) => {
       });
     }
 
-    const findings = await dbService.getFindingsByScan(scanId);
+    const sanitizedHost = scan.normalizedHostname ? sanitizeTargetHost(scan.normalizedHostname) : null;
 
     // If presigned format is requested
     if (req.query.format === 'download' || req.query.download === 'true') {
-      const artifactKey = `scans/${scanId}/report.json`;
+      const artifactKey = scan.s3ReportKey || (sanitizedHost ? `scans/${sanitizedHost}__${scanId}/report.json` : `scans/${scanId}/report.json`);
       const presignedUrl = await s3Service.getPresignedDownloadUrl(artifactKey);
       return res.json({
         scanId,
@@ -362,24 +438,41 @@ scansRouter.get('/:scanId/report', async (req, res, next) => {
 
     // If markdown format is requested
     if (req.query.format === 'markdown') {
-      const mdContent = await s3Service.getObjectContent(`scans/${scanId}/report.md`);
-      if (mdContent) {
-        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-        return res.send(mdContent);
+      const candidateMdKeys = [
+        sanitizedHost ? `scans/${sanitizedHost}__${scanId}/report.md` : null,
+        `scans/${scanId}/report.md`,
+      ].filter(Boolean);
+
+      for (const mdKey of candidateMdKeys) {
+        const mdContent = await s3Service.getObjectContent(mdKey);
+        if (mdContent) {
+          res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+          return res.send(mdContent);
+        }
       }
     }
 
     // Attempt to load finalized report from S3 artifacts
     let s3Report = null;
-    try {
-      const rawReport = await s3Service.getObjectContent(`scans/${scanId}/report.json`);
-      if (rawReport) {
-        s3Report = JSON.parse(rawReport);
-      }
-    } catch {
-      // S3 read failed or file not present, continue with scan data
+    const candidateS3Keys = [
+      scan.s3ReportKey,
+      sanitizedHost ? `scans/${sanitizedHost}__${scanId}/report.json` : null,
+      sanitizedHost ? `audits/${sanitizedHost}__${scanId}.json` : null,
+      `scans/${scanId}/report.json`,
+      `audits/${scanId}.json`,
+    ].filter(Boolean);
+
+    for (const key of candidateS3Keys) {
+      try {
+        const rawReport = await s3Service.getObjectContent(key);
+        if (rawReport) {
+          s3Report = JSON.parse(rawReport);
+          break;
+        }
+      } catch {}
     }
 
+    const findings = await dbService.getFindingsByScan(scanId);
     const mergedSummary = {
       ...(scan.summary || {}),
       ...(s3Report?.summary || {}),
@@ -407,7 +500,10 @@ scansRouter.post('/:scanId/rescan', enforceScanRateLimit, async (req, res, next)
     const { scanId } = req.params;
     const userId = req.user.id;
 
-    const existingScan = await dbService.getScan(scanId, userId);
+    let existingScan = userId ? await dbService.getScan(scanId, userId) : null;
+    if (!existingScan) {
+      existingScan = await dbService.getScan(scanId); // Fallback to global scan lookup so re-auditing cached scans works
+    }
     if (!existingScan) {
       return res.status(404).json({
         error: `Original scan "${scanId}" does not exist.`,
