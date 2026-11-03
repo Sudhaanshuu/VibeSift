@@ -1,4 +1,3 @@
-import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { spawn } from 'node:child_process';
@@ -9,67 +8,68 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import { config } from '../config/env.js';
 import { dbService } from '../services/dynamoStorage.js';
-import { s3Service } from '../services/s3Storage.js';
+import { s3Service, sanitizeTargetHost } from '../services/s3Storage.js';
 import { assertTransition, determineTerminalStatus } from '../services/scanStateService.js';
 import {
   normalizePythonFindings,
   normalizeLighthouseFindings,
 } from '../normalizer/findingsNormalizer.js';
 import { buildAuditReport, generateMarkdownReport } from '../normalizer/reportBuilder.js';
-import { explanationService } from '../services/bedrockExplanation.js';
+import { explanationService } from '../services/explanationService.js';
 
-let sfnClient = null;
 let sqsClient = null;
 
-if (!config.useMockOrchestration && config.orchestration.scanStateMachineArn) {
-  try {
-    sfnClient = new SFNClient({ region: config.awsRegion });
-    sqsClient = new SQSClient({ region: config.awsRegion });
-  } catch (err) {
-    console.warn('[WorkflowHandler] Failed to initialize SFN/SQS client:', err.message);
+function getWorkflowSqsClient() {
+  if (!sqsClient) {
+    const region = process.env.AWS_REGION || config.awsRegion || 'us-east-1';
+    try {
+      sqsClient = new SQSClient({ region });
+    } catch (err) {
+      console.warn('[WorkflowHandler] Failed to initialize SQS client:', err.message);
+    }
   }
+  return sqsClient;
 }
 
 /**
- * Initiates the scan workflow: enqueues message or starts Step Functions execution
+ * Initiates the scan workflow: enqueues message to SQS FIFO queue
  */
 export async function startScanWorkflow(job) {
-  if (sqsClient && config.orchestration.scanQueueUrl) {
+  const queueUrl = process.env.SCAN_QUEUE_URL || config.orchestration.scanQueueUrl;
+  const isFifo = queueUrl?.endsWith('.fifo');
+  const client = getWorkflowSqsClient();
+  let dispatchedToSqs = false;
+
+  if (client && queueUrl) {
     try {
-      await sqsClient.send(
-        new SendMessageCommand({
-          QueueUrl: config.orchestration.scanQueueUrl,
-          MessageBody: JSON.stringify(job),
-        })
-      );
+      const sanitizedGroup = sanitizeTargetHost(job.normalizedHostname || 'default') || 'default';
+      const sendParams = {
+        QueueUrl: queueUrl,
+        MessageBody: JSON.stringify(job),
+      };
+
+      if (isFifo) {
+        sendParams.MessageGroupId = sanitizedGroup;
+        sendParams.MessageDeduplicationId = `${job.scanId}_${Date.now()}`;
+      }
+
+      await client.send(new SendMessageCommand(sendParams));
+      dispatchedToSqs = true;
+      console.log(`[WorkflowHandler] Scan job ${job.scanId} enqueued to SQS FIFO queue.`);
+      return { dispatched: true, mode: 'sqs_fifo' };
     } catch (sqsErr) {
-      console.warn('[WorkflowHandler] SQS notification note:', sqsErr.message);
+      console.warn('[WorkflowHandler] SQS dispatch failed, falling back to local async runner:', sqsErr.message);
     }
   }
 
-  if (sfnClient && config.orchestration.scanStateMachineArn) {
-    try {
-      await sfnClient.send(
-        new StartExecutionCommand({
-          stateMachineArn: config.orchestration.scanStateMachineArn,
-          name: `scan_${job.scanId}_${Date.now()}`,
-          input: JSON.stringify(job),
-        })
-      );
-      return { dispatched: true, mode: 'step_functions' };
-    } catch (sfnErr) {
-      console.warn('[WorkflowHandler] Step Functions note:', sfnErr.message);
-    }
-  }
-
-  // Local mode: execute live asynchronous local pipeline
+  // Local mode / fallback: execute live asynchronous pipeline on EC2/local server
   setImmediate(() => {
     executeScanPipelineLocally(job).catch((err) => {
-      console.error(`[WorkflowHandler] Local scan pipeline failed for ${job.scanId}:`, err);
+      console.error(`[WorkflowHandler] Scan pipeline failed for ${job.scanId}:`, err);
     });
   });
 
-  return { dispatched: true, mode: 'local_async' };
+  return { dispatched: true, mode: dispatchedToSqs ? 'sqs_fifo' : 'local_async' };
 }
 
 let lambdaClient = null;
@@ -527,7 +527,7 @@ export async function executeScanPipelineLocally(job) {
     let rawPython = null;
     if (pyResult.success && pyResult.report && !pyResult.report.error) {
       rawPython = pyResult.report;
-      await s3Service.saveRawEngineOutput(scanId, 'custom-python', rawPython);
+      await s3Service.saveRawEngineOutput(scanId, 'custom-python', rawPython, normalizedHostname);
       enginesRun.push({
         engine: 'custom-python',
         displayName: pyDisplayName,
@@ -555,7 +555,7 @@ export async function executeScanPipelineLocally(job) {
     let rawLighthouse = null;
     if (lhResult.success && lhResult.report && !lhResult.report.error) {
       rawLighthouse = lhResult.report;
-      await s3Service.saveRawEngineOutput(scanId, 'lighthouse', rawLighthouse);
+      await s3Service.saveRawEngineOutput(scanId, 'lighthouse', rawLighthouse, normalizedHostname);
       enginesRun.push({
         engine: 'lighthouse',
         displayName: 'Google Lighthouse CWV (Live)',
@@ -666,8 +666,8 @@ export async function executeScanPipelineLocally(job) {
     // Generate executive markdown report
     const mdReport = generateMarkdownReport(report);
 
-    // Save artifacts to S3
-    await s3Service.saveReport(scanId, report, mdReport);
+    // Save artifacts to S3 using naming convention: scans/${sanitizedHost}__${scanId}/report.json
+    const s3Artifacts = await s3Service.saveReport(scanId, report, mdReport, normalizedHostname);
 
     // Save findings to persistent Database
     await dbService.saveFindings(scanId, report.findings);
@@ -678,6 +678,7 @@ export async function executeScanPipelineLocally(job) {
       status: terminalStatus,
       completedAt: report.completedAt,
       durationSeconds: report.durationSeconds,
+      s3ReportKey: s3Artifacts.jsonKey,
       summary: report.summary,
       enginesRun: report.enginesRun,
       checksNotPerformed: report.checksNotPerformed,

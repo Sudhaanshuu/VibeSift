@@ -181,6 +181,12 @@ export class DynamoStorageService {
     return scans[0] || null;
   }
 
+  async getLatestCompletedScanForSite(hostname) {
+    if (this.useLocal) return sqliteStorage.getLatestCompletedScanForSite(hostname);
+    const scans = await this.listScansByUser(null, { hostname });
+    return scans.find((s) => s.status === 'COMPLETED') || null;
+  }
+
   async getScanByIdempotencyKey(ownerUserId, idempotencyKey) {
     if (this.useLocal) return sqliteStorage.getScanByIdempotencyKey(ownerUserId, idempotencyKey);
 

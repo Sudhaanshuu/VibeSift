@@ -1,8 +1,51 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config/env.js';
+
+/**
+ * Sanitizes a domain hostname for safe use in S3 object keys
+ */
+export function sanitizeTargetHost(hostname = '') {
+  return (hostname || 'unknown-target')
+    .toLowerCase()
+    .replace(/^https?:\/\//i, '')
+    .split('/')[0]
+    .replace(/[^a-z0-9.-]/g, '_');
+}
+
+/**
+ * Builds the S3 naming convention: [sanitizedHost]__[scanId]
+ */
+export function buildScanS3Prefix(hostname, scanId) {
+  const host = sanitizeTargetHost(hostname);
+  return `${host}__${scanId}`;
+}
+
+/**
+ * Parses the hostname and scanId back out from an S3 key
+ * e.g. "scans/example.com__scn_1234abcd/report.json" -> { hostname: "example.com", scanId: "scn_1234abcd" }
+ */
+export function parseScanFromS3Key(key = '') {
+  if (!key) return null;
+  const match = key.match(/(?:scans|audits)\/([^/]+?)(?:\/report\.json|\.json|$)/);
+  if (!match) return null;
+  const identifier = match[1];
+  const parts = identifier.split('__');
+  if (parts.length >= 2) {
+    return {
+      hostname: parts[0],
+      scanId: parts.slice(1).join('__'),
+      identifier,
+    };
+  }
+  return {
+    hostname: identifier,
+    scanId: identifier,
+    identifier,
+  };
+}
 
 class LocalFileStorage {
   constructor() {
@@ -32,6 +75,16 @@ class LocalFileStorage {
     }
   }
 
+  async exists(key) {
+    const fullPath = path.join(this.baseDir, key);
+    try {
+      await fs.access(fullPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async getPresignedUrl(key, expiresInSeconds = 900) {
     // For local dev, return a mock or direct local URL
     return `http://localhost:${config.port}/api/artifacts/download?key=${encodeURIComponent(key)}&expiresIn=${expiresInSeconds}`;
@@ -56,14 +109,45 @@ export class S3StorageService {
   }
 
   /**
-   * Saves raw scanner output to S3
+   * Checks whether an object exists in S3 (or local S3 store)
+   * @param {string} key
+   * @returns {Promise<boolean>}
+   */
+  async objectExists(key) {
+    if (!key) return false;
+    if (this.useLocal) {
+      return localStorage.exists(key);
+    }
+
+    try {
+      await s3Client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        })
+      );
+      return true;
+    } catch (err) {
+      if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+        return false;
+      }
+      console.warn(`[S3Storage] HeadObject check failed for ${key}:`, err.message);
+      return false;
+    }
+  }
+
+  /**
+   * Saves raw scanner output to S3 using naming convention:
+   * scans/{sanitizedHost}__{scanId}/raw/{engineName}.json
    * @param {string} scanId
    * @param {string} engineName
    * @param {object | string} rawData
+   * @param {string} [hostname]
    * @returns {Promise<string>} S3 Key
    */
-  async saveRawEngineOutput(scanId, engineName, rawData) {
-    const key = `scans/${scanId}/raw/${engineName}.json`;
+  async saveRawEngineOutput(scanId, engineName, rawData, hostname = null) {
+    const folder = hostname ? buildScanS3Prefix(hostname, scanId) : scanId;
+    const key = `scans/${folder}/raw/${engineName}.json`;
     const body = typeof rawData === 'string' ? rawData : JSON.stringify(rawData, null, 2);
 
     if (this.useLocal) {
@@ -86,23 +170,29 @@ export class S3StorageService {
 
   /**
    * Saves the generated audit report (JSON & Markdown) to S3
+   * Naming convention: scans/{sanitizedHost}__{scanId}/report.json
+   * Also stores direct audit mirror: audits/{sanitizedHost}__{scanId}.json
    * @param {string} scanId
    * @param {object} reportData
    * @param {string} [markdownReport]
-   * @returns {Promise<{ jsonKey: string, mdKey?: string }>}
+   * @param {string} [hostname]
+   * @returns {Promise<{ jsonKey: string, mdKey?: string, directAuditKey: string }>}
    */
-  async saveReport(scanId, reportData, markdownReport = null) {
-    const jsonKey = `scans/${scanId}/report.json`;
+  async saveReport(scanId, reportData, markdownReport = null, hostname = null) {
+    const folder = hostname ? buildScanS3Prefix(hostname, scanId) : scanId;
+    const jsonKey = `scans/${folder}/report.json`;
+    const directAuditKey = `audits/${folder}.json`;
     const jsonBody = JSON.stringify(reportData, null, 2);
 
     if (this.useLocal) {
       await localStorage.putObject(jsonKey, jsonBody, 'application/json');
+      await localStorage.putObject(directAuditKey, jsonBody, 'application/json');
       let mdKey = null;
       if (markdownReport) {
-        mdKey = `scans/${scanId}/report.md`;
+        mdKey = `scans/${folder}/report.md`;
         await localStorage.putObject(mdKey, markdownReport, 'text/markdown');
       }
-      return { jsonKey, mdKey };
+      return { jsonKey, mdKey, directAuditKey };
     }
 
     await s3Client.send(
@@ -115,9 +205,20 @@ export class S3StorageService {
       })
     );
 
+    // Direct audit mirror for convenient site-specific fetching
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: directAuditKey,
+        Body: jsonBody,
+        ContentType: 'application/json',
+        ServerSideEncryption: 'aws:kms',
+      })
+    );
+
     let mdKey = null;
     if (markdownReport) {
-      mdKey = `scans/${scanId}/report.md`;
+      mdKey = `scans/${folder}/report.md`;
       await s3Client.send(
         new PutObjectCommand({
           Bucket: this.bucket,
@@ -129,7 +230,7 @@ export class S3StorageService {
       );
     }
 
-    return { jsonKey, mdKey };
+    return { jsonKey, mdKey, directAuditKey };
   }
 
   /**

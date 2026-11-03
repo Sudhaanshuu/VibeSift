@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { dbService } from '../../services/dynamoStorage.js';
-import { s3Service } from '../../services/s3Storage.js';
+import { s3Service, sanitizeTargetHost } from '../../services/s3Storage.js';
 import { validateAndNormalizeUrl, resolveAndValidateHost } from '../../services/ssrfGuard.js';
 import { matchesVerifiedDomain } from '../../services/domainVerification.js';
 import { assertTransition } from '../../services/scanStateService.js';
@@ -10,6 +10,61 @@ import { enforceScanRateLimit, getScanQuota } from '../middleware/rateLimiter.js
 import { startScanWorkflow } from '../../orchestration/workflowHandler.js';
 
 export const scansRouter = Router();
+
+/**
+ * POST /scans/precheck — Checks whether an audit already exists in S3 & SQLite for the target URL
+ * Returns existing audit metadata, timestamp, readiness score, and S3 key if present.
+ */
+scansRouter.post('/precheck', async (req, res, next) => {
+  try {
+    const rawUrl = req.body?.url || req.query?.url;
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      return res.status(400).json({ error: 'A valid website URL is required', code: 'INVALID_URL' });
+    }
+
+    const validated = validateAndNormalizeUrl(rawUrl);
+    await resolveAndValidateHost(validated.hostname);
+
+    // Look up latest completed scan for this target hostname globally in SQLite
+    const latestScan = await dbService.getLatestCompletedScanForSite(validated.hostname);
+    if (!latestScan) {
+      return res.status(200).json({ exists: false, hostname: validated.hostname });
+    }
+
+    // Determine S3 report key using naming convention or stored key
+    const s3Key = latestScan.s3ReportKey || `scans/${sanitizeTargetHost(validated.hostname)}__${latestScan.scanId}/report.json`;
+    const fallbackDirectKey = `audits/${sanitizeTargetHost(validated.hostname)}__${latestScan.scanId}.json`;
+    const legacyKey = `scans/${latestScan.scanId}/report.json`;
+
+    // Verify actual file existence in S3
+    const existsInS3 = (await s3Service.objectExists(s3Key)) ||
+                       (await s3Service.objectExists(fallbackDirectKey)) ||
+                       (await s3Service.objectExists(legacyKey));
+
+    if (!existsInS3) {
+      return res.status(200).json({ exists: false, hostname: validated.hostname });
+    }
+
+    return res.status(200).json({
+      exists: true,
+      scanId: latestScan.scanId,
+      targetUrl: latestScan.targetUrl,
+      normalizedHostname: validated.hostname,
+      createdAt: latestScan.createdAt,
+      status: latestScan.status,
+      summary: latestScan.summary,
+      readinessScore: latestScan.summary?.readinessScore ?? null,
+      s3Key,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+scansRouter.get('/precheck', async (req, res, next) => {
+  req.body = { url: req.query.url };
+  return scansRouter.handle(req, res, next);
+});
 
 /**
  * POST /scans (or /api/scans) — Submit a new website audit scan
@@ -102,6 +157,8 @@ scansRouter.post('/', enforceScanRateLimit, async (req, res, next) => {
     const scanId = `scn_${crypto.randomBytes(8).toString('hex')}`;
     const now = new Date().toISOString();
 
+    const s3ReportKey = `scans/${sanitizeTargetHost(validated.hostname)}__${scanId}/report.json`;
+
     const scanRecord = {
       scanId,
       ownerUserId: userId,
@@ -109,6 +166,7 @@ scansRouter.post('/', enforceScanRateLimit, async (req, res, next) => {
       normalizedHostname: validated.hostname,
       scanProfile: payload.profile,
       status: 'QUEUED',
+      s3ReportKey,
       createdAt: now,
       updatedAt: now,
       idempotencyKey,

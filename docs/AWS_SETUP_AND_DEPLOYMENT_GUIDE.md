@@ -1,9 +1,8 @@
-# VibeSift 2.0: Complete AWS Setup & Zero-Docker Deployment Guide
+# VibeSift 2.0: Complete AWS Setup & Deployment Guide
 
-> **Architecture:** Zero-Docker, Flat-Cost Cloud Architecture  
+> **Architecture:** EC2 Native Node.js & SQS FIFO Cloud Architecture  
 > **Production Domain:** `https://vibesift.pixir.in`  
-> **Core Services:** AWS Lightsail • SQLite (WAL Mode) • Amazon S3 • Amazon Cognito • AWS Systems Manager (SSM) Parameter Store • AWS Lambda • Amazon CloudWatch • Cloudflare Edge  
-> **Estimated AWS Infrastructure Cost:** **~$5.00 – $7.00 / month flat** (No hidden IOPS, NAT gateways, or container registry fees)
+> **Core Services:** AWS EC2 • Amazon SQS FIFO • SQLite (WAL Mode) • Amazon S3 • Amazon Cognito • AWS Lambda • Cloudflare Edge  
 
 ---
 
@@ -12,13 +11,13 @@
 1. [Architecture Overview & Blueprint](#1-architecture-overview--blueprint)
 2. [Order of Operations & Checklist](#2-order-of-operations--checklist)
 3. [Section 1: AWS SSM Parameter Store Setup (Free Tier)](#3-section-1-aws-ssm-parameter-store-setup-free-tier)
-4. [Section 2: AWS Lightsail Host Provisioning ($5/mo)](#4-section-2-aws-lightsail-host-provisioning-5mo)
+4. [Section 2: AWS EC2 Host Provisioning](#4-section-2-aws-ec2-host-provisioning)
 5. [Section 3: Server Dependency Installation (Zero Docker)](#5-section-3-server-dependency-installation-zero-docker)
 6. [Section 4: Application Deployment, SQLite & PM2 Setup](#6-section-4-application-deployment-sqlite--pm2-setup)
 7. [Section 5: Nginx Reverse Proxy Configuration](#7-section-5-nginx-reverse-proxy-configuration)
 8. [Section 6: Cloudflare DNS, Free SSL & CloudFront Edge](#8-section-6-cloudflare-dns-free-ssl--cloudfront-edge)
 9. [Section 7: Serverless Scheduled Audits (AWS Lambda)](#9-section-7-serverless-scheduled-audits-aws-lambda)
-10. [Section 8: Amazon CloudWatch Observability & Alarms](#10-section-8-amazon-cloudwatch-observability--alarms)
+10. [Section 8: Amazon SQS FIFO Setup & Integration](#10-section-8-amazon-sqs-fifo-setup--integration)
 11. [Section 9: Complete 5-Minute Host Setup Script](#11-section-9-complete-5-minute-host-setup-script)
 12. [Section 10: Health Verification & Smoke Tests](#12-section-10-health-verification--smoke-tests)
 
@@ -26,7 +25,7 @@
 
 ## 1. Architecture Overview & Blueprint
 
-VibeSift 2.0 uses a lean, production-grade architecture that completely avoids bulky Docker orchestration (ECS Fargate, Docker-in-Docker, multi-gigabyte container registries) by running native Linux processes on a single dedicated AWS Lightsail instance:
+VibeSift 2.0 uses a lean, production-grade architecture running native Linux processes on a dedicated AWS EC2 Ubuntu instance connected to Amazon SQS FIFO:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -48,7 +47,7 @@ VibeSift 2.0 uses a lean, production-grade architecture that completely avoids b
                                │ Origin HTTP/HTTPS
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│          AWS Lightsail Production Host ($5/mo Ubuntu)        │
+│          AWS EC2 Production Host (Ubuntu 22.04/24.04)        │
 │                                                             │
 │   ┌─────────────────────────────────────────────────────┐   │
 │   │ Nginx Web Server / Reverse Proxy                    │   │
