@@ -29,10 +29,6 @@ paymentsRouter.post('/validate-coupon', async (req, res, next) => {
     const basePrice = config.razorpay?.deepAuditPriceInRupees || 39;
 
     const result = await validateCoupon(couponCode, basePrice);
-    if (!result.valid) {
-      return res.status(400).json(result);
-    }
-
     return res.status(200).json(result);
   } catch (err) {
     next(err);

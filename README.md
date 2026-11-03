@@ -13,6 +13,7 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
 - **React Router 7 (`react-router-dom`)**: Complete client-side routing, route parameters, and protected application guards.
 - **TanStack Query v5 (`@tanstack/react-query`)**: Server-state management and smart scan-status polling with terminal-state detection.
 - **React Hook Form & Zod**: Reusable URL validation, SSRF boundary defenses, and scan scope enforcement.
+- **Cloudflare Turnstile**: Seamless, privacy-preserving bot defense protecting login, registration, and scan task creation.
 - **Lucide React**: Clean, accessible icon system with semantic stroke weights.
 - **Vitest & React Testing Library**: Comprehensive test suite with 51 passing frontend component and smoke tests.
 
@@ -97,6 +98,16 @@ VITE_APP_NAME="VibeSift"
 VITE_COGNITO_USER_POOL_ID=us-east-1_example123
 VITE_COGNITO_CLIENT_ID=exampleclientid123
 VITE_AWS_REGION=us-east-1
+VITE_TURNSTILE_SITE_KEY=0x4AAAAAAFx4L_X5foiyZTNW
+```
+
+Backend `.env` options:
+```ini
+PORT=4000
+NODE_ENV=production
+TURNSTILE_SITE_KEY=0x4AAAAAAFx4L_X5foiyZTNW
+TURNSTILE_SECRET_KEY=0x4AAAAAAFx4LyDw-n53U4-1sDlZ6iIdb_8
+TURNSTILE_ENABLED=true
 ```
 
 ### 3. Run Development Server
@@ -138,6 +149,7 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
 - **Application API (`backend/src/api/`)**:
   - Express.js and AWS Lambda serverless handlers.
   - Amazon Cognito JWT authentication and multi-tenant authorization.
+  - Cloudflare Turnstile bot verification middleware (`verifyTurnstileToken`) for login, signup, and scan submission endpoints.
   - Strict SSRF defense filter before any network resolution.
   - Rate limiting (3 scans/min, 15 scans/hour) and idempotency enforcement.
   - Domain ownership verification (DNS TXT, HTML `<meta>`, and HTTP `/.well-known/`).
@@ -146,18 +158,20 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
   - `lighthouse`: Native Linux Headless Chromium collecting Core Web Vitals (LCP, CLS, FCP, TBT), Performance, Accessibility, and SEO.
 - **Normalizer & Scoring (`backend/src/normalizer/`)**:
   - Unifies multi-engine outputs into a common schema (`src/types/audit.ts`).
+  - Directly ingests genuine Google Lighthouse category scores (Performance, Accessibility, SEO, Best Practices) and maps Core Web Vitals into the Check Registry.
+  - Computes Launch Readiness Score using multi-pillar weighted scoring (Security 25%, Performance 20%, Accessibility 15%, SEO 15%, Privacy 15%, Completeness/Trust 10%), capping at 50 if Critical vulnerabilities exist.
   - Redacts sensitive secrets, AWS keys (`AKIA...`), and tokens.
-  - Deduplicates repeated observations while preserving evidence references.
-  - Calculates Launch Readiness Score (0-100) and category scores.
   - Builds executive Markdown audit reports and stores raw/final artifacts in S3.
 - **Rules-Based Explanation & Executive Summary Service (`backend/src/services/explanationService.js`)**:
   - Pure deterministic, high-speed rules-based developer guidance and executive summaries (zero external AI latency or costs).
 - **AWS Infrastructure & Orchestration**:
   - Storage: High-throughput local SQLite 3 (WAL mode) / Amazon DynamoDB + KMS-encrypted Amazon S3 bucket.
-  - Compute: Dedicated Node.js 20/22 on AWS EC2 with PM2 process manager + AWS Lambda (Python Inspector).
+  - Configuration: AWS Systems Manager (SSM) Parameter Store (`/vibesift/prod/*`) with zero hardcoded plain text secrets.
+  - Compute: Dedicated Node.js on AWS EC2 with PM2 process manager (`vibesift-backend` & `vibesift-sqs-worker`) + AWS Lambda (`vibesift-python-inspector-dev`).
   - Orchestration: Amazon SQS FIFO Queue (`vibesift-scan-jobs.fifo`) with dedicated FIFO Dead-Letter Queue (DLQ).
-  - Global S3 Cache Check: Instant pre-check against S3 & SQLite before queuing new audits, presenting full UI reports for cached audits.
+  - Global S3 Cache Check: Instant cross-tenant pre-check against S3 & SQLite before queuing new audits, discovering existing reports across users with zero redundant compute.
   - Complete Setup Guide: **[`SQS_SETUP_AND_INTEGRATION.md`](SQS_SETUP_AND_INTEGRATION.md)**
+  - Comprehensive Operations Runbook: **[`PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md`](PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
 
 ### Running Backend Locally
 ```bash
@@ -174,13 +188,32 @@ npm run build:infra
 npm run synth:infra
 ```
 
+### Production Deployment & Update Runbook
+On the production Ubuntu host (`/var/www/vibesift`):
+```bash
+# 1. Pull latest code from GitHub
+git pull origin main
+
+# 2. Install dependencies & build frontend bundle
+npm install
+npm run build
+
+# 3. Restart PM2 processes with updated environment & SSM parameters
+pm2 restart all --update-env
+
+# 4. Save the active PM2 process list so it persists across server reboots
+pm2 save
+
+# 5. Check live health
+pm2 status
+pm2 logs --lines 20
+```
+
 ### Complete Documentation & Guides
-- **[Amazon SQS FIFO Setup & Integration Guide](SQS_SETUP_AND_INTEGRATION.md)**
+- **[Production Architecture & Operations Runbook](PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
 - **[Complete AWS Setup & Deployment Guide](docs/AWS_SETUP_AND_DEPLOYMENT_GUIDE.md)**
-- [API Contract Specification](docs/API.md)
-- [Audit Report Schema & Scoring](docs/REPORT_SCHEMA.md)
-  - [07. End-to-End Production Deployment Runbook](file:///c:/vibesift/docs/aws-setup/07-END-TO-END-DEPLOYMENT-RUNBOOK.md)
-- [API Contract Specification](file:///c:/vibesift/docs/API.md)
-- [Audit Report Schema & Scoring](file:///c:/vibesift/docs/REPORT_SCHEMA.md)
-- [AWS Architecture & SSRF Topology](file:///c:/vibesift/docs/ARCHITECTURE.md)
-- [Deployment & Cost Breakdown](file:///c:/vibesift/docs/DEPLOYMENT.md)
+- **[Amazon SQS FIFO Setup & Integration Guide](SQS_SETUP_AND_INTEGRATION.md)**
+- **[API Contract Specification](docs/API.md)**
+- **[Audit Report Schema & Scoring](docs/REPORT_SCHEMA.md)**
+- **[AWS Architecture & SSRF Topology](docs/ARCHITECTURE.md)**
+- **[Deployment & Cost Breakdown](docs/DEPLOYMENT.md)**

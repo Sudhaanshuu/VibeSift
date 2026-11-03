@@ -2,7 +2,7 @@
 
 The VibeSift API exposes a documented, consistent REST interface with JSON payloads, standard HTTP status codes, and multi-tenant security isolation.
 
-All endpoints (except `/api/health`) require an Amazon Cognito JWT Bearer token in the `Authorization` header:
+All endpoints (except `/api/health`, `/api/auth/login`, `/api/auth/signup`, `/api/auth/confirm`, and `/api/auth/resend-code`) require an Amazon Cognito JWT Bearer token in the `Authorization` header:
 ```http
 Authorization: Bearer <cognito_id_token_or_access_token>
 ```
@@ -10,7 +10,175 @@ Authorization: Bearer <cognito_id_token_or_access_token>
 
 ---
 
-## 1. System Health
+## 🛡️ Cloudflare Turnstile Bot Defense Protocol
+
+To protect compute resources, Chromium instances, Cognito authentication pools, and prevent credential stuffing or automated spam attacks, sensitive endpoints enforce Cloudflare Turnstile bot verification when `turnstile.enabled` is active in SSM or `.env`.
+
+### Protected Endpoints
+- `POST /api/auth/login` (Authentication)
+- `POST /api/auth/signup` (Account Registration)
+- `POST /api/scans` (Scan Task Submission)
+
+### Client Token Delivery Methods
+Clients may submit the solved Turnstile challenge response through any of the following channels (checked in priority order):
+1. **Header**: `cf-turnstile-response: <turnstile_token>`
+2. **Header**: `x-turnstile-token: <turnstile_token>`
+3. **JSON Body**: `{ "turnstileToken": "<turnstile_token>", ... }`
+4. **URL Query**: `?turnstileToken=<turnstile_token>`
+
+### Bot Challenge Error Responses
+
+#### `403 Forbidden` (`BOT_CHALLENGE_REQUIRED`)
+Returned when the endpoint requires bot verification but no token was provided. The API returns the public site key so the client widget can render immediately:
+```json
+{
+  "error": "Bot protection verification required. Please complete the security challenge.",
+  "code": "BOT_CHALLENGE_REQUIRED",
+  "statusCode": 403,
+  "siteKey": "0x4AAAAAAFx4L_X5foiyZTNW"
+}
+```
+
+#### `403 Forbidden` (`BOT_VERIFICATION_FAILED`)
+Returned when the token fails Cloudflare's server-to-server validation (e.g. token expired, already consumed, or invalid origin):
+```json
+{
+  "error": "Bot verification challenge failed. Please refresh and try again.",
+  "code": "BOT_VERIFICATION_FAILED",
+  "statusCode": 403
+}
+```
+
+---
+
+## 1. Authentication
+
+### `POST /api/auth/login`
+Authenticates a user against Amazon Cognito (or local mock developer auth if demo mode enabled). Protected by Cloudflare Turnstile.
+
+#### Request Headers
+- `cf-turnstile-response` or `x-turnstile-token` *(string, required if bot defense enabled)*
+
+#### Request Body
+```json
+{
+  "email": "developer@example.com",
+  "password": "SecurePassword123!",
+  "turnstileToken": "0.1234567890abcdef..."
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "token": "eyJraWQiOi...",
+  "accessToken": "eyJraWQiOi...",
+  "idToken": "eyJraWQiOi...",
+  "refreshToken": "eyJjdHki...",
+  "expiresIn": 3600,
+  "user": {
+    "id": "usr_9a8b7c6d5e4f",
+    "email": "developer@example.com",
+    "name": "Alex Developer",
+    "plan": "developer"
+  }
+}
+```
+
+#### Error Responses
+- `400 Bad Request` (`MISSING_EMAIL` / `MISSING_PASSWORD`): Missing required authentication parameters.
+- `401 Unauthorized` (`INVALID_CREDENTIALS`): Incorrect email or password.
+- `403 Forbidden` (`BOT_CHALLENGE_REQUIRED` / `BOT_VERIFICATION_FAILED`): Turnstile verification missing or invalid.
+- `403 Forbidden` (`USER_NOT_CONFIRMED`): User has not verified their email code yet.
+
+---
+
+### `POST /api/auth/signup`
+Registers a new developer account via Amazon Cognito. Protected by Cloudflare Turnstile.
+
+#### Request Body
+```json
+{
+  "email": "developer@example.com",
+  "password": "SecurePassword123!",
+  "name": "Alex Developer",
+  "turnstileToken": "0.1234567890abcdef..."
+}
+```
+
+#### Response `201 Created`
+```json
+{
+  "userConfirmed": false,
+  "userSub": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+  "email": "developer@example.com"
+}
+```
+
+#### Error Responses
+- `400 Bad Request` (`MISSING_EMAIL` / `INVALID_PASSWORD`): Password must be at least 8 characters.
+- `403 Forbidden` (`BOT_CHALLENGE_REQUIRED` / `BOT_VERIFICATION_FAILED`): Turnstile verification missing or invalid.
+- `409 Conflict` (`USERNAME_EXISTS`): An account with this email address already exists.
+
+---
+
+### `POST /api/auth/confirm`
+Confirms user registration using the one-time verification code sent by Amazon Cognito.
+
+#### Request Body
+```json
+{
+  "email": "developer@example.com",
+  "code": "123456"
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "confirmed": true,
+  "message": "Email address verified successfully. You may now sign in."
+}
+```
+
+---
+
+### `POST /api/auth/resend-code`
+Requests a fresh verification code to be dispatched to the user's registered email.
+
+#### Request Body
+```json
+{
+  "email": "developer@example.com"
+}
+```
+
+#### Response `200 OK`
+```json
+{
+  "sent": true,
+  "destination": "d***@e***.com"
+}
+```
+
+---
+
+### `GET /api/auth/me`
+Fetches user profile details for the currently authenticated Cognito session.
+
+#### Response `200 OK`
+```json
+{
+  "id": "usr_9a8b7c6d5e4f",
+  "email": "developer@example.com",
+  "name": "Alex Developer",
+  "plan": "developer"
+}
+```
+
+---
+
+## 2. System Health
 
 ### `GET /api/health`
 Exposes a minimal service health indicator without leaking infrastructure details.
@@ -27,10 +195,14 @@ Exposes a minimal service health indicator without leaking infrastructure detail
 
 ---
 
-## 2. Audit Scans
+## 3. Audit Scans
 
 ### `POST /api/scans`
-Submits a target website URL for audit inspection.
+Submits a target website URL for audit inspection. Protected by Cloudflare Turnstile bot verification when enabled.
+
+#### Request Headers
+- `Authorization: Bearer <cognito_token>` *(required)*
+- `cf-turnstile-response` or `x-turnstile-token` *(string, optional if passing `turnstileToken` in body)*
 
 #### Request Body
 ```json
@@ -38,7 +210,8 @@ Submits a target website URL for audit inspection.
   "url": "https://example.com",
   "profile": "baseline_public",
   "acknowledgedTerms": true,
-  "idempotencyKey": "unique-client-req-key-001"
+  "idempotencyKey": "unique-client-req-key-001",
+  "turnstileToken": "0.1234567890abcdef..."
 }
 ```
 
@@ -46,6 +219,7 @@ Submits a target website URL for audit inspection.
 - `profile` *(string, default: `baseline_public`)*: `baseline_public` or `authorized_deep`. If `authorized_deep` is selected, the requesting user must have verified domain control of the target hostname.
 - `acknowledgedTerms` *(boolean, required)*: Must be `true`.
 - `idempotencyKey` *(string, optional)*: Unique token to prevent duplicate scans on network retry.
+- `turnstileToken` *(string, optional)*: Cloudflare Turnstile token from the verification widget.
 
 #### Response `201 Created`
 ```json
@@ -59,6 +233,8 @@ Submits a target website URL for audit inspection.
 
 #### Error Responses
 - `400 Bad Request` (`SSRF_BLOCKED`): Destination URL resolves to a private, loopback, or cloud metadata IP address.
+- `403 Forbidden` (`BOT_CHALLENGE_REQUIRED`): Cloudflare Turnstile token missing.
+- `403 Forbidden` (`BOT_VERIFICATION_FAILED`): Cloudflare Turnstile token validation failed.
 - `403 Forbidden` (`DOMAIN_NOT_VERIFIED`): Attempted `authorized_deep` scan on an unverified domain.
 - `429 Too Many Requests` (`RATE_LIMIT_EXCEEDED` / `QUOTA_EXCEEDED`): Hourly or minute scan submission limit reached.
 
@@ -226,7 +402,7 @@ Cancels an active scan.
 
 ---
 
-## 3. Saved Websites & Domain Verification
+## 4. Saved Websites & Domain Verification
 
 ### `GET /api/sites`
 Lists all saved websites and domain verification statuses for the authenticated user.

@@ -243,10 +243,10 @@ When the Lambda / pipeline finishes, it persists raw engine outputs and executiv
 | **AWS Lambda Python Worker** | Missing / not implemented | `backend/src/workers/python-inspector/lambda_function.py` | Full serverless execution of all 71 Python audit checks via AWS Lambda. |
 | **AWS SDK Lambda Invocation** | Local spawn only | `@aws-sdk/client-lambda` with seamless local fallback | Invokes AWS Lambda in cloud stages; falls back to local runner offline. |
 | **Lambda Unit Test Suite** | None | `backend/src/workers/python-inspector/test_lambda.py` | 6 automated tests verifying direct, API Gateway, SQS, and SSRF blocking. |
-| **Backend Integration Tests** | 57 tests | 63 tests (`backend/tests/lambdaInspector.test.js`, `backend/tests/ssmService.test.js`) | Verifies Lambda client invocation, SSRF handling, and SSM Parameter Store config retrieval. |
+| **Backend Integration Tests** | 57 tests | 72 tests (`backend/tests/`) | Verifies Lambda client invocation, SSRF handling, SSM config retrieval, SQS integration, and cross-tenant caching. |
 | **AWS SSM Parameter Store** | Missing SDK / raw env only | `@aws-sdk/client-ssm` (`backend/src/services/ssmService.js`) | Centralized KMS-encrypted configuration and runtime secrets management with local fallback. |
 | **Pruned Dead Code (CDK & Normalizer)** | Unused OWASP ZAP & Nuclei Fargate containers & dead normalizer stubs | Clean normalizer & CDK definition with `PythonInspectorLambda` construct | Saves cloud costs and eliminates dead code paths. |
-| **Step Functions Integration** | Heavyweight container execution | Serverless `tasks.LambdaInvoke` calling `PythonInspectorLambda` | Instant cold-start execution without container pull latency. |
+| **Asynchronous Orchestration** | Heavyweight container / Step Functions execution | Amazon SQS FIFO Queue + EC2 background worker (`sqsConsumer.js`) | Ordered, deduplicated asynchronous processing with zero Step Functions costs. |
 | **Demo Inspection Tooling** | Manual SQLite queries | `npm run demo:inspect` (`inspect-run.js`) | One-click real-time inspection of SQLite, Cognito, and S3 for presentations. |
 
 ---
@@ -260,11 +260,11 @@ Run all three test suites to verify system integrity:
 npm run test:lambda
 python backend/src/workers/python-inspector/test_inspector.py
 
-# 2. Run Backend Node.js Test Suite (63 tests)
+# 2. Run Backend Node.js Test Suite (72 tests)
 npm run test:backend
 
 # 3. Run Frontend React & Vitest Suite (51 tests)
 npm test
 ```
 
-**Total Tests:** **125 automated tests passing with 0 failures.**
+**Total Tests:** **134 automated tests passing with 0 failures.**

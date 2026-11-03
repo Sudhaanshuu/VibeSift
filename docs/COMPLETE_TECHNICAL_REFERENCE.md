@@ -47,61 +47,53 @@ VibeSift is an enterprise-grade website launch-readiness and multi-vector audit 
 ```
                        +-----------------------------------+
                        |        Client Web Browser         |
-                       |  (React 18 / Vite / Tailwind CSS) |
+                       |  (React 19 / Vite / Tailwind CSS) |
                        +-----------------+-----------------+
                                          |
                                          | HTTPS (Bearer JWT / Turnstile)
                                          v
                        +-----------------+-----------------+
-                       |       Amazon CloudFront CDN       |
-                       |       & AWS WAF WebACL (Rate)     |
+                       |         Cloudflare Edge           |
+                       | DNS • SSL/TLS 1.3 • Turnstile•WAF |
                        +-----------------+-----------------+
                                          |
-                                         v
+                                         v (Port 443)
                        +-----------------+-----------------+
-                       |    API Gateway v2 (HTTP API)      |
-                       +-----------------+-----------------+
-                                         |
-                                         v
-                       +-----------------+-----------------+
-                       |    Node.js 22.x Express API       |
-                       | (AWS Lambda / Local Dev Server)   |
-                       |   - SSRF Guard / Rate Limiter     |
-                       |   - Cognito JWT Auth Validator    |
+                       |     AWS EC2 Production Host       |
+                       |  - Nginx Reverse Proxy            |
+                       |  - Express API ('vibesift-backend'|
+                       |    PM2 Port 4000)                 |
                        +--------+-----------------+--------+
                                 |                 |
           Enqueue Scan Job      |                 | Query / Save State
                                 v                 v
          +----------------------+----+    +-------+--------------------+
-         |   Amazon SQS Scan Queue   |    | Amazon DynamoDB / SQLite   |
-         |   & Dead-Letter Queue     |    | - SavedWebsites Table      |
-         +--------------+------------+    | - Scans Table              |
-                        |                 | - Findings Table           |
-                        v                 +-------+--------------------+
-         +--------------+------------+            |
-         | AWS Step Functions SFN    |            | Save Artifacts
-         | Orchestration Workflow    |            v
-         +--------------+------------+    +-------+--------------------+
-                        |                 | Amazon S3 Reports Bucket   |
-       +----------------+----------------+| (KMS Encrypted Reports/Raw)|
-       |                                 |+----------------------------+
-       v                                 v
-+------+---------------------+    +------+---------------------+
-| Python Inspector Worker    |    | Google Lighthouse Worker   |
-| (Lambda / ECS Fargate Task)|    | (ECS Fargate Headless CWV) |
-| - BasicAuditor (34 checks) |    | - Performance & Core Vitals|
-| - DeepAuditor (22 checks)  |    | - Accessibility & SEO      |
-| - PrivacyAuditor (15 checks|    +----------------------------+
-+----------------------------+                   |
-       |                                         |
-       +----------------+------------------------+
-                        |
-                        v
-         +--------------+------------+
+         |   Amazon SQS FIFO Queue   |    | SQLite 3 (WAL Mode) /      |
+         |   vibesift-scan-jobs.fifo |    | DynamoDB                   |
+         |   & vibesift-scan-jobs-dlq|    | - SavedWebsites / Scans    |
+         +--------------+------------+    +----------------------------+
+                        |                                |
+         20s Long-Poll  v                                | Save Artifacts
+         +--------------+------------+                   v
+         | PM2 Worker Process        |    +-------+--------------------+
+         | 'vibesift-sqs-worker'     |    | Amazon S3 Reports Bucket   |
+         | (Local Chromium / SQS)    |    | (KMS Encrypted Reports/Raw)|
+         +--------+-------------+----+    +----------------------------+
+                  |             |                        ^
+                  v             v                        |
+  +---------------+-----+ +-----+----------------+       |
+  | AWS Lambda Worker   | | Native Headless      |-------+
+  | Python Inspector    | | Chromium Lighthouse  |
+  | (71 checks, zip)    | | (Core Web Vitals)    |
+  +---------------+-----+ +----------------------+
+                  |
+                  v
+         +---------------------------+
          | Normalizer & Scoring      |
          | - Deduplication & Redact  |
-         | - Readiness Score (0-100) |
-         | - Amazon Bedrock Claude   |
+         | - Real Lighthouse CWV Cat |
+         | - Multi-Pillar Score 0-100|
+         | - Deterministic Guidance  |
          +---------------------------+
 ```
 
@@ -119,16 +111,16 @@ The lifecycle of an audit run follows an audited, strictly monotonic finite stat
 ```
 
 ### Monotonic State Machine Rules (`scanStateService.js`):
-1. **QUEUED:** The audit submission is enqueued via API Gateway into Amazon SQS (`vibesift-scan-jobs-dev`) or SQLite.
+1. **QUEUED:** The audit submission is validated and either resolved via global precheck cache across all tenants, or enqueued into Amazon SQS FIFO (`vibesift-scan-jobs.fifo`) with `MessageGroupId` and deduplication ID.
 2. **VALIDATING:** The target URL is normalized, scheme checked (`http`/`https`), and resolved via DNS with all resolved IPs scrutinized against the SSRF CIDR blocklist. If `authorized_deep` is requested, verified domain ownership or explicit attestation is verified.
-3. **RUNNING:** Inspection engines are dispatched in parallel.
-   - In AWS: AWS Step Functions triggers ECS Fargate containers and/or serverless Lambda workers.
-   - In Local Dev: `workflowHandler.js` spawns asynchronous worker processes.
-4. **NORMALIZING:** Engine raw outputs are retrieved, deduplicated, secrets redacted, penalties tallied, category scores calculated, and Amazon Bedrock (`anthropic.claude-3-haiku-20240307-v1:0`) is invoked for AI technical explanations.
+3. **RUNNING:** Inspection engines are dispatched concurrently by the EC2 PM2 worker (`vibesift-sqs-worker`):
+   - In AWS: AWS Lambda (`vibesift-python-inspector-dev`, Python 3.12, 71 checks) runs serverlessly, and native Headless Chromium Lighthouse runs on the EC2 host.
+   - In Local Dev: `workflowHandler.js` spawns asynchronous worker processes or invokes Lambda with local fallback.
+4. **NORMALIZING:** Engine raw outputs are retrieved, deduplicated, and secrets redacted. Core Web Vitals are extracted and mapped into the Check Registry tab; genuine Lighthouse category scores (`performance`, `accessibility`, `seo`, `best-practices`) are ingested directly; Launch Readiness Score is computed via the multi-pillar weighted formula (Security 25%, Performance 20%, Accessibility 15%, SEO 15%, Privacy 15%, Completeness/Trust 10%, capped at 50 if Critical defects exist); and deterministic developer remediation guidance is generated via `explanationService.js`.
 5. **TERMINAL STATES (`COMPLETED`, `PARTIAL`, `FAILED`, `CANCELLED`):**
-   - `COMPLETED`: All executed audit engines succeeded.
+   - `COMPLETED`: All executed audit engines succeeded. Final `report.json` and `report.md` are uploaded to S3, the message is deleted from SQS FIFO, and state transitions to COMPLETED.
    - `PARTIAL`: One or more non-fatal engines failed (e.g. Lighthouse timed out, but Python Inspector succeeded), generating an actionable report with an explicit warning note.
-   - `FAILED`: All engines failed or an unrecoverable target error occurred.
+   - `FAILED`: All engines failed or an unrecoverable target error occurred. If unhandled, message routes to DLQ after 3 retries.
    - `CANCELLED`: The user explicitly terminated the scan before normalization.
 
 ---
@@ -184,12 +176,11 @@ Central environment configuration and validation module.
   - `awsRegion`: AWS region (default: `'us-east-1'`).
   - `allowDemoAuth`: Boolean toggle. Strictly disabled in production.
   - `useLocalStorage`: Controls SQLite / local filesystem vs DynamoDB / S3.
-  - `useMockOrchestration`: Controls local async runner vs SQS / Step Functions.
+  - `useMockOrchestration`: Controls local async runner vs SQS FIFO.
   - `tables`: `{ sites, scans, findings }` DynamoDB table names.
   - `storage`: `{ reportsBucket, presignedUrlTtlSeconds }`.
-  - `orchestration`: `{ scanQueueUrl, scanStateMachineArn, useLambdaInspector, lambdaInspectorFunctionName }`.
+  - `orchestration`: `{ scanQueueUrl, useLambdaInspector, lambdaInspectorFunctionName }`.
   - `cognito`: `{ userPoolId, clientId, issuer, jwksUri }`.
-  - `bedrock`: `{ enabled, region, modelId, maxTokens, timeoutMs }`.
   - `scannerLimits`: `{ maxPagesPerScan, maxDepth, maxResponseSizeBytes, requestTimeoutMs, totalJobTimeoutSeconds, requestsPerSecond }`.
   - `rateLimits`: `{ scansPerHourPerUser, scansPerMinutePerUser }`.
   - `turnstile`: `{ enabled, secretKey, siteKey }`.
@@ -197,7 +188,7 @@ Central environment configuration and validation module.
 - **`validateProductionConfig(cfg = config)`**:
   - *Parameters:* `cfg` (Configuration object, defaults to `config`).
   - *Returns:* `void`.
-  - *Exceptions:* Throws `Error` detailing missing or insecure settings if running in production. Checks: `useLocalStorage === false`, `useMockOrchestration === false`, `allowDemoAuth === false`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_ISSUER`, `S3_REPORTS_BUCKET`, DynamoDB table names, `SCAN_QUEUE_URL`, and `SCAN_SFN_ARN`.
+  - *Exceptions:* Throws `Error` detailing missing or insecure settings if running in production. Checks: `allowDemoAuth === false`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_ISSUER`, `S3_REPORTS_BUCKET`, and `SCAN_QUEUE_URL`.
 
 ### File: `backend/src/api/app.js`
 Main Express application definition, CORS handler, middleware pipeline, and route mounts.
@@ -231,7 +222,7 @@ AWS Lambda entrypoint adapter translating API Gateway HTTP/REST proxy events int
   - *Returns:* `Promise<{ statusCode: number, headers: Record<string, string>, body: string }>`
   - *Logic:*
     1. Intercepts warmup pings (`event.source === 'aws.events'` or `event.ping`) and returns `200 pong`.
-    2. Intercepts direct Step Functions worker invocation (`event.scanId && !event.httpMethod`) and calls `executeScanPipelineLocally(event)`.
+    2. Intercepts direct asynchronous worker invocation (`event.scanId && !event.httpMethod`) and calls `executeScanPipelineLocally(event)`.
     3. Transforms API Gateway HTTP event into simulated Node.js `req` and `res` objects with full header, body (including base64 decoding), and query string normalization.
     4. Passes request to Express `app(req, res)` and resolves API Gateway compatible HTTP response.
 
@@ -476,13 +467,13 @@ Assembles the complete report payload.
 ## 8. Backend Orchestration & Workflow Handler Reference
 
 ### File: `backend/src/orchestration/workflowHandler.js`
-Scan execution manager for both AWS Step Functions and local asynchronous pipelines.
+Scan execution manager for Amazon SQS FIFO queue and asynchronous audit execution pipelines.
 
 #### Functions:
 - **`startScanWorkflow(job)`**:
   - *Parameters:* `job` (`{ scanId: string, ownerUserId: string, targetUrl: string, normalizedHostname: string, scanProfile: string }`).
   - *Returns:* `Promise<{ dispatched: boolean, mode: string }>`.
-  - *Logic:* Sends message to SQS queue (`SCAN_QUEUE_URL`) and triggers Step Functions execution (`SCAN_SFN_ARN`). If local mode, schedules asynchronous invocation via `setImmediate(() => executeScanPipelineLocally(job))`.
+  - *Logic:* Dispatches message to AWS SQS FIFO queue (`SCAN_QUEUE_URL`) with `MessageGroupId` (sanitized target hostname) and `MessageDeduplicationId: ${job.scanId}_${Date.now()}`. If local mode or offline fallback, schedules asynchronous invocation via `setImmediate(() => executeScanPipelineLocally(job))`.
 - **`getLambdaClient()` / `setLambdaClient(customClient)`**:
   - Getter and setter for the AWS SDK `LambdaClient`.
 - **`runPythonInspectorViaLambda(targetUrl, scanId, scanProfile = 'baseline_public')`**:
@@ -500,24 +491,31 @@ Scan execution manager for both AWS Step Functions and local asynchronous pipeli
     1. Validates and asserts state transition `QUEUED ➔ VALIDATING`.
     2. Runs SSRF resolution check `resolveAndValidateHost()`.
     3. Asserts transition `VALIDATING ➔ RUNNING`.
-    4. Triggers Python Inspector (via Lambda or local child process) and Lighthouse worker.
+    4. Triggers Python Inspector (via AWS Lambda or local child process) and Lighthouse worker in parallel.
     5. Checks terminal state with `determineTerminalStatus(enginesRun)`. If all failed, transitions to `FAILED` with exact failure reason.
     6. Asserts transition `RUNNING ➔ NORMALIZING`.
-    7. Enriches findings with plain-English developer guidance from Bedrock Claude 3 Haiku via `explanationService.explainFinding()`.
-    8. Calls `buildAuditReport()` and `explanationService.generateExecutiveSummary()`.
-    9. Generates markdown report and writes `report.json` and `report.md` to S3 / local storage via `s3Service.saveReport()`.
-    10. Persists findings to DynamoDB / SQLite via `dbService.saveFindings()`.
-    11. Asserts transition `NORMALIZING ➔ COMPLETED` (or `PARTIAL`).
-    12. Updates scan record with final scores, check counts, duration, and engine execution statuses.
+    7. Ingests genuine Lighthouse category scores directly (`performance`, `accessibility`, `seo`, `best-practices`) and extracts Core Web Vitals into the Check Registry.
+    8. Calculates Launch Readiness Score (0-100) via multi-pillar weighted formula (Security 25%, Performance 20%, Accessibility 15%, SEO 15%, Privacy 15%, Completeness/Trust 10%, capped at 50 if Critical defects exist).
+    9. Enriches findings with deterministic developer guidance via `explanationService.explainFinding()`.
+    10. Calls `buildAuditReport()` and `explanationService.generateExecutiveSummary()`.
+    11. Generates markdown report and writes `report.json` and `report.md` to S3 / local storage via `s3Service.saveReport()`.
+    12. Persists findings to DynamoDB / SQLite via `dbService.saveFindings()`.
+    13. Asserts transition `NORMALIZING ➔ COMPLETED` (or `PARTIAL`).
+    14. Updates scan record with final scores, check counts, duration, and engine execution statuses.
 
 ### File: `backend/src/orchestration/sqsConsumer.js`
-Lambda handler for SQS queue trigger.
+Continuous EC2 background worker and Lambda handler for Amazon SQS FIFO queue processing.
 
 #### Functions:
+- **`startSqsPollingWorker({ signal })`**:
+  - *Logic:* Continuous background polling worker running under PM2 as `vibesift-sqs-worker`. Hydrates environment parameters from AWS SSM Parameter Store (`/vibesift/prod/`), connects to `vibesift-scan-jobs.fifo`, and executes 20-second long-polling (`ReceiveMessageCommand`). Dispatches message body to `processScanJob(job)`, and deletes message upon completion (`DeleteMessageCommand`). Unhandled exceptions allow the message to retry up to 3 times before SQS automatically shifts it to the DLQ.
+- **`processScanJob(job)`**:
+  - *Parameters:* `job` (Parsed scan job payload).
+  - *Logic:* Logs job initiation and invokes `executeScanPipelineLocally(job)`.
 - **`handler(event)`**:
   - *Parameters:* `event` (`{ Records: Array<{ body: string, messageId: string }> }`).
   - *Returns:* `Promise<{ statusCode: number, processed: number }>`.
-  - *Logic:* Iterates over enqueued SQS records, parses JSON scan job, and launches Step Functions workflow via `sfnClient.send(new StartExecutionCommand({ ... }))`. Any uncaught error causes the message to remain in SQS and route to DLQ after 3 retries.
+  - *Logic:* SQS event trigger handler for serverless Lambda execution mode.
 
 ---
 
@@ -582,19 +580,14 @@ Domain ownership challenge and verification engine.
 - **`matchesVerifiedDomain(targetHost, verifiedHost)`**:
   - *Returns:* `boolean`. Returns `true` if `targetHost === verifiedHost` or `targetHost.endsWith('.' + verifiedHost)`.
 
-### File: `backend/src/services/bedrockExplanation.js`
-Amazon Bedrock Claude 3 Haiku integration with caching and deterministic fallback.
+### File: `backend/src/services/explanationService.js`
+Deterministic rules-based explanation and executive summary service (zero external AI latency, zero cost).
 
 #### Classes & Methods:
-- **`ExplanationService`**: Abstract base class.
 - **`DeterministicExplanationService`**:
-  - `explainFinding(finding, framework)`: Rules-based technical description.
-  - `generateExecutiveSummary(reportSummary, topFindings)`: Posture formula based on score and severity counts.
-- **`BedrockExplanationService`**:
-  - `computeCacheKey(finding)`: SHA-256 hash of rule, category, title, and severity.
-  - `sanitizeFinding(finding)`: Strips cookies, headers, and secrets before LLM prompt injection.
-  - `explainFinding(finding, framework)`: Issues `InvokeModelCommand` to Bedrock (`anthropic.claude-3-haiku-20240307-v1:0`) with 8-second timeout guard.
-  - `generateExecutiveSummary(reportSummary, topFindings)`: Invokes Bedrock for a 3-sentence executive launch-readiness summary.
+  - `explainFinding(finding)`: Returns structured technical explanation, user impact, observed evidence, and framework-specific code remediation snippets.
+  - `generateExecutiveSummary(reportSummary, topFindings)`: Generates 3-sentence posture summary based on Launch Readiness score brackets (Strong, Good, Moderate Action, Critical Action) and severity counts.
+- **`explanationService`**: Shared singleton instance.
 
 ### File: `backend/src/services/cognitoAuth.js`
 AWS Cognito Identity Provider client service.
@@ -609,7 +602,7 @@ AWS Cognito Identity Provider client service.
 - **`cognitoGetUser(accessToken)`**: Invokes `GetUserCommand` to fetch fresh user attributes.
 
 ### File: `backend/src/services/dynamoStorage.js`
-DynamoDB storage implementation with transparent SQLite dev fallback.
+DynamoDB storage implementation with transparent SQLite dev fallback and cross-tenant caching support.
 
 #### Methods in `DynamoStorageService`:
 - **Sites:**
@@ -622,7 +615,8 @@ DynamoDB storage implementation with transparent SQLite dev fallback.
 - **Scans:**
   - `saveScan(scan)`: Writes scan item to `VibeSift-Scans-dev`.
   - `getScan(scanId, ownerUserId)`: Reads scan item.
-  - `getLatestScanForSite(hostname, ownerUserId)`: Finds most recent scan for hostname.
+  - `getLatestCompletedScanForSite(hostname)`: Performs global scan across all tenants for completed audits on the hostname with SQLite fallback, enabling global cross-tenant precheck caching.
+  - `getLatestScanForSite(hostname, ownerUserId)`: Finds most recent scan for hostname. If `ownerUserId` is null, delegates to `getLatestCompletedScanForSite(hostname)`.
   - `getScanByIdempotencyKey(ownerUserId, idempotencyKey)`: Queries GSI `idempotency-index`.
   - `listScansByUser(ownerUserId, options)`: Queries GSI `ownerUserId-createdAt-index` in descending order.
   - `updateScan(scanId, updateData)`: Constructs dynamic `UpdateExpression` and executes `UpdateCommand`.
@@ -632,11 +626,12 @@ DynamoDB storage implementation with transparent SQLite dev fallback.
   - `updateFindingStatus(scanId, findingId, verificationStatus)`: Updates `verificationStatus` to `'open' | 'fixed' | 'waived'`.
 
 ### File: `backend/src/services/s3Storage.js`
-Amazon S3 artifact storage with local filesystem fallback.
+Amazon S3 artifact storage with local filesystem fallback and global audit discovery.
 
 #### Methods in `S3StorageService`:
 - `saveRawEngineOutput(scanId, engineName, rawData)`: Writes raw JSON output to `scans/${scanId}/raw/${engineName}.json` with KMS encryption.
-- `saveReport(scanId, reportData, markdownReport = null)`: Writes `scans/${scanId}/report.json` and `scans/${scanId}/report.md`.
+- `saveReport(scanId, reportData, markdownReport = null)`: Writes `scans/${sanitizedHost}__${scanId}/report.json` and `report.md`.
+- `findLatestScanReportByHostname(hostname)`: Uses `ListObjectsV2Command` to search prefixes `scans/${sanitizedHost}__` and `audits/${sanitizedHost}__` for the most recent completed `report.json` to enable cross-tenant instant report discovery.
 - `getPresignedDownloadUrl(key, expiresInSeconds = 900)`: Uses `@aws-sdk/s3-request-presigner` to create a signed GET URL.
 - `getObjectContent(key)`: Fetches object body and returns as UTF-8 string.
 
@@ -922,7 +917,7 @@ Global audit state provider managing active reports, scans list, and live pollin
 ### Pages:
 - **`LandingPage.tsx`**: Public homepage featuring hero scanner form, live capability strips, interactive report preview, problem statements, before/after precision comparison, and launch studio CTA.
 - **`DashboardPage.tsx`**: Authenticated developer dashboard displaying saved sites, recent audits, quick scan action, and launch readiness trends.
-- **`ScanDetailPage.tsx`**: Deep audit report view with category score cards, severity filters, Bedrock AI explanations, remediation code snippets, and PDF export.
+- **`ScanDetailPage.tsx`**: Deep audit report view with category score cards, severity filters, actionable remediation guidance, code snippets, and PDF export.
 - **`NewScanPage.tsx`**: Dedicated full-page audit submission interface.
 - **`HistoryPage.tsx`**: Historical audit log with search, profile filters, and re-scan triggers.
 - **`SitesPage.tsx`**: Saved websites management and domain verification challenge interface.
@@ -967,22 +962,14 @@ The infrastructure is defined in TypeScript using AWS CDK v2 (`infra/`):
   - `python-inspector`: 0.5 vCPU, 1024MB RAM.
   - `lighthouse`: 1 vCPU, 2048MB RAM (Chromium requirement).
 
-### 3. `OrchestrationStack` (`infra/lib/orchestration-stack.ts`)
-- **Amazon SQS Queue:** `vibesift-scan-jobs-${stage}` with KMS encryption and 10-minute visibility timeout.
-- **Dead-Letter Queue (DLQ):** `vibesift-scan-jobs-dlq-${stage}` with 14-day message retention and max receive count of 3.
-- **Normalizer Lambda:** Node.js 22.x runtime, 512MB RAM, 2-minute timeout.
-- **AWS Step Functions State Machine:** `VibeSift-AuditWorkflow-${stage}` executing parallel branches for Python Inspector and Lighthouse, followed by Normalizer aggregation.
-
-### 4. `ApiStack` (`infra/lib/api-stack.ts`)
-- **Amazon Cognito:** User Pool (`vibesift-users-${stage}`) and Web Client with email self-service sign-up. Supports importing existing user pools (`COGNITO_USER_POOL_ID`).
-- **API Lambda Function:** Node.js 22.x runtime, 1024MB RAM, 29-second timeout, Bedrock Claude 3 Haiku permissions.
-- **API Gateway v2 (HTTP API):** Proxies all traffic to Express API Lambda with CORS restricted to `https://vibesift.pixir.in`.
-- **AWS WAFv2 WebACL:** Regional WebACL enforcing 500 requests per 5 minutes per IP rate limit and AWS Common Attack Rule Set.
-
-### 5. `MonitoringStack` (`infra/lib/monitoring-stack.ts`)
-- **CloudWatch Dashboard:** `VibeSift-Operations-${stage}` tracking Step Function executions/failures, DLQ message volume, API Gateway 4xx/5xx counts, rate limit blocks, and bot challenge blocks.
-- **CloudWatch Alarms:** Alerts on any unrecoverable Step Function workflow failure or message arrival in DLQ.
-- **AWS Budget:** Monthly $25 USD cost limit with email alerts at 80% threshold ($20).
+### 3. Production Runtime Stack & Queue Architecture
+- **Amazon SQS FIFO Queue:** `vibesift-scan-jobs.fifo` with 20s long-polling (`ReceiveMessageWaitTimeSeconds = 20`) and 300s visibility timeout. Guarantees per-hostname FIFO ordering using `MessageGroupId` and deduplication via `MessageDeduplicationId`.
+- **Dead-Letter Queue (DLQ):** `vibesift-scan-jobs-dlq.fifo` with 14-day message retention and max receive count of 3 for poison message isolation.
+- **Python Inspector Lambda:** `vibesift-python-inspector-dev`, Python 3.12 runtime, 512MB RAM, 60-second timeout, zero Docker overhead.
+- **EC2 Production Host:** Ubuntu 24.04 LTS running Nginx, PM2 processes `vibesift-backend` (port 4000) and `vibesift-sqs-worker`, native Headless Chromium Lighthouse runner, and SQLite 3 WAL mode.
+- **Edge Perimeter:** Cloudflare Anycast CDN, Full/Strict TLS 1.3 encryption, Turnstile bot challenges, and Layer 7 DDoS mitigation.
+- **CloudWatch Alarms & EMF:** Tracks EC2 CPU utilization (>85% alert) and emits Embedded Metric Format (EMF) logs for automated latency and failure rate metrics.
+- **Monthly Infrastructure Cost:** 100% AWS Free Tier eligible (~$0.00 – $1.00/mo). Zero NAT Gateways, zero Fargate clusters, zero external AI token fees.
 
 ---
 

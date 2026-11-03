@@ -60,8 +60,11 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
   const currentPrice = couponResult?.valid ? couponResult.finalAmount : basePrice;
   const discountAmount = couponResult?.valid ? couponResult.discountAmount : 0;
 
-  const handleApplyCoupon = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleApplyCoupon = async (e?: React.SyntheticEvent | React.KeyboardEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (!couponInput.trim()) return;
 
     setIsValidatingCoupon(true);
@@ -272,7 +275,7 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
           {/* Coupon Code Input */}
           <div className="pt-1">
             {!couponResult ? (
-              <form onSubmit={handleApplyCoupon} className="space-y-1.5">
+              <div className="space-y-1.5">
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
@@ -282,15 +285,23 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
                         setCouponInput(e.target.value);
                         if (couponError) setCouponError(null);
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleApplyCoupon(e);
+                        }
+                      }}
                       placeholder="Enter coupon code"
                       className="w-full text-xs font-mono uppercase px-3 py-2 border border-brand-border rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-emerald"
                       disabled={isValidatingCoupon || isProcessingPayment}
                     />
                   </div>
                   <Button
-                    type="submit"
+                    type="button"
                     variant="secondary"
                     size="sm"
+                    onClick={handleApplyCoupon}
                     disabled={!couponInput.trim() || isValidatingCoupon || isProcessingPayment}
                     className="shrink-0 text-xs"
                   >
@@ -303,7 +314,7 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
                     <span>{couponError}</span>
                   </p>
                 )}
-              </form>
+              </div>
             ) : (
               <div className="flex items-center justify-between text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-xl">
                 <span className="flex items-center gap-1.5 font-medium">
