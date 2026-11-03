@@ -14,7 +14,27 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
   report,
   onCategoryClick,
 }) => {
-  const { summary, targetUrl, createdAt, durationSeconds, scanProfile, status } = report;
+  const { targetUrl, createdAt, durationSeconds, scanProfile, status } = report;
+  const rawSummary = report.summary || ({} as any);
+
+  const summary = {
+    totalFindings: rawSummary.totalFindings ?? 0,
+    critical: rawSummary.critical ?? 0,
+    high: rawSummary.high ?? 0,
+    medium: rawSummary.medium ?? 0,
+    low: rawSummary.low ?? 0,
+    info: rawSummary.info ?? 0,
+    readinessScore: rawSummary.readinessScore ?? 0,
+    categoryScores: rawSummary.categoryScores || {},
+    totalChecksEvaluated: rawSummary.totalChecksEvaluated,
+    checksPassed: rawSummary.checksPassed ?? 0,
+    checksWarning: rawSummary.checksWarning ?? 0,
+    checksFailed: rawSummary.checksFailed ?? 0,
+    confirmedVulnerabilities: rawSummary.confirmedVulnerabilities ?? 0,
+    checksNotTested: rawSummary.checksNotTested ?? 0,
+    checksNotApplicable: rawSummary.checksNotApplicable ?? 0,
+    executiveSummary: rawSummary.executiveSummary,
+  };
 
   const categoryNames: Record<Category, string> = {
     seo: 'SEO & Crawl',
@@ -182,29 +202,33 @@ export const ReportSummary: React.FC<ReportSummaryProps> = ({
             Category Quality Index
           </h4>
           <div className="space-y-2">
-            {(Object.entries(summary.categoryScores) as [Category, number][]).map(([cat, score]) => {
-              let barColor = 'bg-emerald-500';
-              if (score < 60) barColor = 'bg-red-500';
-              else if (score < 80) barColor = 'bg-amber-400';
+            {Object.keys(summary.categoryScores || {}).length === 0 ? (
+              <p className="text-xs text-brand-text-secondary italic py-2">Evaluating category indices...</p>
+            ) : (
+              (Object.entries(summary.categoryScores) as [Category, number][]).map(([cat, score]) => {
+                let barColor = 'bg-emerald-500';
+                if (score < 60) barColor = 'bg-red-500';
+                else if (score < 80) barColor = 'bg-amber-400';
 
-              return (
-                <div
-                  key={cat}
-                  onClick={() => onCategoryClick && onCategoryClick(cat)}
-                  className={`text-xs ${
-                    onCategoryClick ? 'cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors' : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1 font-mono text-[11px]">
-                    <span className="font-medium text-brand-text">{categoryNames[cat] || cat}</span>
-                    <span className="font-bold text-brand-text-secondary">{score}/100</span>
+                return (
+                  <div
+                    key={cat}
+                    onClick={() => onCategoryClick && onCategoryClick(cat)}
+                    className={`text-xs ${
+                      onCategoryClick ? 'cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1 font-mono text-[11px]">
+                      <span className="font-medium text-brand-text">{categoryNames[cat] || cat}</span>
+                      <span className="font-bold text-brand-text-secondary">{score}/100</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${barColor} rounded-full`} style={{ width: `${score}%` }} />
+                    </div>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div className={`h-full ${barColor} rounded-full`} style={{ width: `${score}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

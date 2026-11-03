@@ -40,7 +40,8 @@ export async function startScanWorkflow(job) {
   const client = getWorkflowSqsClient();
   let dispatchedToSqs = false;
 
-  if (client && queueUrl) {
+  // In production / non-mock mode, dispatch to AWS SQS FIFO queue
+  if (!config.useMockOrchestration && client && queueUrl) {
     try {
       const sanitizedGroup = sanitizeTargetHost(job.normalizedHostname || 'default') || 'default';
       const sendParams = {
@@ -62,14 +63,14 @@ export async function startScanWorkflow(job) {
     }
   }
 
-  // Local mode / fallback: execute live asynchronous pipeline on EC2/local server
+  // Local dev mock runner or fallback: execute live asynchronous pipeline locally
   setImmediate(() => {
     executeScanPipelineLocally(job).catch((err) => {
       console.error(`[WorkflowHandler] Scan pipeline failed for ${job.scanId}:`, err);
     });
   });
 
-  return { dispatched: true, mode: dispatchedToSqs ? 'sqs_fifo' : 'local_async' };
+  return { dispatched: true, mode: 'local_async' };
 }
 
 let lambdaClient = null;

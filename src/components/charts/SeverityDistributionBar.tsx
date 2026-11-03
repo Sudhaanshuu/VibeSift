@@ -2,21 +2,22 @@ import React from 'react';
 import { Severity } from '../../types/audit';
 
 interface SeverityDistributionBarProps {
-  counts: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-    info: number;
+  counts?: {
+    critical?: number;
+    high?: number;
+    medium?: number;
+    low?: number;
+    info?: number;
   };
-  totalFindings: number;
+  totalFindings?: number;
 }
 
 export const SeverityDistributionBar: React.FC<SeverityDistributionBarProps> = ({
   counts,
-  totalFindings,
+  totalFindings = 0,
 }) => {
-  if (totalFindings === 0) {
+  const safeTotal = Number(totalFindings) || 0;
+  if (safeTotal <= 0) {
     return (
       <div className="py-2">
         <div className="h-3 w-full bg-emerald-100 rounded-full flex items-center justify-center">
@@ -26,12 +27,13 @@ export const SeverityDistributionBar: React.FC<SeverityDistributionBarProps> = (
     );
   }
 
+  const safeCounts = counts || {};
   const items: { severity: Severity; count: number; color: string; label: string }[] = [
-    { severity: 'critical', count: counts.critical, color: 'bg-red-500', label: 'Critical' },
-    { severity: 'high', count: counts.high, color: 'bg-orange-500', label: 'High' },
-    { severity: 'medium', count: counts.medium, color: 'bg-amber-400', label: 'Medium' },
-    { severity: 'low', count: counts.low, color: 'bg-emerald-500', label: 'Low' },
-    { severity: 'info', count: counts.info, color: 'bg-slate-400', label: 'Info' },
+    { severity: 'critical', count: safeCounts.critical ?? 0, color: 'bg-red-500', label: 'Critical' },
+    { severity: 'high', count: safeCounts.high ?? 0, color: 'bg-orange-500', label: 'High' },
+    { severity: 'medium', count: safeCounts.medium ?? 0, color: 'bg-amber-400', label: 'Medium' },
+    { severity: 'low', count: safeCounts.low ?? 0, color: 'bg-emerald-500', label: 'Low' },
+    { severity: 'info', count: safeCounts.info ?? 0, color: 'bg-slate-400', label: 'Info' },
   ];
 
   return (

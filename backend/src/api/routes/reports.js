@@ -47,7 +47,19 @@ reportsRouter.get('/:scanId', async (req, res, next) => {
       // S3 read failed or file not present, continue with scan data
     }
 
+    const defaultSummary = {
+      readinessScore: 0,
+      totalFindings: 0,
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
+      info: 0,
+      categoryScores: {},
+    };
+
     const mergedSummary = {
+      ...defaultSummary,
       ...(scan.summary || {}),
       ...(s3Report?.summary || {}),
     };
