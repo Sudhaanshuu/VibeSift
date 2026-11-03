@@ -4,6 +4,7 @@ import {
   GetParametersByPathCommand,
   PutParameterCommand,
 } from '@aws-sdk/client-ssm';
+import { syncConfigWithEnv } from '../config/env.js';
 
 let ssmClientInstance = null;
 
@@ -120,12 +121,19 @@ export async function bootstrapEnvironmentFromSSM(pathPrefix = process.env.SSM_P
       'orchestration/use-mock': 'USE_MOCK_ORCHESTRATION',
       'lambda/inspector-function': 'LAMBDA_INSPECTOR_FUNCTION_NAME',
       'lambda/use-inspector': 'USE_LAMBDA_INSPECTOR',
+      'turnstile/site-key': 'TURNSTILE_SITE_KEY',
+      'turnstile/secret-key': 'TURNSTILE_SECRET_KEY',
+      'turnstile/enabled': 'TURNSTILE_ENABLED',
     };
 
     for (const [paramPath, value] of Object.entries(params)) {
       const envKey = keyMapping[paramPath] || paramPath.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
       process.env[envKey] = value;
     }
+
+    try {
+      syncConfigWithEnv();
+    } catch {}
 
     if (Object.keys(params).length > 0) {
       console.log(`[SSMService] Hydrated ${Object.keys(params).length} parameters from SSM (${pathPrefix}).`);

@@ -78,7 +78,7 @@ export const config = {
 
   // Cloudflare Turnstile bot protection
   turnstile: {
-    enabled: process.env.TURNSTILE_ENABLED === 'true',
+    enabled: process.env.TURNSTILE_ENABLED === 'true' || Boolean(process.env.TURNSTILE_SECRET_KEY && process.env.TURNSTILE_SECRET_KEY.startsWith('0x4')),
     secretKey: process.env.TURNSTILE_SECRET_KEY || '1x0000000000000000000000000000000AA', // Cloudflare always-pass test key
     siteKey: process.env.TURNSTILE_SITE_KEY || '1x00000000000000000000AA', // Cloudflare always-pass test sitekey
   },
@@ -89,6 +89,19 @@ export const config = {
     emfEnabled: process.env.CLOUDWATCH_EMF_ENABLED !== 'false',
   },
 };
+
+/**
+ * Resynchronizes active in-memory configuration after SSM bootstrap.
+ */
+export function syncConfigWithEnv() {
+  if (process.env.TURNSTILE_SITE_KEY) config.turnstile.siteKey = process.env.TURNSTILE_SITE_KEY;
+  if (process.env.TURNSTILE_SECRET_KEY) config.turnstile.secretKey = process.env.TURNSTILE_SECRET_KEY;
+  if (process.env.TURNSTILE_ENABLED !== undefined) {
+    config.turnstile.enabled = process.env.TURNSTILE_ENABLED === 'true';
+  } else if (process.env.TURNSTILE_SECRET_KEY?.startsWith('0x4')) {
+    config.turnstile.enabled = true;
+  }
+}
 
 /**
  * Validates that production environments do not start with insecure or missing configurations.

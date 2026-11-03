@@ -7,6 +7,7 @@ import { precheckScanTarget, PrecheckResult } from '../../lib/api/scans';
 import { Button } from '../common/Button';
 import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
 import { ExistingAuditModal } from '../common/ExistingAuditModal';
+import { TurnstileWidget } from '../common/TurnstileWidget';
 import { 
   X, 
   Globe, 
@@ -40,6 +41,8 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   const [profile, setProfile] = useState<ScanProfile>('baseline_public');
   const [acknowledgedTerms, setAcknowledgedTerms] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
 
   // Cached Audit state
   const [cachedAudit, setCachedAudit] = useState<PrecheckResult | null>(null);
@@ -70,6 +73,11 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
       return;
     }
 
+    if (!turnstileToken) {
+      setErrorMsg('Please complete the bot protection security challenge before starting the audit.');
+      return;
+    }
+
     setErrorMsg('');
 
     // Pre-check S3 and SQLite for existing audit
@@ -87,9 +95,11 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     }
 
     try {
-      const scanId = await startNewScan(url, profile);
+      const scanId = await startNewScan(url, profile, turnstileToken);
       onScanComplete?.(scanId);
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       setErrorMsg(err.message || 'Scan dispatch failed');
     }
   };
@@ -103,9 +113,11 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   const handleReaudit = async () => {
     setIsExistingModalOpen(false);
     try {
-      const scanId = await startNewScan(url, profile);
+      const scanId = await startNewScan(url, profile, turnstileToken);
       onScanComplete?.(scanId);
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       setErrorMsg(err.message || 'Scan dispatch failed');
     }
   };
@@ -301,6 +313,18 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
                 </span>
               </label>
             </div>
+
+            {/* Cloudflare Turnstile Bot Protection */}
+            <TurnstileWidget
+              onVerify={(token) => {
+                setTurnstileToken(token);
+                setErrorMsg('');
+              }}
+              onExpire={() => setTurnstileToken('')}
+              resetKey={turnstileResetKey}
+              action="modal_scan_submit"
+              label="Pre-Audit Bot Verification"
+            />
 
             {errorMsg && (
               <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">

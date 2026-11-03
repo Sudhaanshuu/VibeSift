@@ -72,3 +72,52 @@ test('Turnstile: accepts official bypass or test fixture tokens', async () => {
   assert.equal(nextCalled, true);
   assert.equal(req.botVerified, true);
 });
+
+test('Turnstile: accepts token via body.turnstileToken or x-turnstile-token header', async () => {
+  const reqBody = {
+    headers: {},
+    body: { turnstileToken: '1x00000000000000000000AA' },
+  };
+  let nextCalledBody = false;
+  await verifyTurnstileToken(reqBody, {}, () => {
+    nextCalledBody = true;
+  });
+  assert.equal(nextCalledBody, true);
+
+  const reqHeader = {
+    headers: { 'x-turnstile-token': '1x00000000000000000000AA' },
+    body: {},
+  };
+  let nextCalledHeader = false;
+  await verifyTurnstileToken(reqHeader, {}, () => {
+    nextCalledHeader = true;
+  });
+  assert.equal(nextCalledHeader, true);
+});
+
+test('Turnstile: rejects request with 403 when token is missing and turnstile is required', async () => {
+  const req = {
+    headers: {},
+    body: {},
+  };
+  let statusCode = null;
+  let responseBody = null;
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    json(data) {
+      responseBody = data;
+      return this;
+    },
+  };
+
+  await verifyTurnstileToken(req, res, () => {
+    assert.fail('next() should not be called when token is missing');
+  });
+
+  assert.equal(statusCode, 403);
+  assert.equal(responseBody.code, 'BOT_CHALLENGE_REQUIRED');
+  assert.ok(responseBody.siteKey);
+});

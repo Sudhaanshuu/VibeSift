@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from './Button';
 import { BrandLogo } from '../brand/BrandLogo';
+import { TurnstileWidget } from './TurnstileWidget';
 import { X, Mail, Lock, ShieldCheck, ArrowRight, AlertTriangle, User, KeyRound, CheckCircle2, RotateCw } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
@@ -17,6 +18,8 @@ export const LoginModal: React.FC = () => {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
 
   if (!isLoginModalOpen) return null;
 
@@ -25,6 +28,8 @@ export const LoginModal: React.FC = () => {
     setInfoMessage(null);
     setPassword('');
     setConfirmationCode('');
+    setTurnstileToken('');
+    setTurnstileResetKey((k) => k + 1);
   };
 
   const handleSwitchMode = (newMode: 'signin' | 'signup' | 'verify') => {
@@ -39,13 +44,19 @@ export const LoginModal: React.FC = () => {
       setError('Please provide both email and password.');
       return;
     }
+    if (!turnstileToken) {
+      setError('Please complete the security challenge before signing in.');
+      return;
+    }
     setError(null);
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      await login(email.trim().toLowerCase(), password);
+      await login(email.trim().toLowerCase(), password, turnstileToken);
       closeLoginModal();
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       if (err.code === 'USER_NOT_CONFIRMED') {
         setMode('verify');
         setInfoMessage('Your email is not verified yet. Please enter the 6-digit verification code sent to your email.');
@@ -68,11 +79,15 @@ export const LoginModal: React.FC = () => {
       setError('Password must be at least 8 characters long.');
       return;
     }
+    if (!turnstileToken) {
+      setError('Please complete the security challenge before creating an account.');
+      return;
+    }
     setError(null);
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      const result = await signup(email.trim().toLowerCase(), password, name.trim());
+      const result = await signup(email.trim().toLowerCase(), password, name.trim(), turnstileToken);
       if (result.userConfirmed) {
         closeLoginModal();
       } else {
@@ -80,6 +95,8 @@ export const LoginModal: React.FC = () => {
         setInfoMessage(`A 6-digit confirmation code was sent to ${email.trim()}. Please enter it below to activate your account.`);
       }
     } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
       setError(err.message || 'Registration failed. An account with this email may already exist.');
     } finally {
       setSubmitting(false);
@@ -241,6 +258,18 @@ export const LoginModal: React.FC = () => {
               </div>
             </div>
 
+            {/* Cloudflare Turnstile Bot Protection */}
+            <TurnstileWidget
+              onVerify={(token) => {
+                setTurnstileToken(token);
+                setError(null);
+              }}
+              onExpire={() => setTurnstileToken('')}
+              resetKey={turnstileResetKey}
+              action="modal_login"
+              label="Security Verification"
+            />
+
             <Button
               type="submit"
               variant="primary"
@@ -303,6 +332,18 @@ export const LoginModal: React.FC = () => {
               </div>
               <p className="text-[10px] text-brand-text-secondary">Must be at least 8 characters with numbers and letters.</p>
             </div>
+
+            {/* Cloudflare Turnstile Bot Protection */}
+            <TurnstileWidget
+              onVerify={(token) => {
+                setTurnstileToken(token);
+                setError(null);
+              }}
+              onExpire={() => setTurnstileToken('')}
+              resetKey={turnstileResetKey}
+              action="modal_signup"
+              label="Security Verification"
+            />
 
             <Button
               type="submit"

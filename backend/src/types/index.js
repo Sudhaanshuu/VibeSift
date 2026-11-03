@@ -246,6 +246,7 @@ export const ScanSubmissionPayloadSchema = z.object({
     message: 'Terms and audit authorization must be acknowledged',
   }),
   idempotencyKey: z.string().optional(),
+  turnstileToken: z.string().optional(),
 });
 
 export const SavedWebsiteSchema = z.object({

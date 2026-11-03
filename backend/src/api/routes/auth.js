@@ -8,6 +8,7 @@ import {
   mapCognitoError,
 } from '../../services/cognitoAuth.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { verifyTurnstileToken } from '../middleware/turnstile.js';
 import { config } from '../../config/env.js';
 
 export const authRouter = Router();
@@ -15,7 +16,7 @@ export const authRouter = Router();
 /**
  * POST /auth/login — Cognito Authentication
  */
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', verifyTurnstileToken, async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
 
@@ -54,7 +55,7 @@ authRouter.post('/login', async (req, res, next) => {
 /**
  * POST /auth/signup — Cognito User Registration
  */
-authRouter.post('/signup', async (req, res, next) => {
+authRouter.post('/signup', verifyTurnstileToken, async (req, res, next) => {
   try {
     const { email, password, name } = req.body || {};
 
