@@ -7,7 +7,8 @@ import autoTable from 'jspdf-autotable';
  * @param {Object} report - Complete AuditReport object
  * @returns {Promise<Buffer>}
  */
-export async function generateAuditReportPdf(report) {
+export async function generateAuditReportPdf(incomingReport = {}) {
+  const report = incomingReport || {};
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',

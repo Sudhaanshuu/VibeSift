@@ -260,6 +260,51 @@ export async function sendDeepSearchAuditEmail(params) {
   try {
     console.log(`[EmailService] Generating Invoice PDF and Audit Report PDF for ${scan.scanId} -> ${recipientEmail}...`);
 
+    // Resolve AuditReport if not explicitly provided
+    let auditReport = report;
+    if (!auditReport) {
+      const candidateS3Keys = [
+        scan.s3ReportKey,
+        cleanHostname ? `scans/${cleanHostname}__${scan.scanId}/report.json` : null,
+        cleanHostname ? `audits/${cleanHostname}__${scan.scanId}.json` : null,
+        `scans/${scan.scanId}/report.json`,
+        `audits/${scan.scanId}.json`,
+      ].filter(Boolean);
+
+      for (const key of candidateS3Keys) {
+        try {
+          const rawReport = await s3Service.getObjectContent(key);
+          if (rawReport) {
+            auditReport = JSON.parse(rawReport);
+            break;
+          }
+        } catch {}
+      }
+
+      if (!auditReport) {
+        let findings = [];
+        try {
+          findings = await dbService.getFindingsByScan(scan.scanId);
+        } catch {}
+        auditReport = {
+          scanId: scan.scanId,
+          targetUrl: scan.targetUrl,
+          normalizedHostname: scan.normalizedHostname,
+          scanProfile: scan.scanProfile,
+          status: scan.status || 'COMPLETED',
+          createdAt: scan.createdAt || new Date().toISOString(),
+          summary: scan.summary || {
+            readinessScore: 0,
+            totalFindings: findings?.length || 0,
+            critical: findings?.filter((f) => f.severity === 'critical').length || 0,
+            high: findings?.filter((f) => f.severity === 'high').length || 0,
+          },
+          findings: findings || [],
+          checks: scan.checks || [],
+        };
+      }
+    }
+
     // 1. Generate Invoice PDF Buffer
     const invoicePdfBuffer = await generateInvoicePdf({
       invoiceNumber,
@@ -275,7 +320,7 @@ export async function sendDeepSearchAuditEmail(params) {
     });
 
     // 2. Generate Audit Report PDF Buffer
-    const reportPdfBuffer = await generateAuditReportPdf(report);
+    const reportPdfBuffer = await generateAuditReportPdf(auditReport);
 
     // 3. Persist PDF artifacts to S3 / local durable storage
     try {
@@ -291,10 +336,10 @@ export async function sendDeepSearchAuditEmail(params) {
       name: recipientName || 'Developer',
       targetUrl: scan.targetUrl,
       scanId: scan.scanId,
-      score: report.summary?.readinessScore ?? 0,
-      totalFindings: report.summary?.totalFindings ?? 0,
-      criticalCount: report.summary?.critical ?? 0,
-      highCount: report.summary?.high ?? 0,
+      score: auditReport?.summary?.readinessScore ?? 0,
+      totalFindings: auditReport?.summary?.totalFindings ?? 0,
+      criticalCount: auditReport?.summary?.critical ?? 0,
+      highCount: auditReport?.summary?.high ?? 0,
       invoiceNumber,
       amountPaid,
       cleanHostname,
