@@ -95,6 +95,14 @@ export const config = {
     keySecret: process.env.RAZORPAY_KEY_SECRET || '',
     deepAuditPriceInRupees: 39,
   },
+
+  // Email Delivery (SMTP2GO)
+  email: {
+    smtp2goApiKey: process.env.SMTP2GO_API_KEY || '',
+    sender: process.env.EMAIL_SENDER || 'VibeSift by Pixir <accounts@pixir.in>',
+    replyTo: process.env.EMAIL_REPLY_TO || 'accounts@pixir.in',
+    user: process.env.EMAIL_USER || 'accounts@pixir.in',
+  },
 };
 
 /**
@@ -110,6 +118,10 @@ export function syncConfigWithEnv() {
   }
   if (process.env.RAZORPAY_KEY_ID) config.razorpay.keyId = process.env.RAZORPAY_KEY_ID;
   if (process.env.RAZORPAY_KEY_SECRET) config.razorpay.keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (process.env.SMTP2GO_API_KEY) config.email.smtp2goApiKey = process.env.SMTP2GO_API_KEY;
+  if (process.env.EMAIL_SENDER) config.email.sender = process.env.EMAIL_SENDER;
+  if (process.env.EMAIL_REPLY_TO) config.email.replyTo = process.env.EMAIL_REPLY_TO;
+  if (process.env.EMAIL_USER) config.email.user = process.env.EMAIL_USER;
 }
 
 /**
