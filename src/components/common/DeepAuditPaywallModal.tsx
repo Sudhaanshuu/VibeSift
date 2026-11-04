@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { 
   ShieldCheck, 
   CheckCircle2, 
@@ -43,16 +44,22 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  // Lock background body scrolling when modal is open to prevent page behind from scrolling
+  // Robust multi-platform scroll lock for background document
+  useBodyScrollLock(isOpen);
+
+  // Close on Escape key
   useEffect(() => {
-    if (isOpen) {
-      const prevOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = prevOverflow;
-      };
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessingPayment) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, isProcessingPayment, onClose]);
 
   if (!isOpen) return null;
 
@@ -167,18 +174,18 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex min-h-screen items-center justify-center p-3 sm:p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs animate-fade-in overscroll-contain"
       role="dialog"
       aria-modal="true"
       aria-labelledby="paywall-title"
       onClick={onClose}
     >
       <div 
-        className="relative bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl border border-brand-border animate-scale-up my-auto"
+        className="relative bg-white rounded-2xl max-w-lg w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col min-h-0 shadow-2xl border border-brand-border animate-scale-up overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header (Pinned at Top) */}
-        <div className="shrink-0 bg-brand-mint/60 border-b border-brand-border p-4 sm:p-5 flex items-center justify-between rounded-t-2xl">
+        <div className="shrink-0 bg-brand-mint/60 border-b border-brand-border p-3.5 sm:p-5 flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-brand-emerald text-white shadow-subtle shrink-0">
               <ShieldCheck className="w-5 h-5" />
@@ -203,7 +210,7 @@ export const DeepAuditPaywallModal: React.FC<DeepAuditPaywallModalProps> = ({
         </div>
 
         {/* Modal Scrollable Body */}
-        <div className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
           {/* Target URL Pill */}
           <div className="bg-slate-50 border border-brand-border rounded-xl p-3 flex items-center justify-between text-xs font-mono">
             <span className="text-slate-500 font-sans font-medium">Target URL:</span>

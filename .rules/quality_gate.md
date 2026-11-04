@@ -13,7 +13,7 @@ Every engineer and AI assistant working on VibeSift must enforce these three imm
 
 ## Rule 2: Continuous Feature Regression Testing
 - **New Features Require Tests**: For every new UI section, routing transition, or audit validation rule added, corresponding unit/integration test cases must be added to the test suite (e.g. `src/App.test.tsx` or component-specific test files).
-- **Test Suite Pass Requirement**: All tests in the test suite must pass (`npm test`) with exit code 0 before code is considered complete.
+- **Test Suite Pass Requirement**: All tests in the test suite must pass with exit code 0 (`npm test` 52+ tests, `npm run test:backend` 73+ tests, `npm run test:lambda` 6 tests) before code is considered complete.
 
 ---
 

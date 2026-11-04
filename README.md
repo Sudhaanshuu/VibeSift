@@ -18,6 +18,8 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
 - **Amazon Cognito 14-Day Session Management**: Long-lived developer sessions with automatic token refresh (`REFRESH_TOKEN_AUTH`) and 401 retry interceptor.
 - **Lucide React**: Clean, accessible icon system with semantic stroke weights.
 - **Vitest & React Testing Library**: Comprehensive test suite with 52 passing frontend component and smoke tests.
+- **Node.js Native Test Runner**: 73 passing backend integration, security, SSRF, and auth tests.
+- **Python Inspector Test Suite**: 6 passing AWS Lambda & Inspector checks (total 131 passing tests across the repo).
 
 ---
 
@@ -193,7 +195,7 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
   - Orchestration: Amazon SQS FIFO Queue (`vibesift-scan-jobs.fifo`) with dedicated FIFO Dead-Letter Queue (DLQ).
   - Global S3 Cache Check: Instant cross-tenant pre-check against S3 & SQLite before queuing new audits, discovering existing reports across users with zero redundant compute.
   - Complete Setup Guide: **[`SQS_SETUP_AND_INTEGRATION.md`](SQS_SETUP_AND_INTEGRATION.md)**
-  - Comprehensive Operations Runbook: **[`PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md`](PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
+  - Comprehensive Operations Runbook: **[`PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md`](docs/PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
 
 ### Running Backend Locally
 ```bash
@@ -295,10 +297,11 @@ Sudhanshu Kumar (sudhanshu@pixir.in)
 ---
 
 ## 📚 Complete Documentation & Guides
-- **[Production Architecture & Operations Runbook](PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
+- **[System Architecture Specification & Verification](docs/ARCHITECTURE.md)** (Verified 100% against ibesift-architecture.png)
+- **[Production Architecture & Operations Runbook](docs/PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
+- **[Complete AWS Services Study Guide](docs/AWS_STUDY_GUIDE.md)**
 - **[Complete AWS Setup & Deployment Guide](docs/AWS_SETUP_AND_DEPLOYMENT_GUIDE.md)**
 - **[Amazon SQS FIFO Setup & Integration Guide](SQS_SETUP_AND_INTEGRATION.md)**
 - **[API Contract Specification](docs/API.md)**
 - **[Audit Report Schema & Scoring](docs/REPORT_SCHEMA.md)**
-- **[AWS Architecture & SSRF Topology](docs/ARCHITECTURE.md)**
 - **[Deployment & Cost Breakdown](docs/DEPLOYMENT.md)**

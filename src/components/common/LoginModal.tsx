@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { Button } from './Button';
 import { BrandLogo } from '../brand/BrandLogo';
 import { TurnstileWidget } from './TurnstileWidget';
@@ -21,14 +22,22 @@ export const LoginModal: React.FC = () => {
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
 
+  // Robust multi-platform scroll lock for background document
+  useBodyScrollLock(isLoginModalOpen);
+
+  // Close on Escape key
   useEffect(() => {
     if (!isLoginModalOpen) return;
-    const originalStyle = window.getComputedStyle(document.body).overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalStyle;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !submitting) {
+        closeLoginModal();
+      }
     };
-  }, [isLoginModalOpen]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isLoginModalOpen, submitting, closeLoginModal]);
 
   if (!isLoginModalOpen) return null;
 
@@ -158,18 +167,26 @@ export const LoginModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overscroll-contain"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !submitting) {
+          closeLoginModal();
+        }
+      }}
+    >
       <div 
-        className="bg-white w-full max-w-md max-h-[90vh] flex flex-col rounded-2xl border border-brand-border shadow-elevated overflow-hidden my-auto"
+        className="bg-white w-full max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col min-h-0 rounded-2xl border border-brand-border shadow-elevated overflow-hidden animate-scale-up"
         role="dialog"
         aria-modal="true"
       >
         
         {/* Header (Pinned) */}
-        <div className="shrink-0 p-5 flex items-center justify-between border-b border-brand-border">
+        <div className="shrink-0 p-4 sm:p-5 flex items-center justify-between border-b border-brand-border">
           <BrandLogo size="sm" />
           <button
             onClick={closeLoginModal}
+            disabled={submitting}
             className="p-1 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -177,7 +194,7 @@ export const LoginModal: React.FC = () => {
         </div>
 
         {/* Scrollable Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
 
         {/* Tab switchers (only in signin or signup mode) */}
         {mode !== 'verify' ? (

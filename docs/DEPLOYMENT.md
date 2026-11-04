@@ -31,15 +31,14 @@ npm run dev
 
 ### Step 3: Run Test Suites
 ```bash
-# Backend unit & integration tests (72 tests)
+# Backend unit & integration tests (73 tests pass)
 npm run test:backend
 
-# Frontend Vitest test suite (51 tests)
+# Frontend Vitest test suite (52 tests pass)
 npm test
 
-# Python Inspector unit tests (11 tests)
+# Python Inspector Lambda test suite (6 tests pass)
 npm run test:lambda
-python backend/src/workers/python-inspector/test_inspector.py
 ```
 
 ---

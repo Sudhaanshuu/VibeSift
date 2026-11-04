@@ -7,7 +7,7 @@
 
 2. CONTINUOUS TESTCASES:
    - For every feature modification or section change, maintain and expand test cases in `src/App.test.tsx` and unit test files.
-   - The full test suite (`npm test`) must pass (31+ tests passing) with exit code 0.
+   - The full test suite (`npm test`, 52+ tests; `npm run test:backend`, 73+ tests) must pass with exit code 0.
 
 3. ZERO SECRET LEAKAGE:
    - Never commit or expose live AWS keys, API credentials, private tokens, or `.env` files to git.
