@@ -222,7 +222,9 @@ Amazon Cognito provides customer identity and user pool management, supporting s
 * **Secure JWT Validation**: Express verifies RS256 JWT tokens using Cognito's public JWKS keys without making round-trip network calls to verify sessions.
 
 #### Where are we using it?
-* Backend: `backend/src/api/middleware/auth.js` validates JWT `id_token` and `access_token`.
+* Backend: `backend/src/api/middleware/auth.js` validates JWT `id_token` and `access_token` with a 120-second clock skew tolerance (`clockTolerance: '120s'`).
+* Refresh Route: `POST /api/auth/refresh` in `backend/src/api/routes/auth.js` accepts `{ refreshToken }` and issues fresh access/ID tokens via `cognitoRefreshToken()` using AWS Cognito's `REFRESH_TOKEN_AUTH` flow.
+* Frontend Client: `src/lib/api/client.ts` uses an automatic 401 retry interceptor that transparently refreshes expired access tokens without interrupting active user workflows. Sessions are persisted in browser storage with a 14-day horizon.
 * User Pool ID: Referenced in `backend/src/config/env.js` and SSM Parameter `/vibesift/dev/cognito/user-pool-id`.
 * Client ID: Referenced in frontend auth context (`src/context/AuthContext.tsx`).
 
@@ -559,6 +561,79 @@ console.log('Total Scans:', db.prepare('SELECT COUNT(*) as count FROM scans').ge
 
 ---
 
+### Component 10: Razorpay Payment Gateway & Deep Audit Paywall
+
+#### What is it?
+Razorpay is India's leading developer-first payment gateway, supporting UPI (Google Pay, PhonePe, Paytm, BHIM), Net Banking, Credit/Debit cards, and Wallets.
+
+#### Why are we using it?
+* **Deep Audit Paywall**: High-value active security checks (22 deep probes) and multi-page privacy compliance audits (15 DPDP Act tests) are protected behind a paywall priced at **₹39 per audit**. Quick searches remain 100% free.
+* **Direct Client Checkout**: Standard Checkout operates directly through Razorpay's client SDK (`checkout.js`) using the live public Key ID (`RAZORPAY_KEY_ID`), removing the need for server-side order generation secrets while maintaining strict transaction verification.
+* **Compliance with Indian Payment Regulations**: Fully compliant with RBI card storage guidelines and UPI Autopay / e-mandate standards.
+
+#### Where are we using it?
+* Frontend: `src/components/common/DeepAuditPaywallModal.tsx` integrates the Razorpay checkout overlay.
+* Backend Routes:
+  - `GET /api/payments/config`: Exposes the public `keyId` to authenticated clients.
+  - `POST /api/payments/create-order`: Formulates client checkout payloads.
+  - `POST /api/payments/verify`: Validates client payments and stores verified transactions in SQLite (`payment_transactions`).
+  - `POST /api/scans`: Strict gate returning `402 Payment Required` if `scanScope === 'authorized_deep'` without a verified, unconsumed `paymentId`.
+* SSM Parameter: `/vibesift/prod/razorpay/key-id` (`rzp_live_Td6jjT5Yl85c4L`).
+
+#### Real-World Analogy
+Like an amusement park with a free viewing platform (Quick Search) and a paid admission turnstile (Deep Search). You tap your card at the turnstile, receive an admission stamp (verified `paymentId`), and present that stamp at the boarding gate (`POST /api/scans`).
+
+---
+
+### Component 11: AWS S3 Promotional Coupon Directory & CLI
+
+#### What is it?
+A serverless coupon management engine where promotional coupons and usage counters are stored as an S3 JSON document at `s3://<bucket>/config/coupons.json`.
+
+#### Why are we using it?
+* **Zero Database Locks or Migration Risk**: Coupon lists can be modified without taking database locks or running schema migrations.
+* **In-Memory TTL Caching**: The API server caches the coupon list in memory with a 30-second TTL (`COUPON_CACHE_TTL_MS = 30000`). This ensures lightning-fast coupon validation with negligible S3 request costs.
+* **Razorpay ₹1 Minimum Bound Enforcement**: Razorpay India requires transactions to be at least ₹1 (100 paise). The coupon system validates and clamps discounts (e.g., standard ₹39 minus ₹38 discount leaves ₹1 payable).
+
+#### Where are we using it?
+* S3 Document: `config/coupons.json` inside the VibeSift S3 bucket.
+* Backend Service: `backend/src/services/couponService.js` (load, validate, update).
+* CLI Management Script: `backend/scripts/manage-coupons.js` (`npm run coupon -- <action>`).
+
+#### CLI Commands
+```bash
+# List all coupons
+npm run coupon -- list
+
+# Add or update coupon with discount amount and max uses
+npm run coupon -- add FLAT418 38 1000
+
+# Disable a coupon immediately
+npm run coupon -- disable FLAT418
+
+# Re-enable a coupon
+npm run coupon -- enable FLAT418
+
+# Remove a coupon permanently
+npm run coupon -- remove FLAT418
+```
+
+---
+
+### Component 12: Machine Standards & Crawler Directives
+
+#### What is it?
+Machine-readable files and discovery endpoints conforming to open web and security standards:
+* **RFC 9116 `security.txt`**: Standardized vulnerability reporting channel at `/.well-known/security.txt` and `/security.txt`.
+* **Search Engine Directives (`robots.txt`)**: Crawler access rules preventing indexing of private user dashboards while boosting public landing and legal pages.
+* **Canonical XML Sitemap (`sitemap.xml`)**: Complete list of crawlable URLs with priority and change frequencies.
+
+#### Why are we using it?
+* **Security Researcher SLA**: Directs ethical hackers to official channels (`support@pixir.in`) with a defined 24–48 business hour response SLA.
+* **SEO Hygiene**: Guides Google, Bing, and AI crawlers to index key marketing, pricing, and compliance pages (`/pricing`, `/refund-policy`, `/terms`, etc.) while protecting user scan histories.
+
+---
+
 ## 4. Key Architectural Concepts Explained
 
 ### 1. What is a WAF (Web Application Firewall)?
@@ -594,6 +669,21 @@ SSRF occurs when an attacker inputs a URL like `http://169.254.169.254/latest/me
 * AWS Managed Keys (`aws/s3`, `aws/sqs`) are shared default keys owned by AWS.
 * VibeSift provisions a **Customer Managed Key** (`alias/vibesift-dev`).
 * **Why?** CMK allows configuring strict key policies, enabling automatic annual key rotation, and enforcing that only the authorized EC2 instance profile and Lambda function can decrypt the S3 reports and SQS queue payloads.
+
+### 7. Direct Client Checkout vs Server-Side Razorpay Orders
+* Standard server-side Razorpay integrations require an order creation API call using a Razorpay Key Secret.
+* In VibeSift, Standard Direct Client Checkout operates directly via `checkout.js` using the public Key ID (`RAZORPAY_KEY_ID`), formulating options directly on the frontend.
+* **Why?** Zero dependency on storing high-privilege order generation secrets on developer laptops or build runners, while preserving strict server-side transaction recording (`POST /api/payments/verify`) and scan gatekeeping (`POST /api/scans`).
+
+### 8. 14-Day Persistent Session Management & JWT Token Refresh
+* AWS Cognito Access Tokens have a default lifetime of 60 minutes.
+* Long developer audit workflows (e.g., initiating deep audits, configuring DNS verifications, completing payment checkouts) would fail if access tokens expired midway (`"exp" claim timestamp check failed`).
+* **Solution**: `src/lib/api/client.ts` implements an automatic 401 retry interceptor. Upon receiving a 401 response from the API, it calls `POST /api/auth/refresh` using the Cognito Refresh Token (`REFRESH_TOKEN_AUTH` flow), stores the refreshed Access Token, and replays the original API call seamlessly without failing the user interaction. Developer sessions remain active for up to 14 days.
+
+### 9. S3 Document Store with In-Memory TTL Caching
+* Promotional coupons (`config/coupons.json`) are stored directly in S3 rather than an RDBMS.
+* To avoid S3 `GetObject` latency and cost on every coupon validation request, the backend implements an in-memory cache with a 30-second TTL (`COUPON_CACHE_TTL_MS = 30000`).
+* Writes (via CLI or API) invalidate or update the document in S3, and API processes naturally refresh their cached snapshot within 30 seconds.
 
 ---
 
@@ -689,6 +779,112 @@ curl -X POST http://localhost:4000/api/auth/login \
 * **Endless Click Loop**: Caused if React parent re-renders unmount and remount the widget. In `TurnstileWidget.tsx`, `useRef` stabilizes callback props (`onVerifyRef`, `onErrorRef`, `onExpireRef`) so parent re-renders never trigger Turnstile widget teardowns. The Turnstile container `div` is also isolated without React children.
 * **Error 110600 (Domain Not Allowed)**: Cloudflare site keys validate the `Origin` header. If testing on `localhost:5173` or `127.0.0.1`, add `localhost` to the Turnstile widget's Allowed Domains in the Cloudflare Dashboard (`dash.cloudflare.com` -> Turnstile -> Settings). In development, `TurnstileWidget` also provides a "Simulate Pass in Local Dev" button.
 
+### Scenario E: Managing Promotional Coupons via CLI & S3
+
+Promotional coupons are stored in S3 (`config/coupons.json`) and cached in memory (30s TTL).
+
+#### 1. Inspect Current Coupons in S3
+```bash
+# Via npm script
+npm run coupon -- list
+
+# Or inspect raw S3 JSON directly
+aws s3 cp s3://vibesift-audit-reports-dev-501380833083/config/coupons.json -
+```
+
+#### 2. Adding or Updating a Coupon
+```bash
+# Add FLAT418 granting a 38 INR discount up to 1,000 uses
+npm run coupon -- add FLAT418 38 1000
+```
+
+#### 3. Temporarily Disabling a Coupon
+```bash
+npm run coupon -- disable FLAT418
+```
+
+#### 4. Validating via Live API
+```bash
+curl -X POST http://localhost:4000/api/payments/validate-coupon \
+  -H "Content-Type: application/json" \
+  -d '{"code":"flat418","baseAmount":39}'
+
+# Expected response:
+# {
+#   "valid": true,
+#   "code": "FLAT418",
+#   "discount": 38,
+#   "finalAmount": 1,
+#   "amountPaise": 100
+# }
+```
+
+### Scenario F: Razorpay Live Payment Gateway Troubleshooting
+
+#### 1. Verify Razorpay Key in SSM Parameter Store
+```bash
+aws ssm get-parameter --name "/vibesift/prod/razorpay/key-id" --region us-east-1
+# Value must match rzp_live_Td6jjT5Yl85c4L
+```
+
+#### 2. Diagnosing "Payment Failed" or Bad Request (400)
+* **Check Minimum Transaction**: Razorpay India fails payments below ₹1 (100 paise). The coupon system guarantees discounts clamp at ₹1 minimum (`Math.max(1, baseAmount - discount)`).
+* **Direct Client Checkout**: Ensure `orderId` is `null` when creating the direct checkout options in the frontend. If a fake or synthetic order ID is passed to `Razorpay(options)`, Razorpay attempts server-side validation against their order book and returns HTTP 400 Bad Request.
+* **Form Submission Conflicts**: Ensure the payment button inside the checkout modal is `type="button"` and not inside an outer `<form>` to avoid triggering unintended page refreshes or connection resets.
+
+#### 3. Verifying Payment Verification in SQLite
+```bash
+node -e "
+const { DatabaseSync } = require('node:sqlite');
+const db = new DatabaseSync('/var/www/vibesift/.local_storage/vibesift.sqlite');
+console.table(db.prepare('SELECT id, paymentId, amount, status, createdAt FROM payment_transactions ORDER BY createdAt DESC LIMIT 5').all());
+"
+```
+
+### Scenario G: Cognito Token Expiration & Refresh Flow Diagnostics
+
+#### 1. Diagnosing "exp claim timestamp check failed"
+This occurs when an Access Token exceeds its 60-minute lifetime.
+
+#### 2. Testing Refresh Route Directly
+```bash
+# Test refresh endpoint using a valid Cognito refresh token
+curl -X POST http://localhost:4000/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"<COGNITO_REFRESH_TOKEN>"}'
+
+# Expected response:
+# {
+#   "accessToken": "eyJra...",
+#   "idToken": "eyJra...",
+#   "expiresIn": 3600
+# }
+```
+
+#### 3. Client Auto-Refresh Interceptor Verification
+Verify in browser DevTools Network tab:
+1. When an API call returns `401 Unauthorized`.
+2. A subsequent request to `POST /api/auth/refresh` fires automatically.
+3. The original API call is replayed with the new `Bearer <token>` header and returns `200 OK`.
+
+### Scenario H: Machine Standards & Crawler Directives Verification
+
+Verify the canonical crawler and security endpoints are reachable and serving valid responses:
+
+```bash
+# 1. Verify RFC 9116 security.txt
+curl -i https://vibesift.pixir.in/.well-known/security.txt
+# Expected: Contact: mailto:support@pixir.in, Acknowledgments, Policy, Preferred-Languages
+
+# 2. Verify robots.txt
+curl -i https://vibesift.pixir.in/robots.txt
+# Expected: User-agent: *, Allow: /, Disallow: /app/, Disallow: /api/, Sitemap: https://vibesift.pixir.in/sitemap.xml
+
+# 3. Verify sitemap.xml
+curl -i https://vibesift.pixir.in/sitemap.xml
+# Expected: XML sitemap listing 10 canonical URLs (<loc>https://vibesift.pixir.in/pricing</loc>, etc.)
+```
+
 ---
 
 ## 6. Architecture Component Summary Cheat Sheet
@@ -697,10 +893,12 @@ curl -X POST http://localhost:4000/api/auth/login \
 | :--- | :--- | :--- | :--- |
 | **Cloudflare** | Edge Network / WAF | DNS, SSL termination & Turnstile bot defense | Shields EC2 IP, stops bot spam |
 | **EC2** | Compute (Ubuntu Linux) | Hosts Express API, PM2 worker, Headless Chromium | Native Chrome environment for real CWV |
-| **Cognito** | Identity / Auth | User Pools, signup/login, multi-tenant JWTs | Zero auth maintenance, 50k free MAUs |
+| **Cognito** | Identity / Auth | User Pools, signup/login, 14-day persistent JWTs | Zero auth maintenance, 50k free MAUs |
 | **SQS FIFO** | Managed Queue | Asynchronous job pipeline, domain deduplication | Absorbs traffic spikes, guarantees order |
 | **Lambda** | Serverless Compute | Executes Python quality, deep security, & DPDP suite | Secure sandboxed network probe execution |
 | **Amazon S3** | Object Storage | Immutable `report.json`, Markdown summaries, cache | 11 9s durability, cheap cross-user cache |
 | **CloudWatch** | Observability | EMF performance metrics, centralized logs | Real-time monitoring with zero extra agents |
 | **SSM** | Secrets Management | Secure configuration parameter store | Zero hardcoded API keys in Git |
 | **SQLite** | Embedded Database | Local fast indexing cache on EC2 (`node:sqlite`) | Sub-millisecond queries, \$0 server cost |
+| **Razorpay** | Payment Gateway | Direct client-side checkout for ₹39 Deep Audits | Live Indian UPI & card processing with ₹1 bound |
+| **S3 Coupons** | Serverless Store | Promotional discount directory (`coupons.json`) | In-memory 30s TTL cache, atomic CLI updates |

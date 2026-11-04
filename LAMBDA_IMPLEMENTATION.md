@@ -256,15 +256,15 @@ When the Lambda / pipeline finishes, it persists raw engine outputs and executiv
 Run all three test suites to verify system integrity:
 
 ```bash
-# 1. Run Python Inspector & Lambda Test Suite (11 tests)
+# 1. Run Python Inspector & Lambda Test Suite (6 tests)
 npm run test:lambda
 python backend/src/workers/python-inspector/test_inspector.py
 
-# 2. Run Backend Node.js Test Suite (72 tests)
+# 2. Run Backend Node.js Test Suite (73 tests)
 npm run test:backend
 
-# 3. Run Frontend React & Vitest Suite (51 tests)
+# 3. Run Frontend React & Vitest Suite (52 tests)
 npm test
 ```
 
-**Total Tests:** **134 automated tests passing with 0 failures.**
+**Total Tests:** **131 automated tests passing with 0 failures.**

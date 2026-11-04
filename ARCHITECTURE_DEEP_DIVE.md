@@ -391,13 +391,13 @@ sequenceDiagram
 All test suites verify system stability and contract compliance across both cloud and local modes:
 
 ```bash
-# 1. Run all Backend API tests (72 tests passing)
+# 1. Run all Backend API tests (73 tests passing)
 cd backend && npm test
 
-# 2. Run all Frontend Vitest component & smoke tests (51 tests passing)
+# 2. Run all Frontend Vitest component & smoke tests (52 tests passing)
 npm test -- --run
 
-# 3. Run all Python Inspector & Lambda unit tests (11 tests passing)
+# 3. Run all Python Inspector & Lambda unit tests (6 tests passing)
 python backend/src/workers/python-inspector/test_inspector.py
 python backend/src/workers/python-inspector/test_lambda.py
 

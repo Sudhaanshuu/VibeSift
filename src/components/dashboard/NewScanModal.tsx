@@ -9,6 +9,7 @@ import { ScanQuotaIndicator } from '../common/ScanQuotaIndicator';
 import { ExistingAuditModal } from '../common/ExistingAuditModal';
 import { TurnstileWidget } from '../common/TurnstileWidget';
 import { DeepAuditPaywallModal } from '../common/DeepAuditPaywallModal';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { 
   X, 
   Globe, 
@@ -56,15 +57,22 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     }
   }, [prefilledScanUrl]);
 
-  // Lock background document scrolling while modal is open
+  // Robust multi-platform scroll lock for background document
+  useBodyScrollLock(isNewScanModalOpen);
+
+  // Close on Escape key
   useEffect(() => {
     if (!isNewScanModalOpen) return;
-    const originalStyle = window.getComputedStyle(document.body).overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalStyle;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isScanning) {
+        closeNewScanModal();
+      }
     };
-  }, [isNewScanModalOpen]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isNewScanModalOpen, isScanning, closeNewScanModal]);
 
   if (!isNewScanModalOpen) return null;
 
@@ -153,32 +161,40 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in overscroll-contain"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isScanning) {
+          closeNewScanModal();
+        }
+      }}
+    >
       <div 
-        className="bg-white w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-brand-border shadow-elevated overflow-hidden my-auto"
+        className="bg-white w-full max-w-xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] flex flex-col min-h-0 rounded-2xl border border-brand-border shadow-elevated overflow-hidden animate-scale-up"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
         
         {/* Modal Header (Pinned at Top) */}
-        <div className="shrink-0 p-4 sm:p-5 bg-brand-card-green/40 border-b border-brand-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center border border-brand-border">
+        <div className="shrink-0 p-3.5 sm:p-4.5 bg-brand-card-green/40 border-b border-brand-border flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center border border-brand-border shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
-            <div>
-              <h3 id="modal-title" className="text-base font-bold text-brand-text">Configure Pre-Launch Audit</h3>
-              <p className="text-xs text-brand-text-secondary">Safe, containerized multi-engine inspection</p>
+            <div className="min-w-0">
+              <h3 id="modal-title" className="text-sm sm:text-base font-bold text-brand-text truncate">Configure Pre-Launch Audit</h3>
+              <p className="text-[11px] sm:text-xs text-brand-text-secondary truncate">Safe, containerized multi-engine inspection</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <ScanQuotaIndicator />
             <button
               onClick={closeNewScanModal}
               disabled={isScanning}
-              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="Close modal"
+              className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50"
             >
               <X className="w-5 h-5" />
             </button>
@@ -187,7 +203,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
 
         {/* Modal Body / Scanning Progress or Form */}
         {!isAuthenticated ? (
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 text-center space-y-5">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 sm:p-8 text-center space-y-5">
             <div className="w-14 h-14 rounded-full bg-brand-mint text-brand-emerald-dark flex items-center justify-center mx-auto border border-brand-border">
               <Lock className="w-7 h-7" />
             </div>
@@ -213,7 +229,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
             </div>
           </div>
         ) : isScanning && scanProgress ? (
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 text-center space-y-6">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 sm:p-8 text-center space-y-6">
             <div className="w-16 h-16 rounded-full bg-brand-mint text-brand-emerald flex items-center justify-center mx-auto border-2 border-brand-border animate-pulse">
               <ShieldCheck className="w-8 h-8 animate-bounce" />
             </div>
@@ -249,7 +265,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             
             {/* Scrollable Form Body */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
               {/* Target URL field */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
@@ -372,12 +388,13 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
             </div>
 
             {/* Pinned Action Footer */}
-            <div className="shrink-0 p-4 bg-slate-50 border-t border-brand-border flex items-center justify-end gap-3 rounded-b-2xl">
+            <div className="shrink-0 p-3.5 sm:p-4 bg-slate-50 border-t border-brand-border flex items-center justify-end gap-3 rounded-b-2xl">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={closeNewScanModal}
+                disabled={isScanning}
               >
                 Cancel
               </Button>
@@ -385,6 +402,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
                 type="submit"
                 variant="primary"
                 size="sm"
+                disabled={isScanning}
                 rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
               >
                 {profile === 'authorized_deep' ? 'Unlock Deep Audit (₹39)' : 'Start Free Quick Audit'}

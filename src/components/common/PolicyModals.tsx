@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { X, ShieldCheck, Lock, ExternalLink, Sliders } from 'lucide-react';
 import { triggerCookieSettingsModal } from '../../lib/cookies/cookieConsent';
 
@@ -17,6 +18,23 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({
   onNavigateToPrivacy,
   onNavigateToSecurity 
 }) => {
+  // Robust multi-platform scroll lock for background document
+  useBodyScrollLock(isOpen);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -24,24 +42,27 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="policy-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in overscroll-contain"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="bg-white w-full max-w-2xl max-h-[85vh] rounded-2xl border border-brand-border shadow-elevated overflow-hidden flex flex-col">
+      <div className="bg-white w-full max-w-2xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh] rounded-2xl border border-brand-border shadow-elevated overflow-hidden flex flex-col min-h-0 animate-scale-up">
         
         {/* Header */}
-        <div className="p-5 border-b border-brand-border flex items-center justify-between bg-brand-card-green/40">
+        <div className="shrink-0 p-4 sm:p-5 border-b border-brand-border flex items-center justify-between bg-brand-card-green/40">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center shrink-0">
               {type === 'security' ? <ShieldCheck className="w-5 h-5 text-brand-emerald-deep" /> : <Lock className="w-5 h-5 text-brand-emerald-deep" />}
             </div>
-            <h3 id="policy-modal-title" className="text-base font-bold text-brand-text">
+            <h3 id="policy-modal-title" className="text-base font-bold text-brand-text truncate">
               {type === 'security' ? 'Responsible Scanning & Safety Policy' : 'Privacy & Data Retention Policy'}
             </h3>
           </div>
 
           <button 
             onClick={onClose} 
-            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -49,7 +70,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm text-brand-text-secondary leading-relaxed">
+        <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto overscroll-contain space-y-4 text-xs sm:text-sm text-brand-text-secondary leading-relaxed">
           {type === 'security' ? (
             <>
               <h4 className="font-bold text-brand-text text-sm">1. Non-Destructive Public Baseline Testing</h4>
@@ -129,7 +150,7 @@ export const PolicyModal: React.FC<PolicyModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-brand-border bg-brand-muted flex flex-wrap items-center justify-between gap-2">
+        <div className="shrink-0 p-3.5 sm:p-4 border-t border-brand-border bg-brand-muted flex flex-wrap items-center justify-between gap-2">
           {type === 'security' && onNavigateToSecurity ? (
             <button
               type="button"

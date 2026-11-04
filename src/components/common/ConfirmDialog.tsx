@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { Button } from './Button';
 import { AlertTriangle, X } from 'lucide-react';
 
@@ -25,26 +26,33 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useBodyScrollLock(isOpen);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !isLoading) {
         onCancel();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onCancel]);
+  }, [isOpen, isLoading, onCancel]);
 
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in overscroll-contain"
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-dialog-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isLoading) {
+          onCancel();
+        }
+      }}
     >
-      <div className="bg-white w-full max-w-md rounded-2xl border border-brand-border shadow-elevated overflow-hidden p-6 space-y-4">
+      <div className="bg-white w-full max-w-md max-h-[calc(100dvh-1.5rem)] flex flex-col min-h-0 rounded-2xl border border-brand-border shadow-elevated overflow-hidden p-6 space-y-4 animate-scale-up">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div

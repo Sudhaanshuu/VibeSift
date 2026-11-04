@@ -34,5 +34,7 @@ npm run dev
 ---
 
 ### 📖 Live Demo Guide & Architecture Walkthrough
+- See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the complete system topology verified against `vibesift-architecture.png`.
+- See **[docs/AWS_STUDY_GUIDE.md](docs/AWS_STUDY_GUIDE.md)** for the deep AWS services study guide, component dictionary, and evaluator Q&A.
 - See **[LAMBDA_IMPLEMENTATION.md](LAMBDA_IMPLEMENTATION.md)** for a complete step-by-step walkthrough covering Amazon Cognito user creation, AWS Lambda test events, SQLite real-time storage, and S3 artifact inspection.
-- See **[ARCHITECTURE_DEEP_DIVE.md](ARCHITECTURE_DEEP_DIVE.md)** for the complete component dictionary covering the 6 Core AWS Services (S3, Lambda, SSM, Cognito, CloudWatch, EC2), architectural trade-offs, and 20 evaluator Q&As.
+- See **[ARCHITECTURE_DEEP_DIVE.md](ARCHITECTURE_DEEP_DIVE.md)** for architectural trade-offs and evaluator defense playbooks.

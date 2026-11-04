@@ -118,6 +118,8 @@ All production parameters live under `/vibesift/prod/`:
 | `/vibesift/prod/turnstile/site-key` | Standard | String | `0x4AAAAAAFx4L_X5foiyZTNW` |
 | `/vibesift/prod/turnstile/secret-key` | Standard | **SecureString** | `0x4AAAAAAFx4LyDw-n53U4-1sDlZ6iIdb_8` |
 | `/vibesift/prod/turnstile/enabled` | Standard | String | `true` |
+| `/vibesift/prod/razorpay/key-id` | Standard | String | `rzp_live_Td6jjT5Yl85c4L` |
+| `/vibesift/prod/razorpay/key-secret` | Standard | **SecureString** | *(Optional for direct client checkout)* |
 
 ### AWS CLI Creation Commands
 
@@ -179,6 +181,44 @@ aws ssm put-parameter \
   --type "String" \
   --value "true" \
   --overwrite
+
+# 9. Razorpay Live Key ID (Both Dev & Prod)
+aws ssm put-parameter \
+  --name "/vibesift/prod/razorpay/key-id" \
+  --type "String" \
+  --value "rzp_live_Td6jjT5Yl85c4L" \
+  --overwrite
+
+aws ssm put-parameter \
+  --name "/vibesift/dev/razorpay/key-id" \
+  --type "String" \
+  --value "rzp_live_Td6jjT5Yl85c4L" \
+  --overwrite
+```
+
+### S3-Managed Coupon Architecture
+
+Promotional discounts are stored in Amazon S3 rather than hardcoded in the application:
+- **S3 URI**: `s3://vibesift-audit-reports-dev-501380833083/config/coupons.json`
+- **Cache TTL**: 30 seconds (in-memory cached to avoid redundant S3 GET requests during traffic bursts).
+- **Default Active Coupon**: `FLAT418` (case-insensitive, whitespace-insensitive: `flat 418`, `flat418`, `FLAT418` all normalize identically) — discounts ₹38 so that final payable amount is ₹1 (meeting Razorpay's 1 INR minimum transaction limit).
+
+#### Coupon Management Commands
+```bash
+# List all configured coupons and active status
+npm run coupon -- list
+
+# Add a new promo coupon (e.g. SAVE20 for ₹20 off)
+npm run coupon -- add SAVE20 20 "Special promotional discount"
+
+# Disable a coupon instantly without code redeployment
+npm run coupon -- disable FLAT418
+
+# Re-enable a disabled coupon
+npm run coupon -- enable FLAT418
+
+# Remove a coupon permanently
+npm run coupon -- remove SAVE20
 ```
 
 ---

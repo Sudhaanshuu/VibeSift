@@ -14,8 +14,12 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
 - **TanStack Query v5 (`@tanstack/react-query`)**: Server-state management and smart scan-status polling with terminal-state detection.
 - **React Hook Form & Zod**: Reusable URL validation, SSRF boundary defenses, and scan scope enforcement.
 - **Cloudflare Turnstile**: Seamless, privacy-preserving bot defense protecting login, registration, and scan task creation.
+- **Razorpay Payments**: Direct client-side checkout integration (`checkout.js`) with backend signature/order validation and S3-managed promotional coupon engine.
+- **Amazon Cognito 14-Day Session Management**: Long-lived developer sessions with automatic token refresh (`REFRESH_TOKEN_AUTH`) and 401 retry interceptor.
 - **Lucide React**: Clean, accessible icon system with semantic stroke weights.
-- **Vitest & React Testing Library**: Comprehensive test suite with 51 passing frontend component and smoke tests.
+- **Vitest & React Testing Library**: Comprehensive test suite with 52 passing frontend component and smoke tests.
+- **Node.js Native Test Runner**: 73 passing backend integration, security, SSRF, and auth tests.
+- **Python Inspector Test Suite**: 6 passing AWS Lambda & Inspector checks (total 131 passing tests across the repo).
 
 ---
 
@@ -24,35 +28,55 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
 | Route | View | Description |
 | :--- | :--- | :--- |
 | `/` | `LandingPage` | Public marketing landing page with interactive report preview, features, and sample audits. |
+| `/pricing` | `PricingPage` | Transparent pricing breakdown: Free Quick Audit vs ₹39 Deep Search with feature matrix. |
+| `/refund-policy` | `RefundPolicyPage` | Comprehensive refund, cancellation, and dispute policy with 24–48h SLA and operational details. |
+| `/terms` | `TermsPage` | Terms of Service, acceptable use guidelines, and authorized testing compliance agreement. |
+| `/contact` | `ContactPage` | Customer support channels, SLA commitments, registered physical address, and founder contacts. |
+| `/privacy` | `PrivacyPolicyPage` | Data protection notice compliant with the Indian Digital Personal Data Protection (DPDP) Act 2023. |
+| `/security` | `SecurityPage` | Enterprise security whitepaper, SSRF mitigation architecture, and isolation mechanisms. |
+| `/methodology` | `MethodologyPage` | Transparent 71-point inspection breakdown across 6 readiness pillars. |
+| `/sample-reports` | `SampleReportsPage` | Public interactive sample audit reports demonstrating findings, scores, and remediation diffs. |
+| `/remediation` | `RemediationPage` | Actionable vulnerability remediation guides and code snippets for vibe coders. |
 | `/login` | `LoginPage` | Authentication screen supporting Amazon Cognito and one-click demo developer sign-in. |
-| `/signup` | `SignupPage` | Developer account registration. |
+| `/signup` | `SignupPage` | Developer account registration with Cloudflare Turnstile protection. |
 | `/app` | `DashboardPage` | Authenticated overview dashboard with metrics, recent audits, and saved websites. |
-| `/app/scans/new` | `NewScanPage` | Scan initiation with URL normalization, scope selection, and validation feedback. |
+| `/app/scans/new` | `NewScanPage` | Scan initiation with URL normalization, scope selection, paywall gate, and validation feedback. |
 | `/app/scans/:scanId` | `ScanDetailPage` | Real-time scan telemetry and detailed audit report with evidence, diffs, and export. |
 | `/app/history` | `HistoryPage` | Searchable scan history table with filtering, score badges, and rescan action. |
 | `/app/sites` | `SitesPage` | Saved websites and domain verification management (DNS TXT & HTML meta challenges). |
 | `/app/settings` | `SettingsPage` | Identity credentials, CI/CD API keys, email alerts, and data privacy purge controls. |
-| `*` | `NotFoundPage` | Polished 404 error page. |
+| `*` | `NotFoundPage` | Polished 404 error page with navigation shortcuts. |
 
 ---
 
-## 🛡️ Audit Scopes & Boundaries
+## 🛡️ Audit Scopes & Pricing Model
 
-1. **Baseline Public Scan (`baseline_public`)**:
-   - Safe, non-destructive passive checks:
-     - SEO and crawlability (titles, meta tags, canonicals, robots.txt, sitemaps).
-     - Lighthouse performance (Core Web Vitals, render-blocking scripts).
-     - Accessibility signals (contrast, alt attributes, ARIA landmarks).
-     - HTTPS / TLS and security headers (CSP, HSTS, X-Content-Type-Options).
-     - Cookie and browser security flags (Secure, HttpOnly, SameSite).
-     - Observable exposure and misconfigurations (unbundled source maps, .env rewrites).
-   - Instant execution; no authorization barrier required.
+### 1. Quick Search (Baseline Public Scan — `baseline_public`)
+- **Cost**: **Free (₹0)**
+- **Turnaround**: ~20 seconds
+- **Checks Included**:
+  - Safe, non-destructive passive analysis.
+  - SEO and crawlability (titles, meta tags, canonicals, robots.txt, sitemaps).
+  - Google Lighthouse performance (Core Web Vitals: LCP, CLS, FCP, TBT).
+  - Accessibility signals (contrast, alt attributes, ARIA landmarks).
+  - HTTPS / TLS configuration and security headers (CSP, HSTS, X-Content-Type-Options).
+  - Cookie security flags (Secure, HttpOnly, SameSite).
+  - Source map exposure and unbundled development assets.
+- **Access**: Instant; no authorization or payment barrier required.
 
-2. **Authorized Deep Scan (`authorized_deep`)**:
-   - Active security and resilience verification via the Python DeepAuditor (22 active tests) and PrivacyAuditor (15 Indian DPDP Act 2023 checks).
-   - Evaluates XSS reflection, SQLi error resilience, CORS misconfigurations, and cookie tampering.
-   - Strictly requires proven domain ownership via DNS TXT record or HTML `<meta>` challenge.
-   - Prohibits destructive payloads, database fuzzing, and denial-of-service tests.
+### 2. Deep Search (Authorized Deep Audit — `authorized_deep`)
+- **Cost**: **₹39 per audit** (Direct client checkout via Razorpay Live Gateway)
+- **Turnaround**: ~2 minutes
+- **Checks Included**:
+  - Everything in Quick Search plus comprehensive active verification.
+  - Multi-page intelligent crawler discovering subpages and deep link integrity.
+  - **Indian DPDP Act 2023 Compliance**: 15 privacy tests auditing third-party scripts, tracker leakage, cookie banner consent, sensitive data exfiltration, and notice requirements.
+  - **Active Security Testing**: 22 security probes evaluating XSS reflection, SQLi error resilience, CORS origin misconfigurations, header injection, and cookie tampering.
+  - Actionable before/after code diffs and executive remediation summaries.
+- **Paywall & Gating**:
+  - Direct integration with Razorpay checkout (`RAZORPAY_KEY_ID`).
+  - Scan submission requires verified `paymentId` recorded in backend transactions. Submitting `authorized_deep` without payment returns `402 Payment Required`.
+  - Discreet coupon code input for authorized promotional discounts, validated against AWS S3.
 
 ---
 
@@ -171,7 +195,7 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
   - Orchestration: Amazon SQS FIFO Queue (`vibesift-scan-jobs.fifo`) with dedicated FIFO Dead-Letter Queue (DLQ).
   - Global S3 Cache Check: Instant cross-tenant pre-check against S3 & SQLite before queuing new audits, discovering existing reports across users with zero redundant compute.
   - Complete Setup Guide: **[`SQS_SETUP_AND_INTEGRATION.md`](SQS_SETUP_AND_INTEGRATION.md)**
-  - Comprehensive Operations Runbook: **[`PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md`](PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
+  - Comprehensive Operations Runbook: **[`PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md`](docs/PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
 
 ### Running Backend Locally
 ```bash
@@ -209,11 +233,75 @@ pm2 status
 pm2 logs --lines 20
 ```
 
-### Complete Documentation & Guides
-- **[Production Architecture & Operations Runbook](PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
+---
+
+## 🎟️ S3 Promotional Coupon Management
+
+VibeSift manages promotional discount coupons directly in AWS S3 (`s3://<bucket>/config/coupons.json`) with zero database schema locks and high availability. The backend caches coupons in-memory with a 30-second TTL.
+
+Manage coupons via the CLI tool from the project root:
+
+```bash
+# List all active and disabled coupons
+npm run coupon -- list
+
+# Add or update a coupon (e.g., FLAT418 with ₹38 discount)
+npm run coupon -- add FLAT418 38 1000
+
+# Disable a coupon immediately
+npm run coupon -- disable FLAT418
+
+# Re-enable a coupon
+npm run coupon -- enable FLAT418
+
+# Delete a coupon permanently
+npm run coupon -- remove FLAT418
+```
+
+> **Rules & Constraints**:
+> - Discount coupons are case-insensitive and whitespace-stripped upon validation.
+> - Razorpay requires a minimum transaction of ₹1 (100 paise) in India. Discount amounts cannot reduce the payable balance below ₹1.
+> - Coupon codes are strictly private operational instruments and are never advertised or displayed on marketing surfaces.
+
+---
+
+## 🤖 Crawler Directives & Machine Standards
+
+VibeSift provides machine-readable specifications adhering to open web and security standards:
+
+- **Security Policy (RFC 9116)**: `/.well-known/security.txt` and `/security.txt` listing security contact, encryption keys, policy URLs, and disclosure SLAs.
+- **Search Engine Directives**: `/robots.txt` allowing public indexing of landing, pricing, policy, and educational pages while disallowing `/app/` and `/api/`.
+- **XML Sitemap**: `/sitemap.xml` providing canonical URLs, change frequencies, and search priority for search indexers.
+
+---
+
+## 🏢 Operational & Business Information
+
+```
+Operational Information
+Customer Support Email
+support@pixir.in
+
+Operating Hours & SLA
+Monday – Friday, 9:30 AM – 6:30 PM IST
+Turnaround: 24 to 48 business hours
+
+Registered Physical Address
+Pixir Operations
+Chennai, Tamil Nadu, India — 603103
+
+Operator & Founder
+Sudhanshu Kumar (sudhanshu@pixir.in)
+```
+
+---
+
+## 📚 Complete Documentation & Guides
+- **[System Architecture Specification & Verification](docs/ARCHITECTURE.md)** (Verified 100% against ibesift-architecture.png)
+- **[Production Architecture & Operations Runbook](docs/PRODUCTION_ARCHITECTURE_AND_RUNBOOK.md)**
+- **[Complete AWS Services Study Guide](docs/AWS_STUDY_GUIDE.md)**
 - **[Complete AWS Setup & Deployment Guide](docs/AWS_SETUP_AND_DEPLOYMENT_GUIDE.md)**
 - **[Amazon SQS FIFO Setup & Integration Guide](SQS_SETUP_AND_INTEGRATION.md)**
 - **[API Contract Specification](docs/API.md)**
 - **[Audit Report Schema & Scoring](docs/REPORT_SCHEMA.md)**
-- **[AWS Architecture & SSRF Topology](docs/ARCHITECTURE.md)**
 - **[Deployment & Cost Breakdown](docs/DEPLOYMENT.md)**

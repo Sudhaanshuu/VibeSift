@@ -1,518 +1,386 @@
-# VibeSift Backend API Contract
+# VibeSift Backend API Contract & Endpoints Reference
 
-The VibeSift API exposes a documented, consistent REST interface with JSON payloads, standard HTTP status codes, and multi-tenant security isolation.
-
-All endpoints (except `/api/health`, `/api/auth/login`, `/api/auth/signup`, `/api/auth/confirm`, and `/api/auth/resend-code`) require an Amazon Cognito JWT Bearer token in the `Authorization` header:
-```http
-Authorization: Bearer <cognito_id_token_or_access_token>
-```
-*Note: In development mock mode (`USE_LOCAL_STORAGE=true`), any test Bearer token such as `Bearer demo_dev_123` is accepted.*
+> **Base URL (Production):** `https://vibesift.pixir.in`  
+> **Base URL (Local Dev):** `http://localhost:4000` (proxied from Vite frontend on `http://localhost:5173`)  
+> **Status:** 100% Verified against `backend/src/api/routes/*`  
+> **Security Standards:** RFC 9116 (`security.txt`), Cloudflare Turnstile, Amazon Cognito RSA256 JWT, SSRF Defense
 
 ---
 
-## 🛡️ Cloudflare Turnstile Bot Defense Protocol
+## 📑 Table of Contents
+1. [Authentication & Header Specification](#1-authentication--header-specification)
+2. [Cloudflare Turnstile Bot Defense Protocol](#2-cloudflare-turnstile-bot-defense-protocol)
+3. [System & Compliance Endpoints (Public)](#3-system--compliance-endpoints-public)
+4. [Identity & Authentication Endpoints (`/api/auth`)](#4-identity--authentication-endpoints-apiauth)
+5. [Razorpay Payments & Coupons (`/api/payments`)](#5-razorpay-payments--coupons-apipayments)
+6. [Website Audit Scans (`/api/scans`)](#6-website-audit-scans-apiscans)
+7. [Saved Websites & Domain Verification (`/api/sites`)](#7-saved-websites--domain-verification-apisites)
+8. [Report Artifacts & Downloads (`/api/reports`)](#8-report-artifacts--downloads-apireports)
+9. [Standard Error Codes & Structure](#9-standard-error-codes--structure)
 
-To protect compute resources, Chromium instances, Cognito authentication pools, and prevent credential stuffing or automated spam attacks, sensitive endpoints enforce Cloudflare Turnstile bot verification when `turnstile.enabled` is active in SSM or `.env`.
+---
+
+## 1. Authentication & Header Specification
+
+All private endpoints require an Amazon Cognito JWT Bearer token in the `Authorization` header:
+
+```http
+Authorization: Bearer <cognito_access_token_or_id_token>
+```
+
+In local development mode (`USE_LOCAL_STORAGE=true`), test bearer tokens (e.g. `Bearer demo_user_123`) are accepted when `ALLOW_DEMO_AUTH=true`. In production, only RSA256 tokens cryptographically signed by the Amazon Cognito User Pool JWKS are accepted.
+
+### Standard Request Headers
+| Header | Type | Description |
+| :--- | :--- | :--- |
+| `Authorization` | String | Bearer JWT token issued by Amazon Cognito. |
+| `Content-Type` | String | `application/json` for requests with bodies. |
+| `cf-turnstile-response` | String | Cloudflare Turnstile response token for bot challenge verification. |
+| `Idempotency-Key` | String | Optional client idempotency key to prevent double submissions. |
+
+---
+
+## 2. Cloudflare Turnstile Bot Defense Protocol
+
+To protect compute resources, Chromium instances, Cognito authentication pools, and prevent automated spam attacks, sensitive endpoints enforce Cloudflare Turnstile bot verification when `turnstile.enabled` is active in SSM or `.env`.
 
 ### Protected Endpoints
 - `POST /api/auth/login` (Authentication)
 - `POST /api/auth/signup` (Account Registration)
 - `POST /api/scans` (Scan Task Submission)
 
-### Client Token Delivery Methods
-Clients may submit the solved Turnstile challenge response through any of the following channels (checked in priority order):
-1. **Header**: `cf-turnstile-response: <turnstile_token>`
-2. **Header**: `x-turnstile-token: <turnstile_token>`
-3. **JSON Body**: `{ "turnstileToken": "<turnstile_token>", ... }`
-4. **URL Query**: `?turnstileToken=<turnstile_token>`
-
-### Bot Challenge Error Responses
-
-#### `403 Forbidden` (`BOT_CHALLENGE_REQUIRED`)
-Returned when the endpoint requires bot verification but no token was provided. The API returns the public site key so the client widget can render immediately:
-```json
-{
-  "error": "Bot protection verification required. Please complete the security challenge.",
-  "code": "BOT_CHALLENGE_REQUIRED",
-  "statusCode": 403,
-  "siteKey": "0x4AAAAAAFx4L_X5foiyZTNW"
-}
-```
-
-#### `403 Forbidden` (`BOT_VERIFICATION_FAILED`)
-Returned when the token fails Cloudflare's server-to-server validation (e.g. token expired, already consumed, or invalid origin):
-```json
-{
-  "error": "Bot verification challenge failed. Please refresh and try again.",
-  "code": "BOT_VERIFICATION_FAILED",
-  "statusCode": 403
-}
-```
+### Client Token Delivery Channels (Evaluated in Priority Order)
+1. Header: `cf-turnstile-response: <token>`
+2. Header: `x-turnstile-token: <token>`
+3. JSON Body: `{ "turnstileToken": "<token>", ... }`
+4. Query Parameter: `?turnstileToken=<token>`
 
 ---
 
-## 1. Authentication
+## 3. System & Compliance Endpoints (Public)
+
+### `GET /api/health` or `GET /health`
+Returns system operational status, active storage driver, and orchestration mode.
+- **Auth:** None (Public)
+- **Response 200 OK:**
+  ```json
+  {
+    "status": "healthy",
+    "timestamp": "2026-11-04T10:00:00.000Z",
+    "uptime": 86420.5,
+    "service": "vibesift-backend",
+    "version": "1.0.0",
+    "storage": "sqlite_wal",
+    "orchestration": "sqs_fifo"
+  }
+  ```
+
+### `GET /.well-known/security.txt` & `GET /security.txt`
+RFC 9116 compliant security disclosure notice.
+- **Auth:** None (Public)
+- **Response 200 OK (`text/plain`):**
+  ```text
+  Contact: mailto:security@pixir.in
+  Contact: https://vibesift.pixir.in/security
+  Expires: 2027-12-31T23:59:59.000Z
+  Preferred-Languages: en
+  Canonical: https://vibesift.pixir.in/.well-known/security.txt
+  Policy: https://vibesift.pixir.in/security
+  ```
+
+### `GET /robots.txt` & `GET /sitemap.xml`
+Automated crawler index directives and XML sitemap routes.
+
+---
+
+## 4. Identity & Authentication Endpoints (`/api/auth`)
 
 ### `POST /api/auth/login`
-Authenticates a user against Amazon Cognito (or local mock developer auth if demo mode enabled). Protected by Cloudflare Turnstile.
-
-#### Request Headers
-- `cf-turnstile-response` or `x-turnstile-token` *(string, required if bot defense enabled)*
-
-#### Request Body
-```json
-{
-  "email": "developer@example.com",
-  "password": "SecurePassword123!",
-  "turnstileToken": "0.1234567890abcdef..."
-}
-```
-
-#### Response `200 OK`
-```json
-{
-  "token": "eyJraWQiOi...",
-  "accessToken": "eyJraWQiOi...",
-  "idToken": "eyJraWQiOi...",
-  "refreshToken": "eyJjdHki...",
-  "expiresIn": 3600,
-  "user": {
-    "id": "usr_9a8b7c6d5e4f",
+Authenticates user with Amazon Cognito User Pool.
+- **Auth:** None (Turnstile protected)
+- **Request Body:**
+  ```json
+  {
     "email": "developer@example.com",
-    "name": "Alex Developer",
-    "plan": "developer"
+    "password": "SecurePassword123!",
+    "turnstileToken": "0.abcdef12345..."
   }
-}
-```
-
-#### Error Responses
-- `400 Bad Request` (`MISSING_EMAIL` / `MISSING_PASSWORD`): Missing required authentication parameters.
-- `401 Unauthorized` (`INVALID_CREDENTIALS`): Incorrect email or password.
-- `403 Forbidden` (`BOT_CHALLENGE_REQUIRED` / `BOT_VERIFICATION_FAILED`): Turnstile verification missing or invalid.
-- `403 Forbidden` (`USER_NOT_CONFIRMED`): User has not verified their email code yet.
-
----
+  ```
+- **Response 200 OK:**
+  ```json
+  {
+    "idToken": "eyJraWQi...",
+    "accessToken": "eyJraWQi...",
+    "refreshToken": "eyJjdHki...",
+    "expiresIn": 3600,
+    "tokenType": "Bearer",
+    "user": {
+      "id": "c0a80101-0000-0000-0000-000000000001",
+      "email": "developer@example.com",
+      "name": "Alex Rivera",
+      "plan": "verified_developer"
+    }
+  }
+  ```
 
 ### `POST /api/auth/signup`
-Registers a new developer account via Amazon Cognito. Protected by Cloudflare Turnstile.
-
-#### Request Body
-```json
-{
-  "email": "developer@example.com",
-  "password": "SecurePassword123!",
-  "name": "Alex Developer",
-  "turnstileToken": "0.1234567890abcdef..."
-}
-```
-
-#### Response `201 Created`
-```json
-{
-  "userConfirmed": false,
-  "userSub": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-  "email": "developer@example.com"
-}
-```
-
-#### Error Responses
-- `400 Bad Request` (`MISSING_EMAIL` / `INVALID_PASSWORD`): Password must be at least 8 characters.
-- `403 Forbidden` (`BOT_CHALLENGE_REQUIRED` / `BOT_VERIFICATION_FAILED`): Turnstile verification missing or invalid.
-- `409 Conflict` (`USERNAME_EXISTS`): An account with this email address already exists.
-
----
+Registers a new developer account with Cognito.
+- **Auth:** None (Turnstile protected)
+- **Request Body:**
+  ```json
+  {
+    "email": "developer@example.com",
+    "password": "SecurePassword123!",
+    "name": "Alex Rivera",
+    "turnstileToken": "0.abcdef12345..."
+  }
+  ```
+- **Response 201 Created:**
+  ```json
+  {
+    "userSub": "c0a80101-0000-0000-0000-000000000001",
+    "userConfirmed": false,
+    "message": "User registered. Please confirm verification code sent to your email."
+  }
+  ```
 
 ### `POST /api/auth/confirm`
-Confirms user registration using the one-time verification code sent by Amazon Cognito.
+Confirms user registration using the email OTP verification code.
+- **Request Body:**
+  ```json
+  {
+    "email": "developer@example.com",
+    "code": "123456"
+  }
+  ```
 
-#### Request Body
-```json
-{
-  "email": "developer@example.com",
-  "code": "123456"
-}
-```
-
-#### Response `200 OK`
-```json
-{
-  "confirmed": true,
-  "message": "Email address verified successfully. You may now sign in."
-}
-```
-
----
-
-### `POST /api/auth/resend-code`
-Requests a fresh verification code to be dispatched to the user's registered email.
-
-#### Request Body
-```json
-{
-  "email": "developer@example.com"
-}
-```
-
-#### Response `200 OK`
-```json
-{
-  "sent": true,
-  "destination": "d***@e***.com"
-}
-```
-
----
+### `POST /api/auth/refresh`
+Refreshes expired access tokens using the long-lived refresh token (`REFRESH_TOKEN_AUTH`).
+- **Request Body:**
+  ```json
+  {
+    "refreshToken": "eyJjdHki..."
+  }
+  ```
 
 ### `GET /api/auth/me`
-Fetches user profile details for the currently authenticated Cognito session.
-
-#### Response `200 OK`
-```json
-{
-  "id": "usr_9a8b7c6d5e4f",
-  "email": "developer@example.com",
-  "name": "Alex Developer",
-  "plan": "developer"
-}
-```
+Retrieves authenticated user profile and active subscription plan.
+- **Auth:** Bearer JWT Required
 
 ---
 
-## 2. System Health
+## 5. Razorpay Payments & Coupons (`/api/payments`)
 
-### `GET /api/health`
-Exposes a minimal service health indicator without leaking infrastructure details.
-
-#### Response `200 OK`
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-10-27T07:30:00.000Z",
-  "service": "vibesift-backend",
-  "version": "1.0.0"
-}
-```
-
----
-
-## 3. Audit Scans
-
-### `POST /api/scans`
-Submits a target website URL for audit inspection. Protected by Cloudflare Turnstile bot verification when enabled.
-
-#### Request Headers
-- `Authorization: Bearer <cognito_token>` *(required)*
-- `cf-turnstile-response` or `x-turnstile-token` *(string, optional if passing `turnstileToken` in body)*
-
-#### Request Body
-```json
-{
-  "url": "https://example.com",
-  "profile": "baseline_public",
-  "acknowledgedTerms": true,
-  "idempotencyKey": "unique-client-req-key-001",
-  "turnstileToken": "0.1234567890abcdef..."
-}
-```
-
-- `url` *(string, required)*: HTTP or HTTPS URL to audit. Subject to strict SSRF validation.
-- `profile` *(string, default: `baseline_public`)*: `baseline_public` or `authorized_deep`. If `authorized_deep` is selected, the requesting user must have verified domain control of the target hostname.
-- `acknowledgedTerms` *(boolean, required)*: Must be `true`.
-- `idempotencyKey` *(string, optional)*: Unique token to prevent duplicate scans on network retry.
-- `turnstileToken` *(string, optional)*: Cloudflare Turnstile token from the verification widget.
-
-#### Response `201 Created`
-```json
-{
-  "scanId": "scn_a1b2c3d4e5f60718",
-  "status": "QUEUED",
-  "targetUrl": "https://example.com",
-  "createdAt": "2026-10-27T07:31:00.000Z"
-}
-```
-
-#### Error Responses
-- `400 Bad Request` (`SSRF_BLOCKED`): Destination URL resolves to a private, loopback, or cloud metadata IP address.
-- `403 Forbidden` (`BOT_CHALLENGE_REQUIRED`): Cloudflare Turnstile token missing.
-- `403 Forbidden` (`BOT_VERIFICATION_FAILED`): Cloudflare Turnstile token validation failed.
-- `403 Forbidden` (`DOMAIN_NOT_VERIFIED`): Attempted `authorized_deep` scan on an unverified domain.
-- `429 Too Many Requests` (`RATE_LIMIT_EXCEEDED` / `QUOTA_EXCEEDED`): Hourly or minute scan submission limit reached.
-
----
-
-### `GET /api/scans`
-Lists previous audit scans initiated by the authenticated user.
-
-#### Query Parameters
-- `search` *(string, optional)*: Filter by target URL substring or scan ID.
-- `profile` *(string, optional)*: Filter by `baseline_public` or `authorized_deep`.
-
-#### Response `200 OK`
-```json
-[
+### `GET /api/payments/config`
+Retrieves public Razorpay Key ID and pricing information.
+- **Auth:** None (Public)
+- **Response 200 OK:**
+  ```json
   {
-    "scanId": "scn_a1b2c3d4e5f60718",
-    "ownerUserId": "user_demo_001",
+    "keyId": "rzp_live_Td6jjT5Yl85c4L",
+    "deepAuditPriceInRupees": 39,
+    "currency": "INR"
+  }
+  ```
+
+### `POST /api/payments/validate-coupon`
+Validates a promotional coupon against S3 configuration.
+- **Request Body:** `{ "couponCode": "FLAT418" }`
+- **Response 200 OK:**
+  ```json
+  {
+    "valid": true,
+    "code": "FLAT418",
+    "discount": 38,
+    "finalAmount": 1,
+    "currency": "INR",
+    "message": "Promotional coupon applied: ₹38 discount. Payable: ₹1"
+  }
+  ```
+
+### `POST /api/payments/create-order`
+Prepares a server-side order with Razorpay Orders API.
+- **Auth:** Bearer JWT Required
+- **Request Body:**
+  ```json
+  {
+    "targetUrl": "https://example.com",
+    "couponCode": "FLAT418"
+  }
+  ```
+- **Response 200 OK:**
+  ```json
+  {
+    "orderId": "order_Px1234567890",
+    "amount": 1,
+    "amountInPaise": 100,
+    "currency": "INR",
+    "keyId": "rzp_live_Td6jjT5Yl85c4L",
+    "appliedCoupon": "FLAT418"
+  }
+  ```
+
+### `POST /api/payments/verify`
+Validates payment signatures (`razorpay_signature`) via HMAC-SHA256 and records verified transactions.
+- **Auth:** Bearer JWT Required
+- **Request Body:**
+  ```json
+  {
+    "razorpay_payment_id": "pay_XYZ123456",
+    "razorpay_order_id": "order_Px1234567890",
+    "razorpay_signature": "a1b2c3d4...",
+    "targetUrl": "https://example.com"
+  }
+  ```
+
+---
+
+## 6. Website Audit Scans (`/api/scans`)
+
+### `POST /api/scans/precheck`
+Checks whether a completed audit already exists in SQLite or Amazon S3 for the target hostname.
+- **Auth:** None (Public)
+- **Request Body:** `{ "url": "https://example.com" }`
+- **Response 200 OK (When cached scan exists):**
+  ```json
+  {
+    "exists": true,
+    "scanId": "scn_a1b2c3d4",
     "targetUrl": "https://example.com",
     "normalizedHostname": "example.com",
-    "scanProfile": "baseline_public",
+    "createdAt": "2026-11-04T08:30:00.000Z",
     "status": "COMPLETED",
-    "createdAt": "2026-10-27T07:31:00.000Z",
-    "completedAt": "2026-10-27T07:31:45.000Z",
-    "durationSeconds": 45,
+    "readinessScore": 88,
+    "s3Key": "scans/example.com__scn_a1b2c3d4/report.json"
+  }
+  ```
+
+### `POST /api/scans`
+Submits a new website audit scan to the SQS queue.
+- **Auth:** Bearer JWT Required
+- **Protections:** Turnstile Bot Gate + User Rate Limiter + SSRF Guard
+- **Request Body:**
+  ```json
+  {
+    "url": "https://example.com",
+    "profile": "authorized_deep",
+    "acknowledgedTerms": true,
+    "turnstileToken": "0.abcdef...",
+    "paymentId": "pay_XYZ123456",
+    "idempotencyKey": "idem_12345"
+  }
+  ```
+- **Response 201 Created:**
+  ```json
+  {
+    "scanId": "scn_9988aabb",
+    "status": "QUEUED",
+    "targetUrl": "https://example.com",
+    "createdAt": "2026-11-04T10:00:00.000Z"
+  }
+  ```
+- **Error Responses:**
+  - `400 Bad Request`: SSRF check failed (`Target host is a private network IP`).
+  - `402 Payment Required`: `authorized_deep` submitted without verified Razorpay payment.
+  - `403 Forbidden`: Turnstile token missing or domain not verified without owner consent.
+  - `429 Too Many Requests`: Hourly quota exceeded (standard: 30 scans/hr).
+
+### `GET /api/scans/:scanId`
+Polls active telemetry and scan status. Returns full audit summary upon completion.
+- **Auth:** Bearer JWT Required
+- **Response 200 OK:**
+  ```json
+  {
+    "scanId": "scn_9988aabb",
+    "ownerUserId": "user_123",
+    "targetUrl": "https://example.com",
+    "normalizedHostname": "example.com",
+    "scanProfile": "authorized_deep",
+    "status": "COMPLETED",
+    "durationSeconds": 45.2,
     "summary": {
-      "totalFindings": 3,
+      "readinessScore": 88,
+      "totalFindings": 4,
       "critical": 0,
       "high": 1,
       "medium": 2,
-      "low": 0,
+      "low": 1,
       "info": 0,
-      "readinessScore": 81,
       "categoryScores": {
-        "seo": 90,
-        "performance": 85,
+        "security": 85,
+        "performance": 92,
         "accessibility": 88,
-        "security": 75,
-        "cookies": 70,
-        "exposure": 100
+        "seo": 95,
+        "privacy": 80,
+        "completeness": 90
       }
-    }
-  }
-]
-```
-
----
-
-### `GET /api/scans/{scanId}`
-Retrieves real-time execution status, progress, engine states, and summary scores for a specific scan.
-
-#### Response `200 OK`
-```json
-{
-  "scanId": "scn_a1b2c3d4e5f60718",
-  "status": "RUNNING",
-  "targetUrl": "https://example.com",
-  "normalizedHostname": "example.com",
-  "scanProfile": "baseline_public",
-  "createdAt": "2026-10-27T07:31:00.000Z",
-  "enginesRun": [
-    {
-      "engine": "custom-python",
-      "displayName": "Python Website Inspector",
-      "status": "passed",
-      "executionTimeMs": 1420
     },
-    {
-      "engine": "lighthouse",
-      "displayName": "Google Lighthouse",
-      "status": "passed",
-      "executionTimeMs": 3120
-    }
-  ]
-}
-```
+    "s3ReportKey": "scans/example.com__scn_9988aabb/report.json"
+  }
+  ```
+
+### `GET /api/scans/:scanId/findings`
+Returns the array of discrete `AuditFinding` objects for the scan.
+
+### `POST /api/scans/:scanId/cancel`
+Cancels a running scan. Status transitions from `QUEUED`/`VALIDATING`/`RUNNING` to `CANCELLED`.
+
+### `GET /api/scans/quota`
+Returns the user's active scan quota (remaining hourly and minute allocations).
 
 ---
 
-### `GET /api/scans/{scanId}/findings`
-Retrieves normalized audit findings with pagination and filtering.
-
-#### Query Parameters
-- `category` *(string, optional)*: `seo`, `performance`, `accessibility`, `security`, `cookies`, `exposure`.
-- `severity` *(string, optional)*: `critical`, `high`, `medium`, `low`, `info`.
-- `page` *(number, default: 1)*.
-- `limit` *(number, default: 50, max: 100)*.
-
-#### Response `200 OK`
-```json
-{
-  "scanId": "scn_a1b2c3d4e5f60718",
-  "totalFindings": 3,
-  "page": 1,
-  "limit": 50,
-  "findings": [
-    {
-      "id": "fnd_py_scn_a1b2_1_c8e9f0",
-      "scanId": "scn_a1b2c3d4e5f60718",
-      "ruleId": "SEC_HSTS_MISSING",
-      "category": "security",
-      "severity": "medium",
-      "confidence": "certain",
-      "title": "Strict-Transport-Security (HSTS) Header Missing",
-      "description": "The server does not enforce HTTPS connections using the HSTS response header.",
-      "affectedUrl": "https://example.com",
-      "detectionMethod": "passive",
-      "engine": "custom-python",
-      "impact": "Users are vulnerable to SSL-stripping and man-in-the-middle attacks on public networks.",
-      "remediation": {
-        "summary": "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload' to HTTPS responses.",
-        "codeSnippet": "add_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\" always;"
-      },
-      "verificationStatus": "open"
-    }
-  ]
-}
-```
-
----
-
-### `GET /api/scans/{scanId}/report`
-Retrieves the complete report JSON or a temporary Amazon S3 presigned download URL.
-
-#### Query Parameters
-- `download=true`: Returns an authorized temporary S3 presigned URL expiring in 15 minutes.
-
-#### Response `200 OK` (when `download=true`)
-```json
-{
-  "scanId": "scn_a1b2c3d4e5f60718",
-  "downloadUrl": "https://vibesift-audit-reports-dev.s3.amazonaws.com/scans/scn_a1b2c3d4e5f60718/report.json?X-Amz-Algorithm=AWS4-HMAC-SHA256...",
-  "expiresInSeconds": 900
-}
-```
-
----
-
-### `POST /api/scans/{scanId}/rescan`
-Resubmits an audit for the target URL using the same scan profile.
-
-#### Response `201 Created`
-```json
-{
-  "scanId": "scn_f9e8d7c6b5a41234",
-  "status": "QUEUED",
-  "targetUrl": "https://example.com",
-  "createdAt": "2026-10-27T07:45:00.000Z"
-}
-```
-
----
-
-### `POST /api/scans/{scanId}/cancel`
-Cancels an active scan.
-
-#### Response `200 OK`
-```json
-{
-  "scanId": "scn_a1b2c3d4e5f60718",
-  "status": "CANCELLED",
-  "message": "Scan has been cancelled."
-}
-```
-
----
-
-## 4. Saved Websites & Domain Verification
+## 7. Saved Websites & Domain Verification (`/api/sites`)
 
 ### `GET /api/sites`
-Lists all saved websites and domain verification statuses for the authenticated user.
-
-#### Response `200 OK`
-```json
-[
-  {
-    "id": "site_9a8b7c6d5e4f",
-    "ownerUserId": "user_demo_001",
-    "hostname": "example.com",
-    "normalizedUrl": "https://example.com",
-    "isVerified": true,
-    "verificationMethod": "dns_txt",
-    "verifiedAt": "2026-10-27T07:00:00.000Z"
-  }
-]
-```
-
----
+Lists all registered websites for the authenticated user, verification status, and latest score trends.
 
 ### `POST /api/sites`
-Saves a new website domain to the user's account.
-
-#### Request Body
-```json
-{
-  "hostname": "example.com"
-}
-```
-
-#### Response `201 Created`
-```json
-{
-  "id": "site_9a8b7c6d5e4f",
-  "ownerUserId": "user_demo_001",
-  "hostname": "example.com",
-  "normalizedUrl": "https://example.com",
-  "isVerified": false,
-  "createdAt": "2026-10-27T07:15:00.000Z"
-}
-```
-
----
+Adds a website to the user's monitored sites registry.
+- **Request Body:** `{ "url": "https://example.com" }`
 
 ### `POST /api/sites/verification-challenges`
-Generates cryptographically random verification challenge tokens and instructions for proving domain control.
+Generates cryptographically unique verification tokens and instructions:
+- `dns_txt`: Add TXT record for `_vibesift-challenge.example.com` with token `vbs_verify_...`.
+- `html_meta`: Add `<meta name="vibesift-site-verification" content="vbs_verify_...">` inside `<head>`.
+- `http_file`: Host text file at `https://example.com/.well-known/vibesift-verification.txt`.
 
-#### Request Body
-```json
-{
-  "siteId": "site_9a8b7c6d5e4f",
-  "method": "dns_txt"
-}
-```
-*`method` can be `dns_txt`, `html_meta`, or `http_file`.*
-
-#### Response `200 OK`
-```json
-{
-  "siteId": "site_9a8b7c6d5e4f",
-  "hostname": "example.com",
-  "method": "dns_txt",
-  "token": "vbs_verify_site9a8b7c6d5e4f_f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6",
-  "dnsHostRecord": "@ (or _vibesift-challenge.example.com)",
-  "dnsRecordType": "TXT",
-  "metaHtmlTag": "<meta name=\"vibesift-site-verification\" content=\"vbs_verify_...\" />",
-  "httpFilePath": "/.well-known/vibesift-verification.txt",
-  "httpFileContent": "vbs_verify_...",
-  "instructions": {
-    "recordType": "TXT",
-    "host": "_vibesift-challenge.example.com",
-    "value": "vbs_verify_...",
-    "instruction": "Add a TXT record for '_vibesift-challenge.example.com' with value 'vbs_verify_...'"
-  }
-}
-```
+### `POST /api/sites/:siteId/verify`
+Executes real-time verification query against DNS or HTTP endpoints to mark site as `isVerified: true`.
 
 ---
 
-### `POST /api/sites/{siteId}/verify`
-Initiates server-side verification by checking DNS TXT records, `<meta>` tags, or `/.well-known/` resources on the target domain.
+## 8. Report Artifacts & Downloads (`/api/reports`)
 
-#### Request Body
+### `GET /api/reports/:scanId/download`
+Returns presigned Amazon S3 download URLs for the finalized audit artifacts:
+- `jsonUrl`: Presigned S3 URL for `report.json` (15-min TTL).
+- `markdownUrl`: Presigned S3 URL for `report.md`.
+- `rawOutputs`: Presigned URLs for `raw/custom-python.json` and `raw/lighthouse.json`.
+
+---
+
+## 9. Standard Error Codes & Structure
+
+All error responses return standard JSON structures with descriptive machine-readable error codes:
+
 ```json
 {
-  "method": "dns_txt"
+  "error": "Target URL resolves to a prohibited private network address.",
+  "code": "SSRF_PROHIBITED",
+  "statusCode": 400
 }
 ```
 
-#### Response `200 OK` (Verified)
-```json
-{
-  "verified": true,
-  "message": "Successfully verified ownership of example.com via dns_txt.",
-  "site": {
-    "id": "site_9a8b7c6d5e4f",
-    "hostname": "example.com",
-    "isVerified": true,
-    "verificationMethod": "dns_txt",
-    "verifiedAt": "2026-10-27T07:20:00.000Z"
-  }
-}
-```
-
-#### Response `200 OK` (Not Yet Propagated)
-```json
-{
-  "verified": false,
-  "message": "Verification check could not confirm ownership of example.com using method dns_txt. Please ensure DNS changes have propagated and retry.",
-  "instructions": "Check TXT record for '_vibesift-challenge.example.com' or HTML meta tag."
-}
-```
+| HTTP Status | Error Code | Meaning |
+| :--- | :--- | :--- |
+| `400` | `INVALID_URL` | Malformed target URL. |
+| `400` | `SSRF_PROHIBITED` | Target resolves to loopback, RFC 1918, or AWS IMDS. |
+| `401` | `UNAUTHORIZED` | Missing or invalid Cognito JWT Bearer token. |
+| `402` | `PAYMENT_REQUIRED` | Deep Search attempted without ₹39 Razorpay payment. |
+| `403` | `BOT_CHALLENGE_REQUIRED`| Cloudflare Turnstile token missing. |
+| `403` | `DOMAIN_NOT_VERIFIED` | Deep scan attempted without verified domain ownership or terms attestation. |
+| `404` | `SCAN_NOT_FOUND` | Specified scan ID does not exist. |
+| `409` | `INVALID_STATE_TRANSITION` | Attempted illegal state progression (e.g. `COMPLETED` to `RUNNING`). |
+| `429` | `SCAN_RATE_LIMIT_EXCEEDED` | Hourly or minute scan quota exceeded. |
+| `500` | `INTERNAL_ERROR` | Unhandled runtime exception. |

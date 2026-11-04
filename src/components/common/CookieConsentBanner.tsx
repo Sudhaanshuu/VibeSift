@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { ShieldCheck, Cookie, Settings2, Check, X, Lock, Sliders } from 'lucide-react';
 import {
   getCookieConsent,
@@ -59,6 +60,19 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
       window.removeEventListener(COOKIE_CHANGE_EVENT, handleConsentChange);
     };
   }, []);
+
+  useBodyScrollLock(showModal);
+
+  useEffect(() => {
+    if (!showModal) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showModal]);
 
   const handleAcceptAll = () => {
     acceptAllCookies();
@@ -139,21 +153,26 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
           role="dialog"
           aria-modal="true"
           aria-labelledby="cookie-settings-title"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in overscroll-contain"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowModal(false);
+            }
+          }}
         >
-          <div className="bg-white w-full max-w-xl max-h-[90vh] rounded-2xl border border-brand-border shadow-elevated overflow-hidden flex flex-col">
+          <div className="bg-white w-full max-w-xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-2.5rem)] rounded-2xl border border-brand-border shadow-elevated overflow-hidden flex flex-col min-h-0 animate-scale-up">
             
             {/* Header */}
-            <div className="p-5 border-b border-brand-border flex items-center justify-between bg-brand-card-green/40">
+            <div className="shrink-0 p-4 sm:p-5 border-b border-brand-border flex items-center justify-between bg-brand-card-green/40">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center">
+                <div className="w-8 h-8 rounded-lg bg-brand-mint text-brand-emerald-dark flex items-center justify-center shrink-0">
                   <Settings2 className="w-4 h-4 text-brand-emerald-deep" />
                 </div>
                 <div>
-                  <h3 id="cookie-settings-title" className="text-sm font-bold text-brand-text">
+                  <h3 id="cookie-settings-title" className="text-sm font-bold text-brand-text truncate">
                     Cookie & Data Storage Settings
                   </h3>
-                  <p className="text-[11px] text-brand-text-secondary">
+                  <p className="text-[11px] text-brand-text-secondary truncate">
                     Manage how VibeSift stores state and telemetry on your device.
                   </p>
                 </div>
@@ -161,7 +180,7 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
 
               <button
                 onClick={() => setShowModal(false)}
-                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
                 aria-label="Close cookie settings"
               >
                 <X className="w-4 h-4" />
@@ -169,7 +188,7 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
             </div>
 
             {/* Content Body */}
-            <div className="p-6 overflow-y-auto space-y-4 text-xs">
+            <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto overscroll-contain space-y-4 text-xs">
               
               {/* Category 1: Strictly Necessary */}
               <div className="p-4 rounded-xl border border-brand-border bg-brand-muted/50 space-y-2">
@@ -262,7 +281,7 @@ export const CookieConsentBanner: React.FC<CookieConsentBannerProps> = ({ onOpen
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-brand-border bg-brand-muted/40 flex flex-wrap items-center justify-between gap-3">
+            <div className="shrink-0 p-3.5 sm:p-4 border-t border-brand-border bg-brand-muted/40 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={handleRejectNonEssential}

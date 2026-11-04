@@ -1,8 +1,9 @@
 # VibeSift: Complete AWS Architecture & Services Study Guide
 > **Official Playbook for the 100% Free Tier, Zero-Docker Architecture**  
-> **Reference Architecture:** Verified against `public/vibesift-architecture.png` and codebase  
+> **Reference Architecture:** Verified 100% against `vibesift-architecture.png` and codebase  
 > **AWS Account ID:** `501380833083` | **Primary Region:** `us-east-1` (N. Virginia)  
-> **Production Domain:** `https://vibesift.pixir.in` | **Static Host IP:** `54.144.160.191`
+> **Production Domain:** `https://vibesift.pixir.in` | **Static Host IP:** `54.144.160.191`  
+> **Verified Test Suite:** 131 Passing Tests (52 Vitest Frontend + 73 Node.js Backend + 6 Python Lambda Suite)
 
 ---
 
