@@ -16,6 +16,7 @@ import {
 } from '../normalizer/findingsNormalizer.js';
 import { buildAuditReport, generateMarkdownReport } from '../normalizer/reportBuilder.js';
 import { explanationService } from '../services/explanationService.js';
+import { sendDeepSearchAuditEmail } from '../services/emailService.js';
 
 let sqsClient = null;
 
@@ -474,6 +475,35 @@ export async function executeScanPipelineLocally(job) {
     });
 
     console.log(`[WorkflowHandler] Scan ${scanId} finished with status ${terminalStatus} in ${Date.now() - startTime}ms.`);
+
+    // 5. Automatic Audit Report & Invoice Email Dispatch for Paid Deep Scans
+    if (scanProfile === 'authorized_deep' && (terminalStatus === 'COMPLETED' || terminalStatus === 'PARTIAL')) {
+      const completedScan = await dbService.getScan(scanId);
+      const recipientEmail = job.ownerEmail || completedScan?.ownerEmail;
+      const recipientName = job.ownerName || completedScan?.ownerName;
+      const paymentId = job.paymentId || completedScan?.paymentId;
+      const orderId = job.orderId || completedScan?.orderId;
+      const amountPaid = job.amountPaid ?? completedScan?.amountPaid ?? (job.couponCode ? 1 : 39);
+      const couponCode = job.couponCode || completedScan?.couponCode;
+
+      if (recipientEmail) {
+        console.log(`[WorkflowHandler] Dispatching Deep Search email & invoice for ${scanId} to ${recipientEmail}...`);
+        sendDeepSearchAuditEmail({
+          scan: completedScan || { ...job, scanId },
+          report,
+          userEmail: recipientEmail,
+          userName: recipientName,
+          paymentId,
+          orderId,
+          amountPaid,
+          couponCode,
+        }).catch((emailErr) => {
+          console.warn(`[WorkflowHandler] Background email dispatch note for ${scanId}:`, emailErr.message);
+        });
+      } else {
+        console.log(`[WorkflowHandler] Deep scan ${scanId} completed without an associated email address. Skipping email.`);
+      }
+    }
   } catch (err) {
     console.error(`[WorkflowHandler] Fatal error during scan ${scanId}:`, err);
     await dbService.updateScan(scanId, {

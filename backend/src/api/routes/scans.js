@@ -10,6 +10,8 @@ import { enforceScanRateLimit, getScanQuota } from '../middleware/rateLimiter.js
 import { verifyTurnstileToken } from '../middleware/turnstile.js';
 import { startScanWorkflow } from '../../orchestration/workflowHandler.js';
 import { consumePaymentForScan } from './payments.js';
+import { generateInvoicePdf } from '../../services/pdf/invoicePdfGenerator.js';
+import { sendDeepSearchAuditEmail } from '../../services/emailService.js';
 
 export const scansRouter = Router();
 
@@ -154,9 +156,10 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
     }
 
     // 3. Authorization check for deep security scan
+    let paymentRecord = null;
     if (payload.profile === 'authorized_deep') {
       // Paywall Enforcement: Deep audit requires ₹39 payment
-      const paymentRecord = consumePaymentForScan(payload.paymentId, userId);
+      paymentRecord = consumePaymentForScan(payload.paymentId, userId);
       if (!paymentRecord) {
         return res.status(402).json({
           error: 'Payment required: Deep Search costs ₹39 per scan. Please complete payment before starting the audit.',
@@ -216,9 +219,13 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
 
     const s3ReportKey = `scans/${sanitizeTargetHost(validated.hostname)}__${scanId}/report.json`;
 
+    const amountPaid = paymentRecord?.amount ?? (payload.couponCode ? 1 : (payload.paymentId ? 39 : null));
+
     const scanRecord = {
       scanId,
       ownerUserId: userId,
+      ownerEmail: req.user?.email || null,
+      ownerName: req.user?.name || null,
       targetUrl: validated.normalizedUrl,
       normalizedHostname: validated.hostname,
       scanProfile: payload.profile,
@@ -234,6 +241,7 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
       paymentId: payload.paymentId || null,
       orderId: payload.orderId || null,
       couponCode: payload.couponCode || null,
+      amountPaid,
     };
 
     await dbService.saveScan(scanRecord);
@@ -242,9 +250,15 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
     await startScanWorkflow({
       scanId,
       ownerUserId: userId,
+      ownerEmail: req.user?.email || null,
+      ownerName: req.user?.name || null,
       targetUrl: validated.normalizedUrl,
       normalizedHostname: validated.hostname,
       scanProfile: payload.profile,
+      paymentId: payload.paymentId || null,
+      orderId: payload.orderId || null,
+      couponCode: payload.couponCode || null,
+      amountPaid,
     });
 
     res.status(201).json({
@@ -649,6 +663,125 @@ scansRouter.post('/:scanId/cancel', async (req, res, next) => {
       status: 'CANCELLED',
       message: 'Scan has been cancelled.',
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /scans/:scanId/invoice — Download or inspect official payment invoice
+ */
+scansRouter.get('/:scanId/invoice', async (req, res, next) => {
+  try {
+    const { scanId } = req.params;
+    let scan = await dbService.getScan(scanId);
+    if (!scan) {
+      return res.status(404).json({ error: 'Audit scan not found', code: 'SCAN_NOT_FOUND', statusCode: 404 });
+    }
+
+    if (scan.scanProfile !== 'authorized_deep') {
+      return res.status(400).json({
+        error: 'Tax invoices are only generated for paid Deep Search audits.',
+        code: 'NOT_PAID_SCAN',
+        statusCode: 400,
+      });
+    }
+
+    const invoiceNumber = `INV-${new Date(scan.createdAt).getFullYear()}-${scan.paymentId ? scan.paymentId.replace(/^pay_/, '').slice(-6).toUpperCase() : scan.scanId.slice(4, 10).toUpperCase()}`;
+
+    if (req.query.format === 'json') {
+      return res.json({
+        invoiceNumber,
+        scanId: scan.scanId,
+        targetUrl: scan.targetUrl,
+        customerName: scan.ownerName || 'Valued Developer',
+        customerEmail: scan.ownerEmail,
+        paymentId: scan.paymentId,
+        orderId: scan.orderId,
+        amountPaid: scan.amountPaid || 39,
+        currency: 'INR',
+        createdAt: scan.createdAt,
+        status: 'PAID',
+      });
+    }
+
+    const invoicePdf = await generateInvoicePdf({
+      invoiceNumber,
+      paymentId: scan.paymentId || 'pay_direct_checkout',
+      orderId: scan.orderId,
+      customerName: scan.ownerName || 'Valued Developer',
+      customerEmail: scan.ownerEmail || 'user@vibesift.local',
+      targetUrl: scan.targetUrl,
+      scanId: scan.scanId,
+      amountPaid: scan.amountPaid || 39,
+      couponCode: scan.couponCode,
+      createdAt: scan.createdAt,
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Invoice_${invoiceNumber}.pdf"`);
+    return res.send(invoicePdf);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /scans/:scanId/resend-email — Manually re-trigger email dispatch
+ */
+scansRouter.post('/:scanId/resend-email', async (req, res, next) => {
+  try {
+    const { scanId } = req.params;
+    const recipientEmail = req.body?.email || req.user?.email;
+
+    let scan = await dbService.getScan(scanId);
+    if (!scan) {
+      return res.status(404).json({ error: 'Audit scan not found', code: 'SCAN_NOT_FOUND', statusCode: 404 });
+    }
+
+    const targetEmail = recipientEmail || scan.ownerEmail;
+    if (!targetEmail) {
+      return res.status(400).json({ error: 'Recipient email address is required', code: 'EMAIL_REQUIRED', statusCode: 400 });
+    }
+
+    // Load report from S3 or fallback to DB summary
+    let report = null;
+    try {
+      const sanitizedHost = scan.normalizedHostname ? sanitizeTargetHost(scan.normalizedHostname) : 'target';
+      const key = scan.s3ReportKey || `scans/${sanitizedHost}__${scanId}/report.json`;
+      const raw = await s3Service.getObjectContent(key);
+      if (raw) report = JSON.parse(raw);
+    } catch {}
+
+    if (!report) {
+      report = {
+        scanId: scan.scanId,
+        targetUrl: scan.targetUrl,
+        scanProfile: scan.scanProfile,
+        status: scan.status,
+        createdAt: scan.createdAt,
+        summary: scan.summary || { readinessScore: 0, totalFindings: 0, critical: 0, high: 0 },
+        findings: await dbService.getFindingsByScan(scanId),
+        privacyCompliance: scan.privacyCompliance,
+      };
+    }
+
+    const result = await sendDeepSearchAuditEmail({
+      scan,
+      report,
+      userEmail: targetEmail,
+      userName: req.body?.name || scan.ownerName || req.user?.name,
+      paymentId: scan.paymentId,
+      orderId: scan.orderId,
+      amountPaid: scan.amountPaid || 39,
+      couponCode: scan.couponCode,
+    });
+
+    if (result.success) {
+      return res.json({ success: true, message: 'Audit report & invoice email successfully dispatched.', emailId: result.emailId });
+    } else {
+      return res.status(500).json({ error: result.error || 'Failed to dispatch email', code: 'EMAIL_DISPATCH_FAILED', statusCode: 500 });
+    }
   } catch (err) {
     next(err);
   }

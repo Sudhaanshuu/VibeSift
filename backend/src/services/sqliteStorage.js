@@ -38,6 +38,10 @@ class SqliteStorage {
   }
 
   initSchema() {
+    try {
+      this.db.exec('PRAGMA journal_mode = WAL;');
+      this.db.exec('PRAGMA busy_timeout = 5000;');
+    } catch {}
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sites (
         id TEXT PRIMARY KEY,
@@ -124,6 +128,14 @@ class SqliteStorage {
     try { this.db.exec('ALTER TABLE scans ADD COLUMN deepComparison TEXT'); } catch {}
     try { this.db.exec('ALTER TABLE scans ADD COLUMN errorMessage TEXT'); } catch {}
     try { this.db.exec('ALTER TABLE scans ADD COLUMN s3ReportKey TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN ownerEmail TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN ownerName TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN paymentId TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN orderId TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN amountPaid REAL'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN couponCode TEXT'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN emailSent INTEGER DEFAULT 0'); } catch {}
+    try { this.db.exec('ALTER TABLE scans ADD COLUMN emailSentAt TEXT'); } catch {}
   }
 
   // ==================== SITES ====================
@@ -305,8 +317,9 @@ class SqliteStorage {
         scanId, ownerUserId, targetUrl, normalizedHostname, scanProfile,
         status, summary, enginesRun, durationSeconds, checksNotPerformed,
         checks, privacyCompliance, deepComparison, errorMessage,
-        createdAt, updatedAt, idempotencyKey, s3ReportKey
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        createdAt, updatedAt, idempotencyKey, s3ReportKey,
+        ownerEmail, ownerName, paymentId, orderId, amountPaid, couponCode, emailSent, emailSentAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(scanId) DO UPDATE SET
         status = excluded.status,
         summary = excluded.summary,
@@ -318,6 +331,14 @@ class SqliteStorage {
         deepComparison = COALESCE(excluded.deepComparison, scans.deepComparison),
         errorMessage = COALESCE(excluded.errorMessage, scans.errorMessage),
         s3ReportKey = COALESCE(excluded.s3ReportKey, scans.s3ReportKey),
+        ownerEmail = COALESCE(excluded.ownerEmail, scans.ownerEmail),
+        ownerName = COALESCE(excluded.ownerName, scans.ownerName),
+        paymentId = COALESCE(excluded.paymentId, scans.paymentId),
+        orderId = COALESCE(excluded.orderId, scans.orderId),
+        amountPaid = COALESCE(excluded.amountPaid, scans.amountPaid),
+        couponCode = COALESCE(excluded.couponCode, scans.couponCode),
+        emailSent = COALESCE(excluded.emailSent, scans.emailSent),
+        emailSentAt = COALESCE(excluded.emailSentAt, scans.emailSentAt),
         updatedAt = excluded.updatedAt
     `);
 
@@ -340,7 +361,15 @@ class SqliteStorage {
       scan.createdAt || now,
       scan.updatedAt || now,
       scan.idempotencyKey || null,
-      scan.s3ReportKey || null
+      scan.s3ReportKey || null,
+      scan.ownerEmail || null,
+      scan.ownerName || null,
+      scan.paymentId || null,
+      scan.orderId || null,
+      scan.amountPaid ?? null,
+      scan.couponCode || null,
+      scan.emailSent ? 1 : 0,
+      scan.emailSentAt || null
     );
 
     // If scan has completed, update or auto-link site statistics
@@ -616,6 +645,14 @@ class SqliteStorage {
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
       idempotencyKey: r.idempotencyKey,
+      ownerEmail: r.ownerEmail || null,
+      ownerName: r.ownerName || null,
+      paymentId: r.paymentId || null,
+      orderId: r.orderId || null,
+      amountPaid: r.amountPaid ?? null,
+      couponCode: r.couponCode || null,
+      emailSent: Boolean(r.emailSent),
+      emailSentAt: r.emailSentAt || null,
     };
   }
 

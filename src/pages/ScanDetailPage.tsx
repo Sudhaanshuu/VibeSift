@@ -28,6 +28,7 @@ import {
   CheckSquare,
   Lock,
   GitCompare,
+  Receipt,
 } from 'lucide-react';
 
 export const ScanDetailPage: React.FC = () => {
@@ -134,6 +135,11 @@ export const ScanDetailPage: React.FC = () => {
     setTimeout(() => setCopiedMd(false), 2500);
   };
 
+  const handleDownloadInvoice = () => {
+    if (!scanId) return;
+    window.open(`/api/scans/${scanId}/invoice`, '_blank');
+  };
+
   const handleRescan = async () => {
     if (!scanId) return;
     const res = await rescanMutation.mutateAsync(scanId);
@@ -193,6 +199,19 @@ export const ScanDetailPage: React.FC = () => {
               >
                 Export PDF
               </Button>
+
+              {(report?.scanProfile === 'authorized_deep' || (report as any)?.paymentId) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadInvoice}
+                  leftIcon={<Receipt className="w-3.5 h-3.5 text-brand-emerald" />}
+                  className="text-xs font-semibold min-h-[36px]"
+                  title="Download official Tax Invoice & Payment Receipt"
+                >
+                  Tax Invoice
+                </Button>
+              )}
 
               <Button
                 variant="outline"

@@ -76,8 +76,15 @@ class LocalFileStorage {
   async putObject(key, body, contentType = 'application/json') {
     const fullPath = path.join(this.baseDir, key);
     await this.ensureDir(fullPath);
-    const content = typeof body === 'string' ? body : JSON.stringify(body, null, 2);
-    await fs.writeFile(fullPath, content, 'utf-8');
+    let content;
+    if (Buffer.isBuffer(body)) {
+      content = body;
+    } else if (typeof body === 'string') {
+      content = body;
+    } else {
+      content = JSON.stringify(body, null, 2);
+    }
+    await fs.writeFile(fullPath, content);
     return { key, location: fullPath };
   }
 
@@ -269,6 +276,31 @@ export class S3StorageService {
    * @param {string} [hostname]
    * @returns {Promise<{ jsonKey: string, mdKey?: string, directAuditKey: string }>}
    */
+  /**
+   * Saves a binary PDF artifact (e.g. invoice.pdf or report.pdf) to S3
+   */
+  async savePdfArtifact(scanId, artifactName, buffer, hostname = null) {
+    const folder = hostname ? buildScanS3Prefix(hostname, scanId) : scanId;
+    const key = `scans/${folder}/${artifactName}`;
+
+    if (this.useLocal) {
+      await localStorage.putObject(key, buffer, 'application/pdf');
+      return key;
+    }
+
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: 'application/pdf',
+        ServerSideEncryption: 'aws:kms',
+      })
+    );
+
+    return key;
+  }
+
   async saveReport(scanId, reportData, markdownReport = null, hostname = null) {
     const folder = hostname ? buildScanS3Prefix(hostname, scanId) : scanId;
     const jsonKey = `scans/${folder}/report.json`;
