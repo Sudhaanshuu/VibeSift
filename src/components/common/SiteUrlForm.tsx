@@ -8,6 +8,7 @@ import { ScanProfile } from '../../types/audit';
 import { Button } from './Button';
 import { TurnstileWidget } from './TurnstileWidget';
 import { DeepAuditPaywallModal } from './DeepAuditPaywallModal';
+import { useAuth } from '../../context/AuthContext';
 import { Globe, ArrowRight, AlertTriangle, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
 
 const formSchema = z.object({
@@ -31,6 +32,8 @@ export interface SiteUrlFormProps {
     paymentId?: string;
     orderId?: string;
     couponCode?: string;
+    userEmail?: string;
+    userName?: string;
   }) => Promise<void>;
   isSubmitting?: boolean;
   backendError?: string | null;
@@ -52,6 +55,7 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   const [internalError, setInternalError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
+  const { user } = useAuth();
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
 
@@ -101,6 +105,8 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
         profile: values.profile,
         acknowledgedTerms: values.acknowledgedTerms,
         turnstileToken,
+        userEmail: user?.email,
+        userName: user?.name,
       });
     } catch (err: any) {
       setTurnstileResetKey((k) => k + 1);
@@ -122,6 +128,8 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
         paymentId: paymentData.paymentId,
         orderId: paymentData.orderId,
         couponCode: paymentData.couponCode,
+        userEmail: user?.email,
+        userName: user?.name,
       });
     } catch (err: any) {
       setTurnstileResetKey((k) => k + 1);

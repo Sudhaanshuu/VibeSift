@@ -5,6 +5,7 @@ import { dbService } from './dynamoStorage.js';
 import { s3Service, sanitizeTargetHost } from './s3Storage.js';
 import { generateInvoicePdf } from './pdf/invoicePdfGenerator.js';
 import { generateAuditReportPdf } from './pdf/reportPdfGenerator.js';
+import { getCognitoUserById } from './cognitoAuth.js';
 
 /**
  * Builds the professional, company-style plain text email body.
@@ -226,7 +227,29 @@ export async function sendDeepSearchAuditEmail(params) {
     couponCode = scan.couponCode || null,
   } = params;
 
-  if (!userEmail || typeof userEmail !== 'string' || !userEmail.includes('@')) {
+  let recipientEmail = userEmail;
+  let recipientName = userName;
+
+  // Fallback: Resolve real email from Cognito if scan had a sub/UUID instead of email
+  if (!recipientEmail || typeof recipientEmail !== 'string' || !recipientEmail.includes('@')) {
+    const userIdToLookup = scan.ownerUserId || (typeof userEmail === 'string' && !userEmail.includes('@') ? userEmail : null);
+    if (userIdToLookup) {
+      try {
+        const cognitoProfile = await getCognitoUserById(userIdToLookup);
+        if (cognitoProfile?.email && cognitoProfile.email.includes('@')) {
+          recipientEmail = cognitoProfile.email;
+          if (!recipientName || recipientName === 'Authenticated User' || recipientName === 'Developer') {
+            recipientName = cognitoProfile.name || recipientName;
+          }
+          console.log(`[EmailService] Resolved recipient email from Cognito for ${userIdToLookup}: ${recipientEmail}`);
+        }
+      } catch (cognitoErr) {
+        console.warn(`[EmailService] Fallback Cognito lookup failed for ${userIdToLookup}:`, cognitoErr.message);
+      }
+    }
+  }
+
+  if (!recipientEmail || typeof recipientEmail !== 'string' || !recipientEmail.includes('@')) {
     console.warn(`[EmailService] Cannot send audit email for scan ${scan.scanId}: No valid user email provided.`);
     return { success: false, error: 'NO_VALID_EMAIL' };
   }
@@ -235,15 +258,60 @@ export async function sendDeepSearchAuditEmail(params) {
   const invoiceNumber = `INV-${new Date().getFullYear()}-${paymentId ? paymentId.replace(/^pay_/, '').slice(-6).toUpperCase() : Math.floor(100000 + Math.random() * 900000)}`;
 
   try {
-    console.log(`[EmailService] Generating Invoice PDF and Audit Report PDF for ${scan.scanId} -> ${userEmail}...`);
+    console.log(`[EmailService] Generating Invoice PDF and Audit Report PDF for ${scan.scanId} -> ${recipientEmail}...`);
+
+    // Resolve AuditReport if not explicitly provided
+    let auditReport = report;
+    if (!auditReport) {
+      const candidateS3Keys = [
+        scan.s3ReportKey,
+        cleanHostname ? `scans/${cleanHostname}__${scan.scanId}/report.json` : null,
+        cleanHostname ? `audits/${cleanHostname}__${scan.scanId}.json` : null,
+        `scans/${scan.scanId}/report.json`,
+        `audits/${scan.scanId}.json`,
+      ].filter(Boolean);
+
+      for (const key of candidateS3Keys) {
+        try {
+          const rawReport = await s3Service.getObjectContent(key);
+          if (rawReport) {
+            auditReport = JSON.parse(rawReport);
+            break;
+          }
+        } catch {}
+      }
+
+      if (!auditReport) {
+        let findings = [];
+        try {
+          findings = await dbService.getFindingsByScan(scan.scanId);
+        } catch {}
+        auditReport = {
+          scanId: scan.scanId,
+          targetUrl: scan.targetUrl,
+          normalizedHostname: scan.normalizedHostname,
+          scanProfile: scan.scanProfile,
+          status: scan.status || 'COMPLETED',
+          createdAt: scan.createdAt || new Date().toISOString(),
+          summary: scan.summary || {
+            readinessScore: 0,
+            totalFindings: findings?.length || 0,
+            critical: findings?.filter((f) => f.severity === 'critical').length || 0,
+            high: findings?.filter((f) => f.severity === 'high').length || 0,
+          },
+          findings: findings || [],
+          checks: scan.checks || [],
+        };
+      }
+    }
 
     // 1. Generate Invoice PDF Buffer
     const invoicePdfBuffer = await generateInvoicePdf({
       invoiceNumber,
       paymentId,
       orderId,
-      customerName: userName || 'Valued Developer',
-      customerEmail: userEmail,
+      customerName: recipientName || 'Valued Developer',
+      customerEmail: recipientEmail,
       targetUrl: scan.targetUrl,
       scanId: scan.scanId,
       amountPaid,
@@ -252,7 +320,7 @@ export async function sendDeepSearchAuditEmail(params) {
     });
 
     // 2. Generate Audit Report PDF Buffer
-    const reportPdfBuffer = await generateAuditReportPdf(report);
+    const reportPdfBuffer = await generateAuditReportPdf(auditReport);
 
     // 3. Persist PDF artifacts to S3 / local durable storage
     try {
@@ -265,13 +333,13 @@ export async function sendDeepSearchAuditEmail(params) {
 
     // 4. Construct email contents
     const templateData = {
-      name: userName || 'Developer',
+      name: recipientName || 'Developer',
       targetUrl: scan.targetUrl,
       scanId: scan.scanId,
-      score: report.summary?.readinessScore ?? 0,
-      totalFindings: report.summary?.totalFindings ?? 0,
-      criticalCount: report.summary?.critical ?? 0,
-      highCount: report.summary?.high ?? 0,
+      score: auditReport?.summary?.readinessScore ?? 0,
+      totalFindings: auditReport?.summary?.totalFindings ?? 0,
+      criticalCount: auditReport?.summary?.critical ?? 0,
+      highCount: auditReport?.summary?.high ?? 0,
       invoiceNumber,
       amountPaid,
       cleanHostname,
@@ -304,11 +372,11 @@ export async function sendDeepSearchAuditEmail(params) {
 
     // 5. Send via SMTP2GO API if key configured
     if (apiKey) {
-      console.log(`[EmailService] Dispatching email to ${userEmail} via SMTP2GO REST API...`);
+      console.log(`[EmailService] Dispatching email to ${recipientEmail} via SMTP2GO REST API...`);
 
       const payload = {
         api_key: apiKey,
-        to: [userEmail],
+        to: [recipientEmail],
         sender,
         subject: `Your VibeSift Deep Search Audit Report & Invoice – ${cleanHostname}`,
         text_body: textBody,
@@ -332,7 +400,7 @@ export async function sendDeepSearchAuditEmail(params) {
           success: true,
           emailId: responseData.data.email_id || responseData.request_id,
         };
-        console.log(`[EmailService] Successfully sent audit report & invoice to ${userEmail}. Email ID: ${emailResult.emailId}`);
+        console.log(`[EmailService] Successfully sent audit report & invoice to ${recipientEmail}. Email ID: ${emailResult.emailId}`);
       } else {
         const errorDesc = responseData.data?.failures?.[0] || responseData.error || 'SMTP2GO delivery failed';
         console.warn(`[EmailService] SMTP2GO delivery returned failure:`, errorDesc);
@@ -349,7 +417,7 @@ export async function sendDeepSearchAuditEmail(params) {
         emailPreviewPath,
         JSON.stringify(
           {
-            to: userEmail,
+            to: recipientEmail,
             sender,
             subject: `Your VibeSift Deep Search Audit Report & Invoice – ${cleanHostname}`,
             invoiceNumber,
@@ -371,8 +439,8 @@ export async function sendDeepSearchAuditEmail(params) {
         await dbService.updateScan(scan.scanId, {
           emailSent: 1,
           emailSentAt: new Date().toISOString(),
-          ownerEmail: userEmail,
-          ownerName: userName,
+          ownerEmail: recipientEmail,
+          ownerName: recipientName,
           paymentId,
           orderId,
           amountPaid,

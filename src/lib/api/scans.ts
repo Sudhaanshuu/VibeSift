@@ -10,6 +10,8 @@ export interface ScanSubmissionPayload {
   paymentId?: string;
   orderId?: string;
   couponCode?: string;
+  userEmail?: string;
+  userName?: string;
 }
 
 export interface ScanSubmissionResponse {
