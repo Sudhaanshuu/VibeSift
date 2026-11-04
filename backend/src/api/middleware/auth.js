@@ -1,5 +1,6 @@
 import * as jose from 'jose';
 import { config } from '../../config/env.js';
+import { getCognitoUserById } from '../../services/cognitoAuth.js';
 
 let customJwksProvider = null;
 let remoteJwksProvider = null;
@@ -139,9 +140,20 @@ export async function authenticateToken(req, res, next) {
     }
 
     // Derive immutable user identity strictly from verified token claims
-    const userEmail = payload.email || payload.username || payload['cognito:username'] || payload.sub;
-    const userName = payload.name || payload.email || 'Authenticated User';
+    let userEmail = payload.email || payload.username || payload['cognito:username'] || payload.sub;
+    let userName = payload.name || (userEmail && userEmail.includes('@') ? userEmail.split('@')[0] : 'Authenticated User');
     const userPlan = payload['custom:plan'] || 'verified_developer';
+
+    // If access token lacks email claim (standard in Cognito), resolve verified email
+    if (!userEmail || !userEmail.includes('@')) {
+      try {
+        const profile = await getCognitoUserById(payload.sub);
+        if (profile?.email) {
+          userEmail = profile.email;
+          if (profile.name) userName = profile.name;
+        }
+      } catch {}
+    }
 
     req.user = {
       id: payload.sub,

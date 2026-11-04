@@ -5,6 +5,7 @@ import {
   ResendConfirmationCodeCommand,
   InitiateAuthCommand,
   GetUserCommand,
+  AdminGetUserCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import * as jose from 'jose';
 import { config } from '../config/env.js';
@@ -319,3 +320,51 @@ export async function cognitoGetUser(accessToken) {
     isDemoUser: false,
   };
 }
+
+const userProfileCache = new Map();
+
+/**
+ * Resolves verified user profile (email, name, plan) by Cognito sub / username.
+ * Cached in-memory to prevent redundant Cognito API round-trips.
+ *
+ * @param {string} userId - Cognito sub or username
+ * @returns {Promise<{ id: string, email: string | null, name: string, plan: string } | null>}
+ */
+export async function getCognitoUserById(userId) {
+  if (!userId || typeof userId !== 'string') return null;
+
+  const cached = userProfileCache.get(userId);
+  if (cached && Date.now() - cached.cachedAt < 60 * 60 * 1000) {
+    return cached.profile;
+  }
+
+  if (!config.cognito.userPoolId) return null;
+
+  try {
+    const client = getCognitoClient();
+    const command = new AdminGetUserCommand({
+      UserPoolId: config.cognito.userPoolId,
+      Username: userId,
+    });
+    const res = await client.send(command);
+    const attributes = {};
+    for (const attr of res.UserAttributes || []) {
+      attributes[attr.Name] = attr.Value;
+    }
+
+    const profile = {
+      id: attributes.sub || userId,
+      email: attributes.email || null,
+      name: attributes.name || (attributes.email ? attributes.email.split('@')[0] : 'Developer'),
+      plan: attributes['custom:plan'] || 'verified_developer',
+      isDemoUser: false,
+    };
+
+    userProfileCache.set(userId, { profile, cachedAt: Date.now() });
+    return profile;
+  } catch (err) {
+    // If AdminGetUser fails (e.g. dev/offline), return safe fallback
+    return null;
+  }
+}
+

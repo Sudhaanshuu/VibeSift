@@ -12,6 +12,7 @@ import { startScanWorkflow } from '../../orchestration/workflowHandler.js';
 import { consumePaymentForScan } from './payments.js';
 import { generateInvoicePdf } from '../../services/pdf/invoicePdfGenerator.js';
 import { sendDeepSearchAuditEmail } from '../../services/emailService.js';
+import { getCognitoUserById } from '../../services/cognitoAuth.js';
 
 export const scansRouter = Router();
 
@@ -221,11 +222,24 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
 
     const amountPaid = paymentRecord?.amount ?? (payload.couponCode ? 1 : (payload.paymentId ? 39 : null));
 
+    let ownerEmail = payload.userEmail || req.user?.email || null;
+    let ownerName = payload.userName || req.user?.name || null;
+
+    if (!ownerEmail || !ownerEmail.includes('@')) {
+      try {
+        const profile = await getCognitoUserById(userId);
+        if (profile?.email) {
+          ownerEmail = profile.email;
+          if (!ownerName || ownerName === 'Authenticated User') ownerName = profile.name;
+        }
+      } catch {}
+    }
+
     const scanRecord = {
       scanId,
       ownerUserId: userId,
-      ownerEmail: req.user?.email || null,
-      ownerName: req.user?.name || null,
+      ownerEmail,
+      ownerName,
       targetUrl: validated.normalizedUrl,
       normalizedHostname: validated.hostname,
       scanProfile: payload.profile,
@@ -250,8 +264,8 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
     await startScanWorkflow({
       scanId,
       ownerUserId: userId,
-      ownerEmail: req.user?.email || null,
-      ownerName: req.user?.name || null,
+      ownerEmail,
+      ownerName,
       targetUrl: validated.normalizedUrl,
       normalizedHostname: validated.hostname,
       scanProfile: payload.profile,

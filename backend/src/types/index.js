@@ -250,6 +250,8 @@ export const ScanSubmissionPayloadSchema = z.object({
   paymentId: z.string().optional(),
   orderId: z.string().optional(),
   couponCode: z.string().optional(),
+  userEmail: z.string().optional(),
+  userName: z.string().optional(),
 });
 
 export const SavedWebsiteSchema = z.object({

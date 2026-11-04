@@ -10,6 +10,7 @@ import { sampleReports } from '../data/sampleReports';
 import { submitScan } from '../lib/api/scans';
 import { getReport } from '../lib/api/reports';
 import { getAuthToken } from '../lib/api/client';
+import { useAuth } from './AuthContext';
 
 interface AuditContextType {
   activeReport: AuditReport | null;
@@ -43,6 +44,7 @@ interface AuditContextType {
 const AuditContext = createContext<AuditContextType | undefined>(undefined);
 
 export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [scansList, setScansList] = useState<AuditReport[]>([]);
   const [activeReport, setActiveReport] = useState<AuditReport | null>(null);
   const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>([]);
@@ -165,6 +167,8 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         paymentId: paymentDetails?.paymentId,
         orderId: paymentDetails?.orderId,
         couponCode: paymentDetails?.couponCode,
+        userEmail: user?.email,
+        userName: user?.name,
       });
 
       let attempts = 0;
