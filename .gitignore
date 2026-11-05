@@ -46,3 +46,7 @@ secrets/
 cdk.out
 *.pyc
 __pycache__
+
+# Testing output and scripts
+Testing/
+
