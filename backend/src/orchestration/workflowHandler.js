@@ -20,6 +20,45 @@ import { sendDeepSearchAuditEmail } from '../services/emailService.js';
 
 let sqsClient = null;
 
+// In-memory queue & concurrency semaphore for local scan execution to prevent host exhaustion
+const localJobQueue = [];
+let activeLocalScans = 0;
+const MAX_CONCURRENT_LOCAL_SCANS = parseInt(process.env.MAX_CONCURRENT_LOCAL_SCANS || '1', 10);
+
+export function getLocalQueueStatus() {
+  return {
+    queueLength: localJobQueue.length,
+    activeScans: activeLocalScans,
+    maxConcurrent: MAX_CONCURRENT_LOCAL_SCANS,
+  };
+}
+
+function enqueueLocalScan(job) {
+  localJobQueue.push(job);
+  console.log(`[WorkflowHandler] Job ${job.scanId} queued for local execution (queue depth: ${localJobQueue.length}, active: ${activeLocalScans}/${MAX_CONCURRENT_LOCAL_SCANS})`);
+  processNextLocalScan();
+}
+
+async function processNextLocalScan() {
+  if (activeLocalScans >= MAX_CONCURRENT_LOCAL_SCANS) {
+    return;
+  }
+  const job = localJobQueue.shift();
+  if (!job) {
+    return;
+  }
+  activeLocalScans++;
+  try {
+    console.log(`[WorkflowHandler] Starting local execution for job ${job.scanId} (${activeLocalScans}/${MAX_CONCURRENT_LOCAL_SCANS} active)`);
+    await executeScanPipelineLocally(job);
+  } catch (err) {
+    console.error(`[WorkflowHandler] Scan pipeline failed for ${job.scanId}:`, err);
+  } finally {
+    activeLocalScans--;
+    setImmediate(processNextLocalScan);
+  }
+}
+
 function getWorkflowSqsClient() {
   if (!sqsClient) {
     const region = process.env.AWS_REGION || config.awsRegion || 'us-east-1';
@@ -64,12 +103,8 @@ export async function startScanWorkflow(job) {
     }
   }
 
-  // Local dev mock runner or fallback: execute live asynchronous pipeline locally
-  setImmediate(() => {
-    executeScanPipelineLocally(job).catch((err) => {
-      console.error(`[WorkflowHandler] Scan pipeline failed for ${job.scanId}:`, err);
-    });
-  });
+  // Local runner or fallback: execute via sequential concurrency queue to prevent host memory exhaustion
+  enqueueLocalScan(job);
 
   return { dispatched: true, mode: 'local_async' };
 }
@@ -174,12 +209,25 @@ async function runLivePythonInspector(targetUrl, scanId, scanProfile = 'baseline
 
     const child = spawn(pythonCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
+    let timedOut = false;
+
+    const killTimer = setTimeout(() => {
+      timedOut = true;
+      console.warn(`[WorkflowHandler] Python inspector timed out after 50s for scan ${scanId}. Killing process.`);
+      try {
+        child.kill('SIGKILL');
+      } catch {}
+    }, 50000);
 
     child.stderr.on('data', (d) => {
       stderr += d.toString();
     });
 
     child.on('close', async (code) => {
+      clearTimeout(killTimer);
+      if (timedOut) {
+        return resolve({ success: false, error: 'Python inspector timed out after 50s' });
+      }
       try {
         const content = await fs.readFile(tempOutputFile, 'utf-8');
         await fs.unlink(tempOutputFile).catch(() => {});
@@ -199,6 +247,7 @@ async function runLivePythonInspector(targetUrl, scanId, scanProfile = 'baseline
     });
 
     child.on('error', (err) => {
+      clearTimeout(killTimer);
       resolve({ success: false, error: err.message });
     });
   });
@@ -228,12 +277,25 @@ async function runLiveLighthouse(targetUrl, scanId) {
 
     const child = spawn(nodeCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
+    let timedOut = false;
+
+    const killTimer = setTimeout(() => {
+      timedOut = true;
+      console.warn(`[WorkflowHandler] Lighthouse worker timed out after 45s for scan ${scanId}. Killing process.`);
+      try {
+        child.kill('SIGKILL');
+      } catch {}
+    }, 45000);
 
     child.stderr.on('data', (d) => {
       stderr += d.toString();
     });
 
     child.on('close', async (code) => {
+      clearTimeout(killTimer);
+      if (timedOut) {
+        return resolve({ success: false, error: 'Lighthouse audit timed out after 45s' });
+      }
       try {
         const content = await fs.readFile(tempOutputFile, 'utf-8');
         await fs.unlink(tempOutputFile).catch(() => {});
@@ -253,6 +315,7 @@ async function runLiveLighthouse(targetUrl, scanId) {
     });
 
     child.on('error', (err) => {
+      clearTimeout(killTimer);
       resolve({ success: false, error: err.message });
     });
   });

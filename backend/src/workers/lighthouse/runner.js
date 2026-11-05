@@ -23,6 +23,7 @@ async function run() {
 
   console.log(`[LighthouseWorker] Starting audit for ${targetUrl} (scanId: ${scanId})`);
   const startTime = Date.now();
+  let chrome = null;
 
   try {
     // Dynamic import to allow running in environments without full Chrome installed
@@ -76,7 +77,7 @@ async function run() {
       launchOpts.chromePath = chromePath;
     }
 
-    const chrome = await chromeLauncher.launch(launchOpts);
+    chrome = await chromeLauncher.launch(launchOpts);
 
     const lhOptions = {
       port: chrome.port,
@@ -85,8 +86,13 @@ async function run() {
       logLevel: 'error',
     };
 
-    const runnerResult = await lighthouse(targetUrl, lhOptions);
-    await chrome.kill();
+    // Lighthouse execution with a strict 35s timeout
+    const lighthousePromise = lighthouse(targetUrl, lhOptions);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Lighthouse execution timed out after 35s')), 35000)
+    );
+
+    const runnerResult = await Promise.race([lighthousePromise, timeoutPromise]);
 
     const reportJson = runnerResult.report;
     await fs.writeFile(outputPath, reportJson, 'utf-8');
@@ -105,6 +111,14 @@ async function run() {
     };
     await fs.writeFile(outputPath, JSON.stringify(errReport, null, 2), 'utf-8');
     process.exit(1);
+  } finally {
+    if (chrome) {
+      try {
+        await chrome.kill();
+      } catch (killErr) {
+        console.warn(`[LighthouseWorker] Error closing chrome: ${killErr.message}`);
+      }
+    }
   }
 }
 
