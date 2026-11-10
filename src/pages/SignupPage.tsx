@@ -68,15 +68,21 @@ export const SignupPage: React.FC = () => {
       const result = await confirmSignup(email, confirmationCode.trim(), password);
       if (result.user || result.token) {
         navigate('/app', { replace: true });
-      } else {
-        navigate('/login', {
-          replace: true,
-          state: {
-            email,
-            message: 'Email verified successfully! Please sign in with your credentials.',
-          },
-        });
+        return;
       }
+      // Seamless auto-login fallback if session wasn't directly bundled
+      if (password) {
+        await login(email, password);
+        navigate('/app', { replace: true });
+        return;
+      }
+      navigate('/login', {
+        replace: true,
+        state: {
+          email,
+          message: 'Email verified successfully! Please sign in with your credentials.',
+        },
+      });
     } catch (err: any) {
       setError(err.message || 'Verification failed. Please check the code.');
     } finally {

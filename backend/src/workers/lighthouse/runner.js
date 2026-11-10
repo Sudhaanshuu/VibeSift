@@ -24,6 +24,7 @@ async function run() {
   console.log(`[LighthouseWorker] Starting audit for ${targetUrl} (scanId: ${scanId})`);
   const startTime = Date.now();
   let chrome = null;
+  let exitCode = 0;
 
   try {
     // Dynamic import to allow running in environments without full Chrome installed
@@ -99,8 +100,8 @@ async function run() {
 
     const duration = Date.now() - startTime;
     console.log(`[LighthouseWorker] Audit completed in ${duration}ms. Saved to ${outputPath}`);
-    process.exit(0);
   } catch (err) {
+    exitCode = 1;
     console.error(`[LighthouseWorker] Execution failed: ${err.message}`);
     const errReport = {
       scanId,
@@ -110,7 +111,6 @@ async function run() {
       executionTimeMs: Date.now() - startTime,
     };
     await fs.writeFile(outputPath, JSON.stringify(errReport, null, 2), 'utf-8');
-    process.exit(1);
   } finally {
     if (chrome) {
       try {
@@ -119,6 +119,7 @@ async function run() {
         console.warn(`[LighthouseWorker] Error closing chrome: ${killErr.message}`);
       }
     }
+    process.exit(exitCode);
   }
 }
 

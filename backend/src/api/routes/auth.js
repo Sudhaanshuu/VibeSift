@@ -17,7 +17,7 @@ export const authRouter = Router();
 /**
  * POST /auth/login — Cognito Authentication
  */
-authRouter.post('/login', verifyTurnstileToken, async (req, res, next) => {
+authRouter.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
 
@@ -196,6 +196,7 @@ authRouter.post('/confirm', async (req, res, next) => {
           userConfirmed: true,
         });
       } catch (loginErr) {
+        console.warn('[AuthRoute] Auto-login after confirm failed:', loginErr.message);
         // If auto-login fails, still return confirmation success with flag
         return res.json({
           ...result,
