@@ -98,6 +98,26 @@ test('Cognito Auth: cognitoConfirmSignUp verifies confirmation code', async () =
   assert.equal(result.success, true);
 });
 
+test('Cognito Auth: cognitoConfirmSignUp gracefully handles already confirmed user', async () => {
+  const mockClient = {
+    send: async () => {
+      const err = new Error('User cannot be confirmed. Current status is CONFIRMED');
+      err.name = 'NotAuthorizedException';
+      throw err;
+    },
+  };
+
+  setCognitoClient(mockClient);
+
+  const result = await cognitoConfirmSignUp({
+    email: 'user@example.com',
+    code: '123456',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.alreadyConfirmed, true);
+});
+
 test('Cognito Auth: cognitoConfirmSignUp handles expired or invalid codes', async () => {
   const mockClient = {
     send: async () => {

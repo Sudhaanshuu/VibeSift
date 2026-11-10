@@ -16,7 +16,7 @@ function renderWithProviders(ui: React.ReactElement) {
 describe('SiteUrlForm Component', () => {
   beforeEach(() => {
     vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
-      user: { userId: 'usr_test', email: 'test@example.com', username: 'tester', token: 'mock' },
+      user: { id: 'usr_test', email: 'test@example.com', name: 'tester', isDemoUser: true, plan: 'free' },
       isAuthenticated: true,
       isLoading: false,
       isMockMode: true,

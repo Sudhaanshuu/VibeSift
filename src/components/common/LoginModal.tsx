@@ -132,10 +132,8 @@ export const LoginModal: React.FC = () => {
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      await confirmSignup(email.trim().toLowerCase(), confirmationCode.trim());
-      // Auto login after verification if password is available
-      if (password) {
-        await login(email.trim().toLowerCase(), password);
+      const result = await confirmSignup(email.trim().toLowerCase(), confirmationCode.trim(), password);
+      if (result.user || result.token) {
         closeLoginModal();
       } else {
         setMode('signin');

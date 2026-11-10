@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AuthUser } from '../types/audit';
-import { authService, SignupResult } from '../lib/api/auth';
+import { authService, SignupResult, ConfirmSignupResult } from '../lib/api/auth';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -9,7 +9,7 @@ interface AuthContextType {
   isMockMode: boolean;
   login: (email: string, password: string, turnstileToken?: string) => Promise<void>;
   signup: (email: string, password: string, name: string, turnstileToken?: string) => Promise<SignupResult>;
-  confirmSignup: (email: string, code: string) => Promise<{ success: boolean; message: string }>;
+  confirmSignup: (email: string, code: string, password?: string) => Promise<ConfirmSignupResult>;
   resendCode: (email: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   isLoginModalOpen: boolean;
@@ -63,10 +63,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const confirmSignup = async (email: string, code: string) => {
+  const confirmSignup = async (email: string, code: string, password?: string): Promise<ConfirmSignupResult> => {
     setIsLoading(true);
     try {
-      return await authService.confirmSignup({ email, code });
+      const result = await authService.confirmSignup({ email, code, password });
+      if (result.user) {
+        setUser(result.user);
+        setIsLoginModalOpen(false);
+      }
+      return result;
     } finally {
       setIsLoading(false);
     }

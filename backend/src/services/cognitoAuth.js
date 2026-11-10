@@ -155,11 +155,27 @@ export async function cognitoConfirmSignUp({ email, code }) {
     ConfirmationCode: cleanCode,
   });
 
-  await client.send(command);
-  return {
-    success: true,
-    message: 'Email verified successfully. You may now log in.',
-  };
+  try {
+    await client.send(command);
+    return {
+      success: true,
+      message: 'Email verified successfully. You may now log in.',
+    };
+  } catch (err) {
+    // If user has already been confirmed in Cognito (e.g. from a prior OTP submission)
+    const msg = String(err.message || '');
+    if (
+      err.name === 'NotAuthorizedException' &&
+      (msg.includes('CONFIRMED') || msg.includes('already confirmed') || msg.includes('User cannot be confirmed'))
+    ) {
+      return {
+        success: true,
+        alreadyConfirmed: true,
+        message: 'Account is already verified.',
+      };
+    }
+    throw err;
+  }
 }
 
 /**

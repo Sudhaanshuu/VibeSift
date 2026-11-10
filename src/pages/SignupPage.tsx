@@ -65,9 +65,18 @@ export const SignupPage: React.FC = () => {
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      await confirmSignup(email, confirmationCode.trim());
-      await login(email, password);
-      navigate('/app', { replace: true });
+      const result = await confirmSignup(email, confirmationCode.trim(), password);
+      if (result.user || result.token) {
+        navigate('/app', { replace: true });
+      } else {
+        navigate('/login', {
+          replace: true,
+          state: {
+            email,
+            message: 'Email verified successfully! Please sign in with your credentials.',
+          },
+        });
+      }
     } catch (err: any) {
       setError(err.message || 'Verification failed. Please check the code.');
     } finally {

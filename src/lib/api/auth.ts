@@ -28,6 +28,20 @@ export interface SignupResult {
 export interface ConfirmSignupCredentials {
   email: string;
   code: string;
+  password?: string;
+}
+
+export interface ConfirmSignupResult {
+  success: boolean;
+  message: string;
+  userConfirmed?: boolean;
+  token?: string;
+  accessToken?: string;
+  idToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  user?: AuthUser;
+  requiresManualLogin?: boolean;
 }
 
 export interface AuthSession {
@@ -79,11 +93,16 @@ class ProductionAuthService {
     return data;
   }
 
-  async confirmSignup(creds: ConfirmSignupCredentials): Promise<{ success: boolean; message: string }> {
-    return apiClient<{ success: boolean; message: string }>('/auth/confirm', {
+  async confirmSignup(creds: ConfirmSignupCredentials): Promise<ConfirmSignupResult> {
+    const data = await apiClient<ConfirmSignupResult>('/auth/confirm', {
       method: 'POST',
       body: JSON.stringify(creds),
     });
+    if (data.token && data.user) {
+      setAuthSession(data.token, data.refreshToken, data.expiresIn);
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+    }
+    return data;
   }
 
   async resendCode(email: string): Promise<{ success: boolean; message: string }> {

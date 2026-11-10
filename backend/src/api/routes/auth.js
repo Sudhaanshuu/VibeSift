@@ -150,7 +150,7 @@ authRouter.post('/signup', verifyTurnstileToken, async (req, res, next) => {
  */
 authRouter.post('/confirm', async (req, res, next) => {
   try {
-    const { email, code } = req.body || {};
+    const { email, code, password } = req.body || {};
 
     if (!email || !code) {
       return res.status(400).json({
@@ -160,7 +160,51 @@ authRouter.post('/confirm', async (req, res, next) => {
       });
     }
 
-    const result = await cognitoConfirmSignUp({ email, code });
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    // Isolated developer mock fallback ONLY when demo auth is explicitly enabled without Cognito
+    if (!config.isProduction && config.allowDemoAuth && !config.cognito.clientId) {
+      const demoToken = `demo_dev_${Buffer.from(cleanEmail).toString('hex').slice(0, 16)}`;
+      return res.json({
+        success: true,
+        message: 'Email confirmed successfully (demo mode).',
+        userConfirmed: true,
+        token: demoToken,
+        accessToken: demoToken,
+        idToken: demoToken,
+        refreshToken: `demo_refresh_${demoToken}`,
+        expiresIn: 3600,
+        user: {
+          id: `usr_${Buffer.from(cleanEmail).toString('hex').slice(0, 12)}`,
+          email: cleanEmail,
+          name: cleanEmail.split('@')[0],
+          plan: 'verified_developer',
+          isDemoUser: true,
+        },
+      });
+    }
+
+    const result = await cognitoConfirmSignUp({ email: cleanEmail, code });
+
+    // If password was supplied, seamlessly authenticate and return live session
+    if (password && typeof password === 'string') {
+      try {
+        const session = await cognitoLogin({ email: cleanEmail, password });
+        return res.json({
+          ...result,
+          ...session,
+          userConfirmed: true,
+        });
+      } catch (loginErr) {
+        // If auto-login fails, still return confirmation success with flag
+        return res.json({
+          ...result,
+          userConfirmed: true,
+          requiresManualLogin: true,
+        });
+      }
+    }
+
     return res.json(result);
   } catch (err) {
     const mapped = mapCognitoError(err);
