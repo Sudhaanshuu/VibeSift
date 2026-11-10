@@ -62,19 +62,13 @@ export const LoginModal: React.FC = () => {
       setError('Please provide both email and password.');
       return;
     }
-    if (!turnstileToken) {
-      setError('Please complete the security challenge before signing in.');
-      return;
-    }
     setError(null);
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      await login(email.trim().toLowerCase(), password, turnstileToken);
+      await login(email.trim().toLowerCase(), password);
       closeLoginModal();
     } catch (err: any) {
-      setTurnstileResetKey((k) => k + 1);
-      setTurnstileToken('');
       if (err.code === 'USER_NOT_CONFIRMED') {
         setMode('verify');
         setInfoMessage('Your email is not verified yet. Please enter the 6-digit verification code sent to your email.');
@@ -288,18 +282,6 @@ export const LoginModal: React.FC = () => {
                 />
               </div>
             </div>
-
-            {/* Cloudflare Turnstile Bot Protection */}
-            <TurnstileWidget
-              onVerify={(token) => {
-                setTurnstileToken(token);
-                setError(null);
-              }}
-              onExpire={() => setTurnstileToken('')}
-              resetKey={turnstileResetKey}
-              action="modal_login"
-              label="Security Verification"
-            />
 
             <Button
               type="submit"
