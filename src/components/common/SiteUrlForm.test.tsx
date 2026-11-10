@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { SiteUrlForm } from './SiteUrlForm';
+import * as scansApi from '../../lib/api/scans';
 import * as AuthContextModule from '../../context/AuthContext';
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -78,5 +79,50 @@ describe('SiteUrlForm Component', () => {
     if (deepRadio) fireEvent.click(deepRadio);
 
     expect(screen.getByRole('button', { name: /Unlock Deep Audit \(₹39\)/i })).toBeInTheDocument();
+  });
+
+  it('differentiates profile in precheck and opens paywall when re-auditing deep search', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    // Mock precheckScanTarget to return cached deep audit
+    const precheckSpy = vi.spyOn(scansApi, 'precheckScanTarget').mockResolvedValue({
+      exists: true,
+      scanId: 'scn_cached_deep_1',
+      targetUrl: 'https://pixir.in',
+      normalizedHostname: 'pixir.in',
+      scanProfile: 'authorized_deep',
+      createdAt: new Date().toISOString(),
+      readinessScore: 91,
+    });
+
+    renderWithProviders(<SiteUrlForm onSubmitScan={onSubmit} initialUrl="https://pixir.in" initialProfile="authorized_deep" />);
+
+    // Click Unlock Deep Audit
+    const submitBtn = screen.getByRole('button', { name: /Unlock Deep Audit \(₹39\)/i });
+    fireEvent.click(submitBtn);
+
+    // Verify precheckScanTarget was called with url AND 'authorized_deep' profile
+    await waitFor(() => {
+      expect(precheckSpy).toHaveBeenCalledWith('https://pixir.in', 'authorized_deep');
+    });
+
+    // Verify ExistingAuditModal is displayed with Deep Search
+    await waitFor(() => {
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText(/Existing Audit Found in S3/i)).toBeInTheDocument();
+      expect(within(dialog).getByText(/Deep Search/i)).toBeInTheDocument();
+    });
+
+    // Click Re-audit Again (₹39)
+    const reauditBtn = screen.getByRole('button', { name: /Re-audit Again \(₹39\)/i });
+    fireEvent.click(reauditBtn);
+
+    // Verify paywall modal opens with Razorpay checkout instructions (not submitting without payment!)
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Unlock Deep Audit/i })).toBeInTheDocument();
+      expect(screen.getByText(/Included in Deep Search:/i)).toBeInTheDocument();
+    });
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    precheckSpy.mockRestore();
   });
 });

@@ -19,8 +19,9 @@ export const scansRouter = Router();
 /**
  * POST /scans/precheck — Checks whether an audit already exists in S3 & SQLite for the target URL
  * Returns existing audit metadata, timestamp, readiness score, and S3 key if present.
+ * Differentiates between Basic Search ('baseline_public') and Deep Search ('authorized_deep').
  */
-scansRouter.post('/precheck', async (req, res, next) => {
+const handlePrecheck = async (req, res, next) => {
   try {
     const rawUrl = req.body?.url || req.query?.url;
     if (!rawUrl || typeof rawUrl !== 'string') {
@@ -30,19 +31,22 @@ scansRouter.post('/precheck', async (req, res, next) => {
     const validated = validateAndNormalizeUrl(rawUrl);
     await resolveAndValidateHost(validated.hostname);
 
+    // Profile can be passed to check specifically for basic search vs deep search
+    const requestedProfile = req.body?.profile || req.query?.profile || null;
+
     // 1. Look up latest completed scan for this target hostname globally in DB
-    let latestScan = await dbService.getLatestCompletedScanForSite(validated.hostname);
+    let latestScan = await dbService.getLatestCompletedScanForSite(validated.hostname, requestedProfile);
 
     // 2. Fall back to S3 direct discovery if DB record is not yet synced
     if (!latestScan) {
-      const s3Found = await s3Service.findLatestScanReportByHostname(validated.hostname);
+      const s3Found = await s3Service.findLatestScanReportByHostname(validated.hostname, requestedProfile);
       if (s3Found) {
         latestScan = {
           scanId: s3Found.scanId,
           ownerUserId: s3Found.report?.ownerUserId || 'public',
           targetUrl: s3Found.targetUrl,
           normalizedHostname: validated.hostname,
-          scanProfile: s3Found.report?.scanProfile || 'baseline_public',
+          scanProfile: s3Found.scanProfile || s3Found.report?.scanProfile || (requestedProfile || 'baseline_public'),
           status: s3Found.status,
           createdAt: s3Found.createdAt,
           summary: s3Found.summary,
@@ -57,7 +61,7 @@ scansRouter.post('/precheck', async (req, res, next) => {
     }
 
     if (!latestScan) {
-      return res.status(200).json({ exists: false, hostname: validated.hostname });
+      return res.status(200).json({ exists: false, hostname: validated.hostname, scanProfile: requestedProfile });
     }
 
     // Determine S3 report key using naming convention or stored key
@@ -71,14 +75,14 @@ scansRouter.post('/precheck', async (req, res, next) => {
                      (await s3Service.objectExists(legacyKey));
 
     if (!existsInS3) {
-      const s3Check = await s3Service.findLatestScanReportByHostname(validated.hostname);
+      const s3Check = await s3Service.findLatestScanReportByHostname(validated.hostname, requestedProfile);
       if (s3Check) {
         existsInS3 = true;
       }
     }
 
     if (!existsInS3) {
-      return res.status(200).json({ exists: false, hostname: validated.hostname });
+      return res.status(200).json({ exists: false, hostname: validated.hostname, scanProfile: requestedProfile });
     }
 
     return res.status(200).json({
@@ -86,6 +90,7 @@ scansRouter.post('/precheck', async (req, res, next) => {
       scanId: latestScan.scanId,
       targetUrl: latestScan.targetUrl,
       normalizedHostname: validated.hostname,
+      scanProfile: latestScan.scanProfile || requestedProfile || 'baseline_public',
       createdAt: latestScan.createdAt,
       status: latestScan.status,
       summary: latestScan.summary,
@@ -95,12 +100,11 @@ scansRouter.post('/precheck', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-});
+};
 
-scansRouter.get('/precheck', async (req, res, next) => {
-  req.body = { url: req.query.url };
-  return scansRouter.handle(req, res, next);
-});
+scansRouter.post('/precheck', handlePrecheck);
+
+scansRouter.get('/precheck', handlePrecheck);
 
 /**
  * POST /scans (or /api/scans) — Submit a new website audit scan
@@ -129,16 +133,17 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
       }
     }
 
-    // Check if user requested existing cached scan for the same site
+    // Check if user requested existing cached scan for the same site and matching profile
     if (req.body.useCached === true || req.query.useCached === 'true') {
-      let latestExisting = await dbService.getLatestCompletedScanForSite(validated.hostname);
+      let latestExisting = await dbService.getLatestCompletedScanForSite(validated.hostname, payload.profile);
       if (!latestExisting) {
-        const s3Found = await s3Service.findLatestScanReportByHostname(validated.hostname);
+        const s3Found = await s3Service.findLatestScanReportByHostname(validated.hostname, payload.profile);
         if (s3Found) {
           latestExisting = {
             scanId: s3Found.scanId,
             status: s3Found.status,
             targetUrl: s3Found.targetUrl,
+            scanProfile: s3Found.scanProfile || payload.profile,
             createdAt: s3Found.createdAt,
             summary: s3Found.summary,
           };
@@ -149,6 +154,7 @@ scansRouter.post('/', verifyTurnstileToken, enforceScanRateLimit, async (req, re
           scanId: latestExisting.scanId,
           status: latestExisting.status,
           targetUrl: latestExisting.targetUrl,
+          scanProfile: latestExisting.scanProfile || payload.profile,
           createdAt: latestExisting.createdAt,
           isCached: true,
           summary: latestExisting.summary,

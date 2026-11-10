@@ -26,6 +26,7 @@ export interface PrecheckResult {
   scanId?: string;
   targetUrl?: string;
   normalizedHostname?: string;
+  scanProfile?: ScanProfile;
   createdAt?: string;
   readinessScore?: number | null;
   summary?: any;
@@ -33,13 +34,14 @@ export interface PrecheckResult {
 }
 
 /**
- * Checks whether an audit already exists in S3 and SQLite for this target URL.
+ * Checks whether an audit already exists in S3 and SQLite for this target URL and profile.
+ * Distinguishes between Basic Search ('baseline_public') and Deep Search ('authorized_deep').
  */
-export async function precheckScanTarget(url: string): Promise<PrecheckResult> {
+export async function precheckScanTarget(url: string, profile?: ScanProfile): Promise<PrecheckResult> {
   try {
     return await apiClient<PrecheckResult>('/scans/precheck', {
       method: 'POST',
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, profile }),
     });
   } catch {
     // If network or offline, treat as non-existent so fresh scan can proceed

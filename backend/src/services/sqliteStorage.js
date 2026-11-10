@@ -462,9 +462,15 @@ class SqliteStorage {
     return row ? this._mapScanRow(row) : null;
   }
 
-  async getLatestCompletedScanForSite(hostname) {
-    const query = "SELECT * FROM scans WHERE normalizedHostname = ? AND status = 'COMPLETED' ORDER BY createdAt DESC LIMIT 1";
-    const row = this.db.prepare(query).get(hostname.toLowerCase());
+  async getLatestCompletedScanForSite(hostname, profile = null) {
+    let query = "SELECT * FROM scans WHERE normalizedHostname = ? AND status = 'COMPLETED'";
+    const params = [hostname.toLowerCase()];
+    if (profile) {
+      query += " AND scanProfile = ?";
+      params.push(profile);
+    }
+    query += " ORDER BY createdAt DESC LIMIT 1";
+    const row = this.db.prepare(query).get(...params);
     return row ? this._mapScanRow(row) : null;
   }
 

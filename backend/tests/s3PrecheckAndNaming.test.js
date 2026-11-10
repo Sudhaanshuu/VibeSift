@@ -68,6 +68,84 @@ test('S3 & SQLite Pre-Check: detects globally cached audits and verifies S3 obje
   assert.equal(existsInS3, true);
 });
 
+test('S3 & SQLite Pre-Check: distinguishes between baseline_public and authorized_deep profiles', async () => {
+  const timestamp = Date.now();
+  const scanIdBasic = `scn_basic_${timestamp}`;
+  const hostname = `profile-test-${timestamp}.pixir.in`;
+  const targetUrl = `https://${hostname}`;
+
+  // 1. Save a completed BASIC scan
+  const s3ReportKeyBasic = `scans/${sanitizeTargetHost(hostname)}__${scanIdBasic}/report.json`;
+  const basicReport = {
+    scanId: scanIdBasic,
+    targetUrl,
+    hostname,
+    scanProfile: 'baseline_public',
+    status: 'COMPLETED',
+    summary: { readinessScore: 85, totalFindings: 2 },
+  };
+  await s3Service.saveReport(scanIdBasic, basicReport, '# Basic Report', hostname);
+  await dbService.saveScan({
+    scanId: scanIdBasic,
+    ownerUserId: 'user-alice-123',
+    targetUrl,
+    normalizedHostname: hostname,
+    scanProfile: 'baseline_public',
+    status: 'COMPLETED',
+    s3ReportKey: s3ReportKeyBasic,
+    summary: { readinessScore: 85, totalFindings: 2 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  // 2. Query for basic scan -> should find it
+  const foundBasic = await dbService.getLatestCompletedScanForSite(hostname, 'baseline_public');
+  assert.ok(foundBasic);
+  assert.equal(foundBasic.scanId, scanIdBasic);
+  assert.equal(foundBasic.scanProfile, 'baseline_public');
+
+  // 3. Query for deep scan -> should NOT find it (returns null)
+  const foundDeep = await dbService.getLatestCompletedScanForSite(hostname, 'authorized_deep');
+  assert.equal(foundDeep, null, 'Deep scan should not match a basic scan');
+
+  // 4. Save a DEEP scan for the same host
+  const scanIdDeep = `scn_deep_${timestamp}`;
+  const s3ReportKeyDeep = `scans/${sanitizeTargetHost(hostname)}__${scanIdDeep}/report.json`;
+  const deepReport = {
+    scanId: scanIdDeep,
+    targetUrl,
+    hostname,
+    scanProfile: 'authorized_deep',
+    status: 'COMPLETED',
+    summary: { readinessScore: 95, totalFindings: 1 },
+  };
+  await s3Service.saveReport(scanIdDeep, deepReport, '# Deep Report', hostname);
+  await dbService.saveScan({
+    scanId: scanIdDeep,
+    ownerUserId: 'user-alice-123',
+    targetUrl,
+    normalizedHostname: hostname,
+    scanProfile: 'authorized_deep',
+    status: 'COMPLETED',
+    s3ReportKey: s3ReportKeyDeep,
+    summary: { readinessScore: 95, totalFindings: 1 },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  // 5. Query for deep scan -> now returns deep scan
+  const foundDeepAfter = await dbService.getLatestCompletedScanForSite(hostname, 'authorized_deep');
+  assert.ok(foundDeepAfter);
+  assert.equal(foundDeepAfter.scanId, scanIdDeep);
+  assert.equal(foundDeepAfter.scanProfile, 'authorized_deep');
+
+  // 6. Query for basic scan -> still returns basic scan
+  const foundBasicAfter = await dbService.getLatestCompletedScanForSite(hostname, 'baseline_public');
+  assert.ok(foundBasicAfter);
+  assert.equal(foundBasicAfter.scanId, scanIdBasic);
+  assert.equal(foundBasicAfter.scanProfile, 'baseline_public');
+});
+
 test('Global Audit Retrieval: scan and findings can be retrieved globally even if owned by another user', async () => {
   const scanId = `scn_global_test_${Date.now()}`;
   const hostname = 'globally-cached-target.com';

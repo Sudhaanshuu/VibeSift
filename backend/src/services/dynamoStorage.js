@@ -187,19 +187,27 @@ export class DynamoStorageService {
     return this.getLatestCompletedScanForSite(hostname);
   }
 
-  async getLatestCompletedScanForSite(hostname) {
-    if (this.useLocal) return sqliteStorage.getLatestCompletedScanForSite(hostname);
+  async getLatestCompletedScanForSite(hostname, profile = null) {
+    if (this.useLocal) return sqliteStorage.getLatestCompletedScanForSite(hostname, profile);
 
     try {
+      let filterExpression = 'normalizedHostname = :h AND #st = :comp';
+      const expressionAttributeNames = { '#st': 'status' };
+      const expressionAttributeValues = {
+        ':h': hostname.toLowerCase(),
+        ':comp': 'COMPLETED',
+      };
+      if (profile) {
+        filterExpression += ' AND #sp = :sp';
+        expressionAttributeNames['#sp'] = 'scanProfile';
+        expressionAttributeValues[':sp'] = profile;
+      }
       const res = await docClient.send(
         new ScanCommand({
           TableName: config.tables.scans,
-          FilterExpression: 'normalizedHostname = :h AND #st = :comp',
-          ExpressionAttributeNames: { '#st': 'status' },
-          ExpressionAttributeValues: {
-            ':h': hostname.toLowerCase(),
-            ':comp': 'COMPLETED',
-          },
+          FilterExpression: filterExpression,
+          ExpressionAttributeNames: expressionAttributeNames,
+          ExpressionAttributeValues: expressionAttributeValues,
           Limit: 25,
         })
       );
@@ -212,7 +220,7 @@ export class DynamoStorageService {
       console.warn('[DynamoStorage] Scan for completed scans failed, falling back to SQLite:', err.message);
     }
 
-    return sqliteStorage.getLatestCompletedScanForSite(hostname);
+    return sqliteStorage.getLatestCompletedScanForSite(hostname, profile);
   }
 
   async getScanByIdempotencyKey(ownerUserId, idempotencyKey) {

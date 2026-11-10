@@ -51,7 +51,7 @@ export const NewScanPage: React.FC = () => {
     // Step 1: Pre-check S3 and SQLite to see if an audit already exists
     if (!data.forceRescan) {
       try {
-        const check = await precheckScanTarget(data.url);
+        const check = await precheckScanTarget(data.url, data.profile);
         if (check.exists && check.scanId) {
           setCachedAudit(check);
           setPendingScanData(data);
