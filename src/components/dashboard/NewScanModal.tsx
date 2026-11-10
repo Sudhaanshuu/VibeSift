@@ -32,6 +32,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     isNewScanModalOpen, 
     closeNewScanModal, 
     prefilledScanUrl, 
+    prefilledScanProfile,
     startNewScan, 
     savedWebsites, 
     isScanning,
@@ -39,8 +40,8 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   } = useAudit();
   const { isAuthenticated, openLoginModal } = useAuth();
 
-  const [url, setUrl] = useState('');
-  const [profile, setProfile] = useState<ScanProfile>('baseline_public');
+  const [url, setUrl] = useState(prefilledScanUrl || '');
+  const [profile, setProfile] = useState<ScanProfile>(prefilledScanProfile || 'baseline_public');
   const [acknowledgedTerms, setAcknowledgedTerms] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [turnstileToken, setTurnstileToken] = useState<string>('');
@@ -56,6 +57,12 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
       setUrl(prefilledScanUrl);
     }
   }, [prefilledScanUrl]);
+
+  useEffect(() => {
+    if (prefilledScanProfile) {
+      setProfile(prefilledScanProfile);
+    }
+  }, [prefilledScanProfile]);
 
   // Robust multi-platform scroll lock for background document
   useBodyScrollLock(isNewScanModalOpen);
@@ -100,10 +107,10 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
 
     setErrorMsg('');
 
-    // Pre-check S3 and SQLite for existing audit
+    // Pre-check S3 and SQLite for existing audit of the selected profile
     if (!forceRescan) {
       try {
-        const check = await precheckScanTarget(url);
+        const check = await precheckScanTarget(url, profile);
         if (check.exists && check.scanId) {
           setCachedAudit(check);
           setIsExistingModalOpen(true);
@@ -121,7 +128,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
     }
 
     try {
-      const scanId = await startNewScan(url, profile, turnstileToken);
+      const scanId = await startNewScan(url, profile, turnstileToken, undefined, forceRescan);
       onScanComplete?.(scanId);
     } catch (err: any) {
       setTurnstileResetKey((k) => k + 1);
@@ -133,7 +140,7 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
   const handlePaymentSuccess = async (paymentData: { paymentId: string; orderId?: string; couponCode?: string }) => {
     setIsPaywallOpen(false);
     try {
-      const scanId = await startNewScan(url, profile, turnstileToken, paymentData);
+      const scanId = await startNewScan(url, profile, turnstileToken, paymentData, true);
       onScanComplete?.(scanId);
     } catch (err: any) {
       setTurnstileResetKey((k) => k + 1);
@@ -150,8 +157,15 @@ export const NewScanModal: React.FC<NewScanModalProps> = ({ onScanComplete }) =>
 
   const handleReaudit = async () => {
     setIsExistingModalOpen(false);
+
+    // If deep scan is chosen, prompt Razorpay payment checkout before re-running!
+    if (profile === 'authorized_deep') {
+      setIsPaywallOpen(true);
+      return;
+    }
+
     try {
-      const scanId = await startNewScan(url, profile, turnstileToken);
+      const scanId = await startNewScan(url, profile, turnstileToken, undefined, true);
       onScanComplete?.(scanId);
     } catch (err: any) {
       setTurnstileResetKey((k) => k + 1);

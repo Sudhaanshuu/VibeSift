@@ -119,6 +119,20 @@ export const ExistingAuditModal: React.FC<ExistingAuditModalProps> = ({
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+              <span className="text-xs text-brand-text-secondary">
+                Audit Mode:
+              </span>
+              <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md ${
+                cachedAudit.scanProfile === 'authorized_deep'
+                  ? 'bg-brand-card-green text-brand-emerald-dark border border-brand-emerald/30'
+                  : 'bg-brand-mint text-brand-emerald-dark border border-brand-border'
+              }`}>
+                <ShieldCheck className="w-3.5 h-3.5 text-brand-emerald" />
+                {cachedAudit.scanProfile === 'authorized_deep' ? 'Deep Search' : 'Quick Search (Free)'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
               <div className="flex items-center gap-1.5 text-xs text-brand-text-secondary">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 <span>Audited on:</span>
@@ -168,7 +182,7 @@ export const ExistingAuditModal: React.FC<ExistingAuditModalProps> = ({
               ) : (
                 <>
                   <RotateCw className="w-4 h-4 text-brand-text-secondary" />
-                  <span>Re-audit Again</span>
+                  <span>{cachedAudit.scanProfile === 'authorized_deep' ? 'Re-audit Again (₹39)' : 'Re-audit Again (Free)'}</span>
                 </>
               )}
             </Button>

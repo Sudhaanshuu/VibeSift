@@ -29,16 +29,18 @@ interface AuditContextType {
     url: string,
     profile: ScanProfile,
     turnstileToken?: string,
-    paymentDetails?: { paymentId?: string; orderId?: string; couponCode?: string }
+    paymentDetails?: { paymentId?: string; orderId?: string; couponCode?: string },
+    forceRescan?: boolean
   ) => Promise<string>;
   rescanWebsite: (scanId: string) => Promise<void>;
   markFindingResolved: (findingId: string) => void;
   verifyDomain: (siteId: string) => Promise<boolean>;
   addSavedWebsite: (hostname: string) => SavedWebsite;
   isNewScanModalOpen: boolean;
-  openNewScanModal: (defaultUrl?: string) => void;
+  openNewScanModal: (defaultUrl?: string, defaultProfile?: ScanProfile) => void;
   closeNewScanModal: () => void;
   prefilledScanUrl: string;
+  prefilledScanProfile: ScanProfile;
 }
 
 const AuditContext = createContext<AuditContextType | undefined>(undefined);
@@ -50,6 +52,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>([]);
   const [isNewScanModalOpen, setIsNewScanModalOpen] = useState(false);
   const [prefilledScanUrl, setPrefilledScanUrl] = useState('');
+  const [prefilledScanProfile, setPrefilledScanProfile] = useState<ScanProfile>('baseline_public');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<{
     status: ScanStatus;
@@ -64,14 +67,16 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const openNewScanModal = (defaultUrl?: string) => {
+  const openNewScanModal = (defaultUrl?: string, defaultProfile?: ScanProfile) => {
     if (defaultUrl) setPrefilledScanUrl(defaultUrl);
+    if (defaultProfile) setPrefilledScanProfile(defaultProfile);
     setIsNewScanModalOpen(true);
   };
 
   const closeNewScanModal = () => {
     setIsNewScanModalOpen(false);
     setPrefilledScanUrl('');
+    setPrefilledScanProfile('baseline_public');
   };
 
   const addSavedWebsite = (rawUrl: string): SavedWebsite => {
@@ -142,7 +147,8 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     url: string,
     profile: ScanProfile,
     turnstileToken?: string,
-    paymentDetails?: { paymentId?: string; orderId?: string; couponCode?: string }
+    paymentDetails?: { paymentId?: string; orderId?: string; couponCode?: string },
+    forceRescan: boolean = false
   ): Promise<string> => {
     setIsScanning(true);
     let normalized = url.trim();
@@ -163,6 +169,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         url: normalized,
         profile,
         acknowledgedTerms: true,
+        forceRescan,
         turnstileToken,
         paymentId: paymentDetails?.paymentId,
         orderId: paymentDetails?.orderId,
@@ -274,7 +281,7 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const rescanWebsite = async (scanId: string) => {
     const existing = scansList.find(s => s.scanId === scanId);
     if (!existing) return;
-    await startNewScan(existing.targetUrl, existing.scanProfile);
+    openNewScanModal(existing.targetUrl, existing.scanProfile);
   };
 
   return (
@@ -295,7 +302,8 @@ export const AuditProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isNewScanModalOpen,
         openNewScanModal,
         closeNewScanModal,
-        prefilledScanUrl
+        prefilledScanUrl,
+        prefilledScanProfile,
       }}
     >
       {children}

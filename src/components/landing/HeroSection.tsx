@@ -42,7 +42,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
 
     // Check S3 and SQLite for existing audit
     try {
-      const check = await precheckScanTarget(normalized);
+      const check = await precheckScanTarget(normalized, 'baseline_public');
       if (check.exists && check.scanId) {
         setCachedAudit(check);
         setIsExistingModalOpen(true);
@@ -53,12 +53,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
     }
 
     if (!isAuthenticated) {
-      openNewScanModal(normalized);
+      openNewScanModal(normalized, 'baseline_public');
       openLoginModal();
       return;
     }
 
-    openNewScanModal(normalized);
+    openNewScanModal(normalized, 'baseline_public');
   };
 
   const handleViewExisting = (scanId: string) => {
@@ -70,11 +70,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onViewSampleReport }) 
     setIsExistingModalOpen(false);
     const normalized = normalizeTargetUrl(inputUrl);
     if (!isAuthenticated) {
-      openNewScanModal(normalized);
+      openNewScanModal(normalized, 'baseline_public');
       openLoginModal();
       return;
     }
-    openNewScanModal(normalized);
+    openNewScanModal(normalized, 'baseline_public');
   };
 
   return (

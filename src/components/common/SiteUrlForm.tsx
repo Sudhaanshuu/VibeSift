@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +9,8 @@ import { ScanProfile } from '../../types/audit';
 import { Button } from './Button';
 import { TurnstileWidget } from './TurnstileWidget';
 import { DeepAuditPaywallModal } from './DeepAuditPaywallModal';
+import { ExistingAuditModal } from './ExistingAuditModal';
+import { precheckScanTarget, PrecheckResult } from '../../lib/api/scans';
 import { useAuth } from '../../context/AuthContext';
 import { Globe, ArrowRight, AlertTriangle, ShieldCheck, CheckCircle2, Lock } from 'lucide-react';
 
@@ -29,6 +32,7 @@ export interface SiteUrlFormProps {
     profile: ScanProfile;
     acknowledgedTerms: boolean;
     turnstileToken?: string;
+    forceRescan?: boolean;
     paymentId?: string;
     orderId?: string;
     couponCode?: string;
@@ -52,12 +56,15 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
   compact = false,
   onVerifyDomainClick,
 }) => {
+  const navigate = useNavigate();
   const [internalError, setInternalError] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string>('');
   const [turnstileResetKey, setTurnstileResetKey] = useState<number>(0);
   const { user } = useAuth();
   const [isPaywallOpen, setIsPaywallOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
+  const [cachedAudit, setCachedAudit] = useState<PrecheckResult | null>(null);
+  const [isExistingModalOpen, setIsExistingModalOpen] = useState(false);
 
   const {
     register,
@@ -91,7 +98,20 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
       return;
     }
 
-    // If deep scan is chosen, prompt paywall checkout
+    // Step 1: Pre-check S3 and SQLite for existing audit of the selected profile
+    try {
+      const check = await precheckScanTarget(values.url, values.profile);
+      if (check.exists && check.scanId) {
+        setCachedAudit(check);
+        setPendingValues(values);
+        setIsExistingModalOpen(true);
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('[SiteUrlForm] Precheck note:', checkErr);
+    }
+
+    // Step 2: If deep scan is chosen and no cached audit, prompt paywall checkout
     if (values.profile === 'authorized_deep') {
       setPendingValues(values);
       setIsPaywallOpen(true);
@@ -115,6 +135,33 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
     }
   };
 
+  const handleReaudit = async () => {
+    setIsExistingModalOpen(false);
+    if (!pendingValues) return;
+
+    // If deep scan is chosen, prompt Razorpay payment before re-running
+    if (pendingValues.profile === 'authorized_deep') {
+      setIsPaywallOpen(true);
+      return;
+    }
+
+    try {
+      await onSubmitScan({
+        url: pendingValues.url,
+        profile: pendingValues.profile,
+        acknowledgedTerms: pendingValues.acknowledgedTerms,
+        turnstileToken,
+        forceRescan: true,
+        userEmail: user?.email,
+        userName: user?.name,
+      });
+    } catch (err: any) {
+      setTurnstileResetKey((k) => k + 1);
+      setTurnstileToken('');
+      setInternalError(err.message || 'Failed to initiate scan. Please check your network connection.');
+    }
+  };
+
   const handlePaymentSuccess = async (paymentData: { paymentId: string; orderId?: string; couponCode?: string }) => {
     setIsPaywallOpen(false);
     if (!pendingValues) return;
@@ -125,6 +172,7 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
         profile: pendingValues.profile,
         acknowledgedTerms: pendingValues.acknowledgedTerms,
         turnstileToken,
+        forceRescan: true,
         paymentId: paymentData.paymentId,
         orderId: paymentData.orderId,
         couponCode: paymentData.couponCode,
@@ -276,6 +324,21 @@ export const SiteUrlForm: React.FC<SiteUrlFormProps> = ({
         onClose={() => setIsPaywallOpen(false)}
         targetUrl={pendingValues?.url || watchedUrl || ''}
         onPaymentSuccess={handlePaymentSuccess}
+      />
+    )}
+
+    {/* Existing Audit Found Modal */}
+    {isExistingModalOpen && (
+      <ExistingAuditModal
+        isOpen={isExistingModalOpen}
+        onClose={() => setIsExistingModalOpen(false)}
+        cachedAudit={cachedAudit}
+        onViewExisting={(scanId) => {
+          setIsExistingModalOpen(false);
+          navigate(`/app/scans/${scanId}`);
+        }}
+        onReaudit={handleReaudit}
+        isReauditing={isSubmitting}
       />
     )}
     </>

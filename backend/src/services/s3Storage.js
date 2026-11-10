@@ -113,7 +113,7 @@ class LocalFileStorage {
     return `http://localhost:${config.port}/api/artifacts/download?key=${encodeURIComponent(key)}&expiresIn=${expiresInSeconds}`;
   }
 
-  async findLatestScanReportByHostname(hostname) {
+  async findLatestScanReportByHostname(hostname, profile = null) {
     if (!hostname) return null;
     const sanitized = sanitizeTargetHost(hostname);
     const candidateDirs = [
@@ -165,27 +165,32 @@ class LocalFileStorage {
     if (foundFolders.length === 0) return null;
 
     foundFolders.sort((a, b) => b.mtime - a.mtime);
-    const latest = foundFolders[0];
-    try {
-      const content = await fs.readFile(latest.reportPath, 'utf-8');
-      const parsed = JSON.parse(content);
-      const parsedKey = parseScanFromS3Key(latest.folderName) || {};
-      const scanId = parsed.scanId || parsedKey.scanId || latest.folderName.split('__')[1] || 'unknown';
-      const s3Key = `scans/${latest.folderName}/report.json`;
-      return {
-        scanId,
-        targetUrl: parsed.targetUrl || parsed.url || `https://${hostname}`,
-        normalizedHostname: parsed.normalizedHostname || hostname,
-        createdAt: parsed.createdAt || new Date(latest.mtime).toISOString(),
-        status: parsed.status || 'COMPLETED',
-        summary: parsed.summary || {},
-        readinessScore: parsed.summary?.readinessScore ?? null,
-        s3Key,
-        report: parsed,
-      };
-    } catch {
-      return null;
+    for (const item of foundFolders) {
+      try {
+        const content = await fs.readFile(item.reportPath, 'utf-8');
+        const parsed = JSON.parse(content);
+        const reportProfile = parsed.scanProfile || parsed.profile || parsed.report?.scanProfile || 'baseline_public';
+        if (profile && reportProfile !== profile) {
+          continue;
+        }
+        const parsedKey = parseScanFromS3Key(item.folderName) || {};
+        const scanId = parsed.scanId || parsedKey.scanId || item.folderName.split('__')[1] || 'unknown';
+        const s3Key = item.folderName.endsWith('.json') ? `audits/${item.folderName}.json` : `scans/${item.folderName}/report.json`;
+        return {
+          scanId,
+          targetUrl: parsed.targetUrl || parsed.url || `https://${hostname}`,
+          normalizedHostname: parsed.normalizedHostname || hostname,
+          scanProfile: reportProfile,
+          createdAt: parsed.createdAt || new Date(item.mtime).toISOString(),
+          status: parsed.status || 'COMPLETED',
+          summary: parsed.summary || {},
+          readinessScore: parsed.summary?.readinessScore ?? null,
+          s3Key,
+          report: parsed,
+        };
+      } catch {}
     }
+    return null;
   }
 }
 
@@ -402,10 +407,10 @@ export class S3StorageService {
    * Discovers the latest completed scan report for a target hostname from S3.
    * Enables cross-tenant global caching across different users.
    */
-  async findLatestScanReportByHostname(hostname) {
+  async findLatestScanReportByHostname(hostname, profile = null) {
     if (!hostname) return null;
     if (this.useLocal) {
-      return localStorage.findLatestScanReportByHostname(hostname);
+      return localStorage.findLatestScanReportByHostname(hostname, profile);
     }
 
     const sanitized = sanitizeTargetHost(hostname);
@@ -435,34 +440,40 @@ export class S3StorageService {
     }
 
     if (candidateKeys.length === 0) {
-      return localStorage.findLatestScanReportByHostname(hostname);
+      return localStorage.findLatestScanReportByHostname(hostname, profile);
     }
 
     candidateKeys.sort((a, b) => b.lastModified - a.lastModified);
-    const newest = candidateKeys[0];
 
-    try {
-      const content = await this.getObjectContent(newest.key);
-      if (!content) return null;
-      const parsed = JSON.parse(content);
-      const parsedKey = parseScanFromS3Key(newest.key) || {};
-      const scanId = parsed.scanId || parsedKey.scanId || 'unknown';
+    for (const cand of candidateKeys) {
+      try {
+        const content = await this.getObjectContent(cand.key);
+        if (!content) continue;
+        const parsed = JSON.parse(content);
+        const reportProfile = parsed.scanProfile || parsed.profile || parsed.report?.scanProfile || 'baseline_public';
+        if (profile && reportProfile !== profile) {
+          continue;
+        }
+        const parsedKey = parseScanFromS3Key(cand.key) || {};
+        const scanId = parsed.scanId || parsedKey.scanId || 'unknown';
 
-      return {
-        scanId,
-        targetUrl: parsed.targetUrl || parsed.url || `https://${hostname}`,
-        normalizedHostname: parsed.normalizedHostname || hostname,
-        createdAt: parsed.createdAt || (newest.lastModified ? new Date(newest.lastModified).toISOString() : new Date().toISOString()),
-        status: parsed.status || 'COMPLETED',
-        summary: parsed.summary || {},
-        readinessScore: parsed.summary?.readinessScore ?? null,
-        s3Key: newest.key,
-        report: parsed,
-      };
-    } catch (err) {
-      console.warn(`[S3Storage] Failed to parse S3 report ${newest.key}:`, err.message);
-      return null;
+        return {
+          scanId,
+          targetUrl: parsed.targetUrl || parsed.url || `https://${hostname}`,
+          normalizedHostname: parsed.normalizedHostname || hostname,
+          scanProfile: reportProfile,
+          createdAt: parsed.createdAt || (cand.lastModified ? new Date(cand.lastModified).toISOString() : new Date().toISOString()),
+          status: parsed.status || 'COMPLETED',
+          summary: parsed.summary || {},
+          readinessScore: parsed.summary?.readinessScore ?? null,
+          s3Key: cand.key,
+          report: parsed,
+        };
+      } catch (err) {
+        console.warn(`[S3Storage] Failed to parse S3 report ${cand.key}:`, err.message);
+      }
     }
+    return null;
   }
 }
 
