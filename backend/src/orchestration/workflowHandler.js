@@ -542,6 +542,19 @@ export async function executeScanPipelineLocally(job) {
     // 5. Automatic Audit Report & Invoice Email Dispatch for Paid Deep Scans
     if (scanProfile === 'authorized_deep' && (terminalStatus === 'COMPLETED' || terminalStatus === 'PARTIAL')) {
       const completedScan = await dbService.getScan(scanId);
+
+      // Guard against duplicate email dispatch if scan was re-processed or already dispatched
+      if (completedScan?.emailSent) {
+        console.log(`[WorkflowHandler] Deep scan ${scanId} audit email already dispatched. Skipping duplicate send.`);
+        return;
+      }
+
+      // Guard against test scans triggering live emails
+      if (scanId?.startsWith('scn_email_unit_') || scanId?.startsWith('scn_test') || job.ownerUserId === 'usr_unit_test') {
+        console.log(`[WorkflowHandler] Test scan ${scanId} detected. Skipping live email dispatch.`);
+        return;
+      }
+
       const recipientEmail = job.ownerEmail || completedScan?.ownerEmail;
       const recipientName = job.ownerName || completedScan?.ownerName;
       const paymentId = job.paymentId || completedScan?.paymentId;

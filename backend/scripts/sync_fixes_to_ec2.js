@@ -59,6 +59,10 @@ async function main() {
     'c:\\vibesift\\backend\\src\\orchestration\\workflowHandler.js',
     '/var/www/vibesift/backend/src/orchestration/workflowHandler.js'
   );
+  await uploadFileViaSSM(
+    'c:\\vibesift\\backend\\src\\services\\emailService.js',
+    '/var/www/vibesift/backend/src/services/emailService.js'
+  );
 
   console.log('Reloading PM2 service on EC2...');
   const reloadScript = `

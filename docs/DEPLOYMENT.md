@@ -10,7 +10,7 @@
 ## 1. Local Development (Zero Cloud Dependencies)
 
 You can run and test the complete frontend and backend locally with zero cloud accounts required:
-- In-memory & local filesystem storage (`.local_storage/vibesift.sqlite`) mock DynamoDB and S3.
+- In-memory & local filesystem storage (`.local_storage/vibesift.sqlite`) provides full SQLite and local S3 emulation.
 - Scans execute through the local asynchronous pipeline.
 - SSRF protections remain fully active and enforced.
 - Development auth tokens are accepted (`Authorization: Bearer demo_user_123`).

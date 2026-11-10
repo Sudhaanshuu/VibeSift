@@ -885,6 +885,70 @@ curl -i https://vibesift.pixir.in/sitemap.xml
 # Expected: XML sitemap listing 10 canonical URLs (<loc>https://vibesift.pixir.in/pricing</loc>, etc.)
 ```
 
+
+### Scenario I: Inspecting & Querying Production SQLite Database on EC2 Console
+
+The production database is located on the EC2 host at:
+`/var/www/vibesift/.local_storage/vibesift.sqlite` (running in SQLite 3 WAL Mode).
+*(Note: Legacy DynamoDB tables have been decommissioned and removed; all state runs on SQLite + Amazon S3).*
+
+#### 1. Connect via AWS EC2 Management Console
+1. Navigate to [AWS EC2 Console](https://console.aws.amazon.com/ec2/) -> **Instances**.
+2. Select `vibesift-core-host-prod` (`i-0657c75769eb55165`).
+3. Click **Connect** -> choose **Session Manager** (or **EC2 Instance Connect**) -> click **Connect**.
+4. In the browser terminal, switch to `ubuntu`:
+   ```bash
+   sudo su - ubuntu
+   ```
+
+#### 2. Open SQLite CLI
+```bash
+sqlite3 /var/www/vibesift/.local_storage/vibesift.sqlite
+```
+Inside the `sqlite>` prompt, set readable column formatting:
+```sql
+.headers on
+.mode column
+```
+
+#### 3. Essential Diagnostic Queries
+```sql
+-- Check total row counts
+SELECT 'scans' as table_name, count(*) as count FROM scans
+UNION ALL
+SELECT 'sites', count(*) FROM sites
+UNION ALL
+SELECT 'findings', count(*) FROM findings;
+
+-- Inspect latest completed audits
+SELECT scanId, targetUrl, status, readinessScore, createdAt 
+FROM scans 
+ORDER BY createdAt DESC 
+LIMIT 5;
+
+-- Check website ownership and verification status
+SELECT siteId, hostname, verified, createdAt 
+FROM sites;
+
+-- Check high and critical security/compliance findings
+SELECT severity, category, title, affectedUrl 
+FROM findings 
+WHERE severity IN ('critical', 'high') 
+LIMIT 10;
+
+-- Database integrity check
+PRAGMA integrity_check;
+
+-- Exit
+.quit
+```
+
+#### 4. Quick Shell One-Liner (No Interactive Shell)
+```bash
+sqlite3 -header -column /var/www/vibesift/.local_storage/vibesift.sqlite \
+  "SELECT scanId, targetUrl, status, createdAt FROM scans ORDER BY createdAt DESC LIMIT 5;"
+```
+
 ---
 
 ## 6. Architecture Component Summary Cheat Sheet

@@ -1,7 +1,7 @@
 # 🚀 VibeSift Live AWS Lambda, Cognito & Real-Time Cloud Architecture Guide
 
 > **Live Demo & Evaluation Specification**  
-> Complete step-by-step walkthrough demonstrating real-time reactivity across **Amazon Cognito**, **AWS Lambda**, **Amazon S3**, **SQLite/DynamoDB**, and the **React 19 Frontend**.
+> Complete step-by-step walkthrough demonstrating real-time reactivity across **Amazon Cognito**, **AWS Lambda**, **Amazon S3**, **SQLite 3 (WAL Mode)**, and the **React 19 Frontend**.
 
 ---
 
@@ -18,7 +18,7 @@ sequenceDiagram
     participant API as VibeSift API (Node.js/Express)
     participant Lambda as AWS Lambda (Python Inspector)
     participant S3 as Amazon S3 (Encrypted Storage)
-    participant SQLite as SQLite / DynamoDB (State Store)
+    participant SQLite as SQLite 3 WAL Mode (State Store)
 
     Note over User,Cognito: Phase 1: Authentication & Identity
     User->>Frontend: Register account (email & password)

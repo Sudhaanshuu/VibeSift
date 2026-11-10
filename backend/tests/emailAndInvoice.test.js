@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateInvoicePdf } from '../src/services/pdf/invoicePdfGenerator.js';
@@ -162,6 +163,7 @@ test('Email Service: saves local preview and records state when dispatching', as
 
   assert.equal(dispatchResult.success, true);
   assert.ok(dispatchResult.emailId, 'Should return a valid emailId');
+  assert.ok(dispatchResult.emailId.startsWith('mock_'), 'Unit test emailId should be a mock ID to prevent unwanted live email dispatch');
 
   // Verify scan record was updated in database
   const updatedScan = await dbService.getScan(testScanId);
