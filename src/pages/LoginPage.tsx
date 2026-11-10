@@ -7,11 +7,15 @@ import { TurnstileWidget } from '../components/common/TurnstileWidget';
 import { Mail, Lock, ArrowRight, AlertTriangle, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const stateMessage = (location.state as any)?.message;
+  const stateEmail = (location.state as any)?.email;
+
+  const [email, setEmail] = useState<string>(stateEmail || '');
   const [password, setPassword] = useState('');
   const [confirmationCode, setConfirmationCode] = useState('');
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(stateMessage || null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string>('');
@@ -19,7 +23,6 @@ export const LoginPage: React.FC = () => {
 
   const { login, confirmSignup, resendCode } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const destination = (location.state as any)?.from?.pathname || '/app';
 
@@ -67,9 +70,13 @@ export const LoginPage: React.FC = () => {
     setInfoMessage(null);
     setSubmitting(true);
     try {
-      await confirmSignup(email, confirmationCode.trim());
-      await login(email, password);
-      navigate(destination, { replace: true });
+      const result = await confirmSignup(email, confirmationCode.trim(), password);
+      if (result.user || result.token) {
+        navigate(destination, { replace: true });
+      } else {
+        setNeedsConfirmation(false);
+        setInfoMessage('Account verified successfully! Please complete security verification to log in.');
+      }
     } catch (err: any) {
       setError(err.message || 'Confirmation failed. Please check the code.');
     } finally {
