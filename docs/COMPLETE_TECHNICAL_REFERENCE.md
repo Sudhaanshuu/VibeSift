@@ -602,7 +602,7 @@ AWS Cognito Identity Provider client service.
 - **`cognitoGetUser(accessToken)`**: Invokes `GetUserCommand` to fetch fresh user attributes.
 
 ### File: `backend/src/services/dynamoStorage.js`
-DynamoDB storage implementation with transparent SQLite dev fallback and cross-tenant caching support.
+Unified database storage service interface routing to SQLite 3 in WAL mode (legacy DynamoDB tables decommissioned).
 
 #### Methods in `DynamoStorageService`:
 - **Sites:**
@@ -947,7 +947,7 @@ The infrastructure is defined in TypeScript using AWS CDK v2 (`infra/`):
 ### 1. `DataStack` (`infra/lib/data-stack.ts`)
 - **AWS KMS Key:** Customer-managed key (`alias/vibesift-${stage}`) with automatic annual key rotation.
 - **Amazon S3 Bucket:** `vibesift-audit-reports-${stage}-${account}`. KMS encrypted, public access blocked, SSL enforced. Lifecycle rules: raw artifacts expire in 90 days; finalized reports transition to Infrequent Access after 30 days.
-- **Amazon DynamoDB Tables:**
+- **Amazon DynamoDB Tables (Historical CDK Prototype — Decommissioned in favor of EC2 SQLite 3 WAL mode + Amazon S3):**
   - `VibeSift-SavedWebsites-${stage}` (Partition Key: `ownerUserId`, Sort Key: `siteId`; GSI: `HostnameIndex`).
   - `VibeSift-Scans-${stage}` (Partition Key: `ownerUserId`, Sort Key: `scanId`; GSIs: `ScanIdIndex`, `IdempotencyIndex`).
   - `VibeSift-Findings-${stage}` (Partition Key: `scanId`, Sort Key: `id`; GSIs: `CategoryIndex`, `SeverityIndex`).

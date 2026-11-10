@@ -1,12 +1,39 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { SiteUrlForm } from './SiteUrlForm';
+import * as AuthContextModule from '../../context/AuthContext';
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(
+    <MemoryRouter>
+      {ui}
+    </MemoryRouter>
+  );
+}
 
 describe('SiteUrlForm Component', () => {
+  beforeEach(() => {
+    vi.spyOn(AuthContextModule, 'useAuth').mockReturnValue({
+      user: { userId: 'usr_test', email: 'test@example.com', username: 'tester', token: 'mock' },
+      isAuthenticated: true,
+      isLoading: false,
+      isMockMode: true,
+      login: vi.fn(),
+      signup: vi.fn(),
+      confirmSignup: vi.fn(),
+      resendCode: vi.fn(),
+      logout: vi.fn(),
+      isLoginModalOpen: false,
+      openLoginModal: vi.fn(),
+      closeLoginModal: vi.fn(),
+    });
+  });
+
   it('renders target URL input, scope options, and submit button', () => {
     const onSubmit = vi.fn();
-    render(<SiteUrlForm onSubmitScan={onSubmit} />);
+    renderWithProviders(<SiteUrlForm onSubmitScan={onSubmit} />);
 
     expect(screen.getByLabelText(/Target Website URL/i)).toBeInTheDocument();
     expect(screen.getByText(/Quick Search/i)).toBeInTheDocument();
@@ -16,7 +43,7 @@ describe('SiteUrlForm Component', () => {
 
   it('displays validation error when submitting an empty URL', async () => {
     const onSubmit = vi.fn();
-    render(<SiteUrlForm onSubmitScan={onSubmit} />);
+    renderWithProviders(<SiteUrlForm onSubmitScan={onSubmit} />);
 
     const submitBtn = screen.getByRole('button', { name: /Start Website Audit/i });
     fireEvent.click(submitBtn);
@@ -29,7 +56,7 @@ describe('SiteUrlForm Component', () => {
 
   it('submits normalized URL when valid inputs are entered', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<SiteUrlForm onSubmitScan={onSubmit} />);
+    renderWithProviders(<SiteUrlForm onSubmitScan={onSubmit} />);
 
     const input = screen.getByLabelText(/Target Website URL/i);
     fireEvent.change(input, { target: { value: 'vibesift.pixir.in' } });
@@ -45,7 +72,7 @@ describe('SiteUrlForm Component', () => {
 
   it('updates submit button to Unlock Deep Audit (₹39) when deep profile is selected', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<SiteUrlForm onSubmitScan={onSubmit} />);
+    renderWithProviders(<SiteUrlForm onSubmitScan={onSubmit} />);
 
     const deepRadio = screen.getByText(/Deep Search/i).closest('[role="radio"]');
     if (deepRadio) fireEvent.click(deepRadio);

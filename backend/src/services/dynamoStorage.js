@@ -26,7 +26,9 @@ if (!config.useLocalStorage) {
 
 export class DynamoStorageService {
   constructor() {
-    this.useLocal = config.useLocalStorage || !docClient;
+    // VibeSift is standardized on SQLite 3 in WAL mode for relational state (scans, sites, findings).
+    // The legacy DynamoDB tables have been decommissioned. All operations route to SQLite.
+    this.useLocal = true;
   }
 
   // ==================== SITES ====================

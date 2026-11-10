@@ -24,7 +24,7 @@ export const config = {
   useLocalStorage: isProduction ? false : process.env.USE_LOCAL_STORAGE === 'true',
   useMockOrchestration: isProduction ? false : process.env.USE_MOCK_ORCHESTRATION === 'true',
 
-  // DynamoDB tables
+  // Legacy DynamoDB tables (Decommissioned — all state stored in SQLite 3 WAL mode)
   tables: {
     sites: process.env.DYNAMODB_SITES_TABLE || 'VibeSift-SavedWebsites-dev',
     scans: process.env.DYNAMODB_SCANS_TABLE || 'VibeSift-Scans-dev',

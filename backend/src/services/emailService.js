@@ -370,8 +370,17 @@ export async function sendDeepSearchAuditEmail(params) {
 
     let emailResult = null;
 
-    // 5. Send via SMTP2GO API if key configured
-    if (apiKey) {
+    // Guard: Prevent sending real emails during test suites, unit testing, or dry runs
+    const isTestEnvironment =
+      params.dryRun === true ||
+      process.env.NODE_ENV === 'test' ||
+      scan?.scanId?.startsWith('scn_email_unit_') ||
+      scan?.scanId?.startsWith('scn_test') ||
+      scan?.ownerUserId === 'usr_unit_test' ||
+      recipientName === 'Unit Tester';
+
+    // 5. Send via SMTP2GO API if key configured and not in test/dry-run mode
+    if (apiKey && !isTestEnvironment) {
       console.log(`[EmailService] Dispatching email to ${recipientEmail} via SMTP2GO REST API...`);
 
       const payload = {
@@ -407,8 +416,8 @@ export async function sendDeepSearchAuditEmail(params) {
         emailResult = { success: false, error: String(errorDesc) };
       }
     } else {
-      // Local dev mock fallback: save email to .local_storage/emails/
-      console.log(`[EmailService] SMTP2GO_API_KEY not configured. Saving email preview locally...`);
+      // Local dev & test mock fallback: save email to .local_storage/emails/
+      console.log(`[EmailService] ${isTestEnvironment ? 'Test/mock mode detected' : 'SMTP2GO_API_KEY not configured'}. Saving email preview locally...`);
       const emailsDir = path.resolve(process.cwd(), '.local_storage', 'emails');
       await fs.mkdir(emailsDir, { recursive: true });
 

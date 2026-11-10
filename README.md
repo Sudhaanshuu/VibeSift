@@ -189,7 +189,8 @@ The backend is built with **Node.js 22+ (ES Modules)**, **Python 3.11**, and **A
 - **Rules-Based Explanation & Executive Summary Service (`backend/src/services/explanationService.js`)**:
   - Pure deterministic, high-speed rules-based developer guidance and executive summaries (zero external AI latency or costs).
 - **AWS Infrastructure & Orchestration**:
-  - Storage: High-throughput local SQLite 3 (WAL mode) / Amazon DynamoDB + KMS-encrypted Amazon S3 bucket.
+  - Storage: High-throughput SQLite 3 (WAL mode) on NVMe SSD + KMS-encrypted Amazon S3 bucket (legacy DynamoDB tables decommissioned).
+  - EC2 Console Inspection: Inspect & query production SQLite via AWS Session Manager (see [RUN.md](RUN.md)).
   - Configuration: AWS Systems Manager (SSM) Parameter Store (`/vibesift/prod/*`) with zero hardcoded plain text secrets.
   - Compute: Dedicated Node.js on AWS EC2 with PM2 process manager (`vibesift-backend` & `vibesift-sqs-worker`) + AWS Lambda (`vibesift-python-inspector-dev`).
   - Orchestration: Amazon SQS FIFO Queue (`vibesift-scan-jobs.fifo`) with dedicated FIFO Dead-Letter Queue (DLQ).
