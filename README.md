@@ -49,7 +49,7 @@ A developer-grade, evidence-backed SaaS platform designed to audit websites buil
 
 ---
 
-## 🛡️ Audit Scopes & Pricing Model
+## 🛡️ Audit Scopes and Pricing Model
 
 ### 1. Quick Search (Baseline Public Scan — `baseline_public`)
 - **Cost**: **Free (₹0)**
